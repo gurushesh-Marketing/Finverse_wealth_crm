@@ -55,3 +55,12 @@ Result: installer reported `installed`, plugin `ecc@ecc`, project scope, standar
 Verified with `claude plugin list --json`: ECC 2.2.2 was enabled at project scope for `C:\Users\gurus\Music\finverse wealth\CRM\finverse-crm`.
 
 In the Claude Code session, `/reload-plugins` reported 1 plugin, 386 skills, 74 agents, 24 hooks, and 1 plugin MCP server loaded. Interactive `/plugin list` continued to say "No plugins installed"; this display inconsistency is unresolved. No reinstall or manual file copying was done.
+
+## Step 005 — Root CLAUDE.md (2026-09-27)
+
+- Purpose: provide Claude Code with project-level instructions so every session starts with the correct phase, architecture constraints, vertical/role access rules, working cycle, and pointers to the spec documents — without duplicating their content.
+- Exact Claude prompt: "Read Readme.md, docs/process/BUILD_LOG.md, docs/product/FRONTEND_EXECUTION.md, and the structure of docs/product/action_catalogue_v2.json. Draft a concise root CLAUDE.md … Show the complete proposed CLAUDE.md text … Do not create the file yet." Followed by: "yes go head u have full access permision."
+- What it was expected to change: create `CLAUDE.md` at the repository root.
+- What actually changed: `CLAUDE.md` created with nine sections — sources-of-truth index, phase/scope declaration, architecture decisions, four-vertical and role-access types, component state contract, six-step working cycle, subagent/worktree policy, assumption registry, and ECC catalog exclusion note.
+- Verification and result: `git status` shows `CLAUDE.md` as an untracked new file; no other files modified.
+- Problem and fix: ECC GateGuard hook intercepted the first Write call and required a fact-forcing statement (file purpose, no duplicate exists, no data fields, user instruction verbatim); re-issued Write succeeded.
