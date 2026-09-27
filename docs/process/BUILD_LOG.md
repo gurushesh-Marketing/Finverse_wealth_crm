@@ -64,3 +64,11 @@ In the Claude Code session, `/reload-plugins` reported 1 plugin, 386 skills, 74 
 - What actually changed: `CLAUDE.md` created with nine sections — sources-of-truth index, phase/scope declaration, architecture decisions, four-vertical and role-access types, component state contract, six-step working cycle, subagent/worktree policy, assumption registry, and ECC catalog exclusion note.
 - Verification and result: `git status` shows `CLAUDE.md` as an untracked new file; no other files modified.
 - Problem and fix: ECC GateGuard hook intercepted the first Write call and required a fact-forcing statement (file purpose, no duplicate exists, no data fields, user instruction verbatim); re-issued Write succeeded.
+## Step 006 — Refine project instructions (2026-09-27)
+
+- Purpose: review CLAUDE.md before using it for future development sessions.
+- Claude prompt: revise only CLAUDE.md; remove the fixed date; make UI states relevant to each action; run build, lint, and Playwright only when applicable; leave concurrent assignments unresolved; verify the ECC guidance reference; show the diff and stop without committing.
+- What changed: clarified component states and conditional checks, replaced the single-assignment claim with an unresolved assumption, and updated the ECC guidance reference.
+- Manual edits: removed the laptop-specific working-directory line and stated that a Team Lead can have multiple Super Admin-granted teams.
+- Verification: inspected the actual Git diff; `git diff --check` reported no whitespace errors. Git printed only an LF-to-CRLF line-ending notice.
+- Problem and fix: removed one trailing space from the CEO/CFO access line.

@@ -1,7 +1,7 @@
 # CLAUDE.md — Finverse CRM
 
-> Working directory: `C:\Users\gurus\Music\finverse wealth\CRM\finverse-crm`
-> Current date baseline: 2026-09-27 | Phase: **Frontend execution**
+
+> Phase: **Frontend execution**
 
 ---
 
@@ -83,18 +83,30 @@ and by real server-side checks once the API exists. Another caller's lead, anoth
 vertical's records, and out-of-scope teams must return an empty or denied state —
 never customer data.
 
-CEO and CFO see all four verticals. All other roles see only their `verticalGrants`.
+CEO and CFO see all four verticals.
+A Team Lead may have multiple `teamGrants` when assigned by Super Admin;
+access remains limited to those granted teams.
+All other roles see only their `verticalGrants`.
 
 ---
 
 ## 5. Component behavior contract (summary)
 
-Every user-facing action must represent these states:
+Each action must handle the states that are relevant to it. Not every state
+applies to every control; implement the ones that can actually occur:
 
-```
-idle → loading → ready | empty | invalid | saving → success | conflict |
-                                                     permission-changed | provider-failure
-```
+| State | Applies when |
+|---|---|
+| `idle` | Control is mounted and waiting for user input |
+| `loading` | An async operation is in flight |
+| `ready` | Data loaded successfully |
+| `empty` | Scoped query returned no results |
+| `invalid` | Form validation failed |
+| `saving` | Write operation in flight |
+| `success` | Write accepted by the system |
+| `conflict` | Optimistic update collided with a concurrent change |
+| `permission-changed` | Session grants changed mid-workflow |
+| `provider-failure` | An external service is unavailable |
 
 - `Save draft` ≠ system commit.
 - `Submit` validates and shows the accepted state.
@@ -118,9 +130,14 @@ For every task in this project:
 2. **Plan** — identify files to create or change; call out assumptions explicitly
    (see §8).
 3. **Implement** — one slice at a time; match the existing code style.
-4. **Review** — run `pnpm build` and `pnpm lint`; fix errors before marking done.
-5. **Verify** — run Playwright tests for the slice; confirm role and scope isolation
-   with fixture data.
+4. **Review** — for application-code changes, run `pnpm build` and `pnpm lint`
+   once the app exists and fix errors before marking done. For documentation or
+   configuration-only changes, use checks appropriate to those files (e.g.,
+   Markdown linting, JSON validation).
+5. **Verify** — for application-code changes, run Playwright for the user
+   workflows affected by the slice and confirm role and scope isolation with
+   fixture data. For documentation or configuration-only changes, verify the
+   content is accurate and consistent with the sources of truth.
 6. **Update docs** — add a dated step entry to `docs/process/BUILD_LOG.md` using the
    established format:
    ```
@@ -161,9 +178,11 @@ The following are working assumptions, not confirmed product decisions. Label th
 - Vertical-specific compliance rules (e.g., what a Banking SC can see vs. a Wealth
   SC) are not yet documented; the fixture uses the most conservative read — grant
   nothing extra by default.
-- The definition of "active assignment" for edge cases (concurrent assignments,
-  role changes mid-period) is unspecified; the fixture treats it as exactly one
-  assignment per employee at any moment.
+- The definition of "active assignment" and concurrent-assignment policy is
+  unresolved. The fixture uses a single active assignment per employee as a
+  starting point, but concurrent or overlapping assignments, role changes
+  mid-period, and effective-date boundaries are not yet specified. Mark any
+  fixture logic that depends on this as `[ASSUMPTION]`.
 - Report aggregation rules are stated in FRONTEND_EXECUTION.md as must-use facts
   (not card sums or averaged percentages) — implementation defers totals to the
   mock repository layer until confirmed.
@@ -176,5 +195,5 @@ and remove any corresponding `[ASSUMPTION]` comments.
 ## 9. What not to store here
 
 ECC's full rule catalog, skill definitions, and hook catalog live in the ECC plugin
-and its own documentation. Do not copy them here. For harness guidance, run
-`/ecc-guide` or read `docs/process/BUILD_LOG.md` §Step 004.
+and its own documentation. Do not copy them here. For harness guidance, use the
+`ecc:ecc-guide` skill or read `docs/process/BUILD_LOG.md` §Step 004.
