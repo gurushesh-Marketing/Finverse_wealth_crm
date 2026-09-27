@@ -153,18 +153,23 @@ Do not skip the BUILD_LOG entry. It is the project's teaching record.
 
 ---
 
-## 7. Subagents and Git worktrees
+## 7. Agent coordination and delegation
 
-Task-specific subagents are allowed when a slice benefits from isolation (e.g.,
-parallel build-fix and review, or a self-contained Playwright run). Spin up an
-isolated Git worktree for work that could leave the tree in an intermediate state
-before merging.
+When delegating work to subagents, follow the procedures in `docs/process/AGENT_WORKFLOW.md`:
+hierarchy, delegation contract, skill selection, bounded execution, and integration
+checklist. Consult `docs/process/STATUS.md` for current progress and unresolved
+issues before asking questions. Use `docs/process/SKILL_MAP.md` to select the
+right skill for each task.
 
-OmniRoute selects the model. Do not pin a model ID in prompts or scripts.
-
-Prefer small, verifiable slices over one large agent sweep of all 135 actions.
-Review each completed slice against the catalogue's validation, system effect,
-reporting effect, and exception rules before starting the next.
+**Key rules:**
+- Task-specific subagents are allowed when a slice benefits from isolation (e.g.,
+  parallel build-fix and review, or a self-contained Playwright run).
+- Spin up isolated Git worktrees for concurrent writers.
+- OmniRoute selects the model. Do not pin a model ID in prompts or scripts.
+- Prefer small, verifiable slices over one large agent sweep of all 135 actions.
+- Review each completed slice against the catalogue's validation, system effect,
+  reporting effect, and exception rules before starting the next.
+- Parents verify child results before reporting completion upward.
 
 ---
 
@@ -196,4 +201,8 @@ and remove any corresponding `[ASSUMPTION]` comments.
 
 ECC's full rule catalog, skill definitions, and hook catalog live in the ECC plugin
 and its own documentation. Do not copy them here. For harness guidance, use the
-`ecc:ecc-guide` skill or read `docs/process/BUILD_LOG.md` §Step 004.
+`ecc:ecc-guide` skill.
+
+Installed skill details live in `docs/process/SKILL_MAP.md`. Agent coordination
+procedures live in `docs/process/AGENT_WORKFLOW.md`. Current project status and
+unresolved issues live in `docs/process/STATUS.md`.
