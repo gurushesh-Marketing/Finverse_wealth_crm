@@ -28,3 +28,20 @@ For every later step, record:
 - What actually changed:
 - Verification and result:
 - Problem and fix, if any:
+## Step 003 — Claude Code and OmniRoute preflight
+
+- Date recorded: 2026-09-27.
+- Claude Code version: 2.1.282.
+- OmniRoute version: 3.8.48.
+- Launch order: start OmniRoute, then launch Claude Code through OmniRoute.
+- Claude working directory: `C:\Users\gurus\Music\finverse wealth\CRM\finverse-crm`.
+- Connection shown by `/status`: `http://localhost:20128`; model route `FREE-STACK-COMBO`.
+- Plan mode: confirmed by the `plan mode on` indicator.
+
+Read-only test prompt:
+
+> Read-only setup check. Do not edit files, install packages, or create files. Report the Git branch and latest commit message, the folders directly inside docs, and whether this project has a CLAUDE.md or project subagents. Do not open PDFs or credential files. End with "Files changed: none."
+
+Result: Claude reported branch `main`, latest commit `d141a18`, folders `brand`, `product`, `reference`, and `process`, with no `CLAUDE.md` or project subagents. It reported no file changes.
+
+Independent verification: `git status --short` produced no output.
