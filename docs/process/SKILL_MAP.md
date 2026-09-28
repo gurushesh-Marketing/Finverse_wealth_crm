@@ -2,7 +2,7 @@
 
 This document records the exact installed skills, their sources, purposes, and invocation rules.
 
-Last updated: 2026-09-27 (Step 009)
+Last updated: 2026-09-28 (Step 010)
 
 ---
 
@@ -139,9 +139,6 @@ Move to "Installed skills" only after verification with `skills-lock.json`.
 
 | Pack | Correct purpose | Status |
 |---|---|---|
-| Graphify | Code and document knowledge graphs (not graph visualization of tasks) | Not installed |
-| Ponytail | Implementation simplicity and reuse (not data pipeline workflows) | Not installed |
-| Memory tools | Context recall, project memory | Not installed |
 | VibeSec | Security workflows | Not installed |
 | SkillSpector | Skill analysis | Not installed |
 | Impeccable | Quality enforcement | Not installed |
@@ -150,6 +147,23 @@ Move to "Installed skills" only after verification with `skills-lock.json`.
 | Awesome Claude Design/Skills | Community collections | Not installed |
 | jeffallan/claude-skills | Community skills | Not installed |
 | alirezarezvani/claude-skills | Community skills | Not installed |
+
+---
+## Recently installed (development-tools setup — 2026-09-28)
+
+Verification sources vary by skill: `skills-lock.json` entries for Matt Pocock and
+ECC skills; plugin record (`claude plugin list --json`) for Graphify and
+Claude-Mem; file presence in `.claude/skills/<name>/SKILL.md` for copied project
+skills (Design Taste Frontend). Ponytail appears in both `skills-lock.json`
+(`DietrichGebert/ponytail`) and as a copied project skill. A fresh checkout must
+reinstall the Graphify runtime (`.venv-graphify/`) for its hooks to function.
+
+| Pack | Source | Version | Scope | Purpose | Verification |
+|---|---|---|---|---|---|
+| Graphify | cli install | 0.9.69 | project | Code and document knowledge graphs — query, path, explain, update | `graphify-out/graph.json` created (27 nodes, 46 edges, 6 communities); **baseline graph covers setup scripts and shell utilities only, not CRM application code** |
+| Ponytail | `DietrichGebert/ponytail` (skills-lock.json) | — | project | Forces laziest working solution — YAGNI, stdlib-first, shortest diff | Two entries: `ponytail` (main skill, `.claude/skills/ponytail/SKILL.md`) and `ponytail-review` (review companion, `.claude/skills/ponytail-review/SKILL.md`); both verified from SKILL.md files directly |
+| Design Taste Frontend | copied project skill | — | project | Anti-slop frontend design for landing pages / portfolios / redesigns | Copied to `.claude/skills/design-taste-frontend/SKILL.md`; does **not** appear in `skills-lock.json` — installed by file presence |
+| Claude-Mem | MCP server | 13.28.0 | project | Persistent context recall, project memory | Worker healthy on port 37991; `mcpReady: true, degraded: false`; **worker health does not prove memory capture or compression** — first search returned no stored observations; related facts surfaced from project docs, not memory store |
 
 ---
 

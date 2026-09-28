@@ -11,3 +11,8 @@ graphify-out/
 .claude/settings.local.json
 Thumbs.db
 docs/reference/*.pdf
+/.venv-graphify/
+/.claude/settings.json.graphify-bak
+/.tools/
+/.memory/
+/.claude/settings.local.json

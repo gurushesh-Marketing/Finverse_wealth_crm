@@ -1,4 +1,32 @@
 {
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.venv-graphify/Scripts/graphify.exe hook-guard search",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.venv-graphify/Scripts/graphify.exe hook-guard read",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "ecc@ecc": true,
+    "claude-mem@thedotmack": true
+  },
   "extraKnownMarketplaces": {
     "ecc": {
       "source": {
@@ -6,8 +34,5 @@
         "url": "https://github.com/affaan-m/ECC.git"
       }
     }
-  },
-  "enabledPlugins": {
-    "ecc@ecc": true
   }
 }

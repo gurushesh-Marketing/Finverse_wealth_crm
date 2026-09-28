@@ -1,12 +1,12 @@
 # Project status
 
-Last updated: 2026-09-27 (Step 009 — agent setup checkpoint)
+Last updated: 2026-09-28 (Step 010 — development-tools record update)
 
 ---
 
 ## Current checkpoint
 
-**Phase:** Agent configuration complete; runtime validation partial
+**Phase:** Development-tools setup complete; ready for frontend foundation initialization
 
 **Completed:**
 - Step 001: Local Git repository initialized
@@ -18,8 +18,9 @@ Last updated: 2026-09-27 (Step 009 — agent setup checkpoint)
 - Step 007: Agent coordination layer created (AGENT_WORKFLOW.md, SKILL_MAP.md, STATUS.md)
 - Step 008: Project-local agent definitions created; AGENT_WORKFLOW.md updated with hierarchy, parent-managed isolation, recovery budget; SKILL_MAP.md rebuilt from skills-lock.json (38 skills)
 - Step 009: Agent setup checkpoint — 5 parent agents confirmed with recorded launches; finverse-data-analyst child launch confirmed but timed out; 4 other child agents have parent-reported results only; Agent/Skill tool distinction clarified in definitions and workflow
+- Step 010: Development-tools record update — Graphify 0.9.69, Ponytail, Design Taste Frontend, Claude-Mem 13.28.0 correctly documented in SKILL_MAP.md; inaccuracies corrected (commit ref, Ponytail source, skills-lock.json requirement, Claude-Mem worker health vs. memory capture, Graphify graph scope)
 
-**Committed at:** ea9889d (Step 005) — all later changes uncommitted
+**Committed at:** 426935d — `chore: configure project agents and development workflow` (all later changes uncommitted)
 
 ---
 
@@ -46,8 +47,8 @@ Last updated: 2026-09-27 (Step 009 — agent setup checkpoint)
 
 ## Next setup tasks
 
-1. Review and commit agent configuration checkpoint (Steps 006–009)
-2. Initialize the Next.js production app (Phase 0 from FRONTEND_EXECUTION.md)
+1. Review and commit development-tools record update (Step 010)
+2. Initialize the Next.js production app — **frontend foundation initialization** (Phase 0 from FRONTEND_EXECUTION.md)
 3. Port brand assets and tokens from prototype reference
 4. Implement Phase 0 foundation (Next.js init, shadcn/ui, brand tokens, workspace session fixture)
 5. Validate remaining agent handoffs during real feature work
@@ -105,3 +106,4 @@ None at this time.
 - OmniRoute model route: `FREE-STACK-COMBO`. Not in Claude Code's model catalog; auto-compact enforces 200k token budget. Experienced temporary unavailability during Step 008 (5 write timeouts); recovered after brief wait.
 - Action deck PDF: `docs/reference/NEW-Finverse_Wealth_CRM_Premium_UIUX_Action_Deck.pdf` is gitignored; will not exist in new worktrees. Parent-managed isolation procedure handles reference access explicitly.
 - Skill `writing-for-agents` successfully invoked via Skill tool in Step 009 — confirmed model-invocable skill works.
+- Graphify shared hooks: the project-local `.venv-graphify/` executable is gitignored. A fresh checkout must install that runtime before Graphify hooks work. The graph itself (`graphify-out/`) is tracked.

@@ -142,5 +142,22 @@ In the Claude Code session, `/reload-plugins` reported 1 plugin, 386 skills, 74 
 
 - **Status:** Agent configuration checkpoint complete. Runtime validation partial.
 - **Confirmed:** 5 parent agents, 1 child agent (finverse-data-analyst) launched via Agent tool. 4 child agents have parent-reported results only.
-- **Pending:** finverse-data-analyst result and parent integration (child timed out). Remaining agent handoffs to be validated during real feature work. Application testing pending pending Next.js app initialization.
+- **Pending:** finverse-data-analyst result and parent integration (child timed out). Remaining agent handoffs to be validated during real feature work. Application testing pending Next.js app initialization.
 - **Next action:** Initialize the frontend foundation (Phase 0 from FRONTEND_EXECUTION.md — Next.js app, shadcn/ui, brand tokens, workspace session fixture).
+
+## Step 010 — Development-tools record update (2026-09-28)
+
+- Purpose: correct and complete the SKILL_MAP.md record for the four development tools installed in the prior session (Graphify 0.9.69, Ponytail, Design Taste Frontend, Claude-Mem 13.28.0); update STATUS.md checkpoint; append this BUILD_LOG entry.
+- Exact Claude prompt: pasted instruction block beginning "Resume the interrupted development-tools record update…"
+- What it was expected to change: `docs/process/SKILL_MAP.md`, `docs/process/STATUS.md`, `docs/process/BUILD_LOG.md` — no other files.
+- What actually changed:
+  - `docs/process/SKILL_MAP.md` — "Recently installed" section rewritten:
+    - Commit ref corrected from implicit to `426935d`.
+    - Ponytail row split into `ponytail` + `ponytail-review` (two SKILL.md files in `.claude/skills/`); source verified as `DietrichGebert/ponytail` from `skills-lock.json`; purpose corrected to "laziest working solution — YAGNI, stdlib-first, shortest diff" (not "implementation simplicity and reuse").
+    - Added explicit note: copied project skills do not need to appear in `skills-lock.json` — installed by file presence.
+    - Claude-Mem: worker health note qualified — `mcpReady: true` does not prove memory capture or compression; first search found no stored observations; related facts came from project docs.
+    - Graphify: graph scope qualified — baseline covers setup scripts and shell utilities, not CRM application code.
+  - `docs/process/STATUS.md` — last-updated header, phase label, completed-steps list, committed-at ref (`ea9889d` → `426935d`), and next-tasks list all updated.
+  - `docs/process/BUILD_LOG.md` — this entry appended.
+- Verification and result: `git diff --check` — no whitespace errors. LF→CRLF line-ending notices on tracked files are expected on Windows and are not errors. The working tree at Step 010 start contained 7 modified tracked files (`.claude/settings.json`, `.gitignore`, `CLAUDE.md`, `docs/process/SKILL_MAP.md`, `docs/process/STATUS.md`, `docs/process/BUILD_LOG.md`, `skills-lock.json`) plus untracked skill files in `.claude/skills/` and `.claude/CLAUDE.md`. This step modified `docs/process/SKILL_MAP.md`, `docs/process/STATUS.md`, `docs/process/BUILD_LOG.md`.
+- Problem and fix: The Step 010 attempt was interrupted mid-session after editing SKILL_MAP.md only; model hand-back stalled. This completion preserves that edit and finishes STATUS.md and BUILD_LOG.md.

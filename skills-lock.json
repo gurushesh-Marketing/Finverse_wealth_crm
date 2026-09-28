@@ -97,6 +97,18 @@
       "skillPath": "skills/misc/migrate-to-shoehorn/SKILL.md",
       "computedHash": "7d31e494a384d1a5b88d1dec6e1f50e673ef1a60f7b0b6e92babfbb242f79b62"
     },
+    "ponytail": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail/SKILL.md",
+      "computedHash": "9e8d05cbbaf6dc38f0cffc924c09b3cbe76d94ba4ba0d09bde803da2f8c6b5a0"
+    },
+    "ponytail-review": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail-review/SKILL.md",
+      "computedHash": "d68b62a2fb83972ca8a9f7f20851baf6563bb7908bc81002214c6c1141486c25"
+    },
     "pr": {
       "source": "mattpocock/skills",
       "sourceType": "github",
