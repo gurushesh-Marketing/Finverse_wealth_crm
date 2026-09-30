@@ -1,12 +1,12 @@
 # Project status
 
-Last updated: 2026-09-28 (Step 010 — development-tools record update)
+Last updated: 2026-09-28 (Step 013 — Phase 0 complete)
 
 ---
 
 ## Current checkpoint
 
-**Phase:** Development-tools setup complete; ready for frontend foundation initialization
+**Phase:** Phase 0 complete — branded foundation, workspace shell, session fixture, repository, Playwright config
 
 **Completed:**
 - Step 001: Local Git repository initialized
@@ -19,39 +19,39 @@ Last updated: 2026-09-28 (Step 010 — development-tools record update)
 - Step 008: Project-local agent definitions created; AGENT_WORKFLOW.md updated with hierarchy, parent-managed isolation, recovery budget; SKILL_MAP.md rebuilt from skills-lock.json (38 skills)
 - Step 009: Agent setup checkpoint — 5 parent agents confirmed with recorded launches; finverse-data-analyst child launch confirmed but timed out; 4 other child agents have parent-reported results only; Agent/Skill tool distinction clarified in definitions and workflow
 - Step 010: Development-tools record update — Graphify 0.9.69, Ponytail, Design Taste Frontend, Claude-Mem 13.28.0 correctly documented in SKILL_MAP.md; inaccuracies corrected (commit ref, Ponytail source, skills-lock.json requirement, Claude-Mem worker health vs. memory capture, Graphify graph scope)
+- Step 011: `apps/web` scaffolded with Next.js 16.3.6 and shadcn/ui Base UI/Nova; user-reported lint and production build passed
+- Step 012: Finverse agent skill preloads configured; QA workers can run targeted checks; user-only skill classifications corrected
+- Step 013: Phase 0 implementation complete — Finverse brand tokens, responsive workspace shell, typed session/fixture contracts, typed repository interface, route-level loading/empty/denied/error states, Playwright configuration
 
-**Committed at:** 426935d — `chore: configure project agents and development workflow` (all later changes uncommitted)
+**Committed at:** 2e4574e — `chore: add project development tools` (Steps 011–013 uncommitted)
 
 ---
 
 ## Current working tree (uncommitted)
 
-- `CLAUDE.md` — modified (§7 §9); refined component states; multi-team TL grant
-- `docs/process/AGENT_WORKFLOW.md` — completely rewritten (Agent/Skill tool distinction, parent-managed isolation, workflow rules, retry budget)
-- `docs/process/SKILL_MAP.md` — completely rebuilt from skills-lock.json (38 Matt Pocock skills categorized; ECC 386 skills / 74 agents / 24 hooks separated; Graphify/Ponytail corrected; known issues documented)
-- `docs/process/STATUS.md` — this file
-- `docs/process/BUILD_LOG.md` — steps 006–009 appended
-- `docs/process/AGENT_VALIDATION.md` — created with validation results table
-- `.claude/agents/finverse-product-manager.md` — updated (Agent tool for child agents, delegation contract, retry budget)
-- `.claude/agents/finverse-engineering-lead.md` — updated (no ECC agents, parent-managed isolation)
-- `.claude/agents/finverse-design-lead.md` — updated (retry budget, dataviz load instruction)
-- `.claude/agents/finverse-qa-lead.md` — updated (no ECC agents, dual worker delegation)
-- `.claude/agents/finverse-devops-engineer.md` — updated (retry budget, BUILD_LOG draft)
-- `.claude/agents/finverse-frontend-builder.md` — updated (isolation paragraph, escalation language)
-- `.claude/agents/finverse-data-analyst.md` — updated (retry budget, escalation language)
-- `.claude/agents/finverse-ux-designer.md` — updated (retry budget, escalation language)
-- `.claude/agents/finverse-qa-tester.md` — updated (retry budget, escalation language, proposed label)
-- `.claude/agents/finverse-access-reviewer.md` — updated (retry budget, escalation language)
+- `apps/web/` — Phase 0 implementation complete:
+  - Brand tokens: Finverse oklch values in `globals.css` (deep navy primary, warm gold accent)
+  - Responsive workspace shell: Desktop sidebar, mobile sheet nav with SSR guard, main shell
+  - Permission-derived navigation: `getAccessibleModuleGroups(session)` — SC fixture sees only wealth modules
+  - Session types: `Role`, `Vertical`, `WorkspaceSession` in `lib/session.ts` with SC fixture session
+  - Repository contract: `IRepository` interface + `FixtureRepository` with session-scoped reads
+  - Module manifest: 17 modules with access helpers in `lib/modules.ts`
+  - Route groups: `(workspace)` layout, wealth dashboard with access check, suspense boundary
+  - Dashboard content: Stat cards, pipeline funnel, activity breakdown, prospect status, recent activity (illustrative)
+  - States: Loading skeleton, empty state, access denied, error boundary
+  - Playwright: Configured with chromium/firefox/webkit/mobile projects
+- `.claude/agents/finverse-*.md` — all ten agent definitions updated with role-matched preloaded skills
+- `.claude/skills/finverse-*/SKILL.md` — three focused QA, access, and reporting skills
+- `docs/process/AGENT_WORKFLOW.md`, `SKILL_MAP.md`, `STATUS.md`, `BUILD_LOG.md` — updated
 
 ---
 
 ## Next setup tasks
 
-1. Review and commit development-tools record update (Step 010)
-2. Initialize the Next.js production app — **frontend foundation initialization** (Phase 0 from FRONTEND_EXECUTION.md)
-3. Port brand assets and tokens from prototype reference
-4. Implement Phase 0 foundation (Next.js init, shadcn/ui, brand tokens, workspace session fixture)
-5. Validate remaining agent handoffs during real feature work
+1. Review the Phase 0 diff and verify all acceptance criteria met
+2. Add a focused Playwright test for meaningful Phase 0 user-visible behavior
+3. Validate parent/child handoffs and executed QA checks on the real app
+4. Review and commit the Phase 0 checkpoint after verification
 
 ---
 
@@ -67,9 +67,9 @@ Last updated: 2026-09-28 (Step 010 — development-tools record update)
 
 **Issue:** The `writing-for-agents` skill file existed in `.claude/skills/` and in `skills-lock.json`, but the Skill tool reported `Unknown skill: writing-for-agents` in Step 008. In Step 009, the Skill tool invocation of `writing-for-agents` succeeded and returned full skill content.
 
-**Status:** Documented in SKILL_MAP.md §Known Issues as two separate issues:
-1. **Unknown-skill error** — Matt Pocock skills may require different registration; `.claude/skills/` directory does not exist; workaround: read SKILL.md directly
-2. **CLI auto-update warning** — `claude skill list` launches interactive session; OmniRoute model name not in local catalog; expected behavior, not a bug
+**Status:** The unknown-skill error was transient: `.claude/skills/` exists and
+Step 009 successfully invoked `writing-for-agents`. SKILL_MAP.md now records
+that evidence. The CLI auto-update/model-catalog warning is separate.
 
 ### finverse-data-analyst is an agent, not a skill (2026-09-27) — RESOLVED
 
@@ -81,13 +81,17 @@ Last updated: 2026-09-28 (Step 010 — development-tools record update)
 
 ## Validation status
 
-**Configuration checkpoint:** Complete — all 10 agent definitions created and updated with delegation rules, retry budget, and tool boundaries.
+**Configuration checkpoint:** All 10 agent definitions have role-matched
+`skills:` preloads; the referenced skill files exist and are model-invocable.
+Static configuration checks pass. Fresh-session runtime preload evidence is
+pending the first implementation delegation.
 
 **Runtime validation:** Partial
 - 5 parent agents confirmed with recorded task IDs
 - finverse-data-analyst child launch confirmed (task a138c4e821d27f323) but timed out; result and parent integration unverified
 - 4 other child agents (finverse-ux-designer, finverse-frontend-builder, finverse-qa-tester, finverse-access-reviewer) have parent-reported results only; no independent task ID evidence
-- Application testing remains pending because no CRM app exists
+- Application workflow testing remains pending because the bootstrapped app
+  has no CRM behavior yet; the starter build and lint passed
 
 Remaining agent handoffs to be validated during real feature work.
 

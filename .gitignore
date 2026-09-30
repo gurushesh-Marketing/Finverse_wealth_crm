@@ -16,3 +16,4 @@ docs/reference/*.pdf
 /.tools/
 /.memory/
 /.claude/settings.local.json
+/.commandcode/taste/

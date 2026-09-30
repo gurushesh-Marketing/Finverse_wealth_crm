@@ -32,10 +32,18 @@ Every assignment states:
 
 ## 3. Skill selection
 
-- Use relevant installed skills on demand via the Skill tool.
+- Each Finverse agent has a small, role-specific `skills:` list in its
+  frontmatter. Claude Code injects those full skills when the agent starts, so
+  the worker applies them throughout its task without a separate Skill call.
+- The `Skill` tool is for a situational skill whose trigger arises during the
+  task; it is not the default way to equip a worker. A worker without the Skill
+  tool can still use its preloaded skills.
 - Use named project agents via the Agent tool (finverse-product-manager, finverse-data-analyst, etc. are agents, not skills).
-- Record the exact installed skill names in `docs/process/SKILL_MAP.md`.
+- Keep the agent-to-skill preload matrix in `docs/process/SKILL_MAP.md` aligned
+  with the actual agent frontmatter and installed SKILL.md files.
 - Distinguish skills that are model-invocable from those requiring explicit user invocation (see SKILL_MAP.md §Invocation eligibility).
+- Add future skills to an agent's preload list only after installation and a
+  role-specific fit are verified. Do not preload a whole skill pack.
 - Skills cannot expand the task's scope or permissions.
 - Consult recorded decisions in `docs/process/BUILD_LOG.md` and `docs/process/STATUS.md` before asking questions.
 - Escalate unresolved business decisions to the main session.

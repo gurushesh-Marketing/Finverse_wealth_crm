@@ -30,31 +30,31 @@ last-known error for this case is `Unknown skill: <name>` from the Skill tool.
 | `codebase-design` | `skills/engineering/codebase-design` | Design module interfaces and architecture | Yes |
 | `diagnosing-bugs` | `skills/engineering/diagnosing-bugs` | Debug with structured investigation | Yes |
 | `domain-modeling` | `skills/engineering/domain-modeling` | Model domain concepts for business logic | Yes |
-| `grill-with-docs` | `skills/engineering/grill-with-docs` | Deep questioning with documentation context | Yes |
-| `implement` | `skills/engineering/implement` | Feature implementation workflow | Yes |
-| `improve-codebase-architecture` | `skills/engineering/improve-codebase-architecture` | Refactor and improve architecture | Yes |
+| `grill-with-docs` | `skills/engineering/grill-with-docs` | Deep questioning with documentation context | No — user-invoked |
+| `implement` | `skills/engineering/implement` | Feature implementation workflow | No — user-invoked |
+| `improve-codebase-architecture` | `skills/engineering/improve-codebase-architecture` | Refactor and improve architecture | No — user-invoked |
 | `prototype` | `skills/engineering/prototype` | Quick prototyping for exploration | Yes |
 | `research` | `skills/engineering/research` | Investigate topics with structured search | Yes |
 | `resolving-merge-conflicts` | `skills/engineering/resolving-merge-conflicts` | Merge conflict resolution | Yes |
-| `setup-matt-pocock-skills` | `skills/engineering/setup-matt-pocock-skills` | Install Matt Pocock skills (setup complete) | Yes (not needed post-setup) |
+| `setup-matt-pocock-skills` | `skills/engineering/setup-matt-pocock-skills` | Install Matt Pocock skills (setup complete) | No — user-invoked |
 | `tdd` | `skills/engineering/tdd` | Test-driven development workflow | Yes |
-| `to-spec` | `skills/engineering/to-spec` | Convert requirements to specification | Yes |
-| `to-tickets` | `skills/engineering/to-tickets` | Break spec into implementation tickets | Yes |
-| `triage` | `skills/engineering/triage` | Bug/issue triage workflow | Yes |
-| `wayfinder` | `skills/engineering/wayfinder` | Codebase navigation and orientation | Yes |
+| `to-spec` | `skills/engineering/to-spec` | Convert requirements to specification | No — user-invoked |
+| `to-tickets` | `skills/engineering/to-tickets` | Break spec into implementation tickets | No — user-invoked |
+| `triage` | `skills/engineering/triage` | Bug/issue triage workflow | No — user-invoked |
+| `wayfinder` | `skills/engineering/wayfinder` | Codebase navigation and orientation | No — user-invoked |
 | `wizard` | `skills/engineering/wizard` | Guided workflows for complex tasks — **user-invoked only** | No (frontmatter disables model invocation) |
 
 ### Productivity skills (8)
 
 | Skill | lockfile path | Purpose | Invocable by agents |
 |---|---|---|---|
-| `ask-matt` | `skills/engineering/ask-matt` | Ask Matt Pocock for guidance | Yes |
+| `ask-matt` | `skills/engineering/ask-matt` | Ask Matt Pocock for guidance | No — user-invoked |
 | `grilling` | `skills/productivity/grilling` | Deep questioning technique for requirements | Yes |
 | `grill-me` | `skills/productivity/grill-me` | Be grilled on your thinking — **user-invoked only** | No (frontmatter disables model invocation) |
-| `handoff` | `skills/productivity/handoff` | Create session handoff documentation | Yes |
-| `teach` | `skills/productivity/teach` | Teaching and explanation workflow | Yes |
-| `to-questionnaire` | `skills/productivity/to-questionnaire` | Convert topic to questionnaire | Yes |
-| `wait-what` | `skills/productivity/wait-what` | Clarify confusing statements | Yes |
+| `handoff` | `skills/productivity/handoff` | Create session handoff documentation | No — user-invoked |
+| `teach` | `skills/productivity/teach` | Teaching and explanation workflow | No — user-invoked |
+| `to-questionnaire` | `skills/productivity/to-questionnaire` | Convert topic to questionnaire | No — user-invoked |
+| `wait-what` | `skills/productivity/wait-what` | Clarify confusing statements | No — user-invoked |
 | `writing-for-agents` | `skills/productivity/writing-for-agents` | Write docs optimized for AI agents | Yes |
 
 ### In-progress skills (9) — installed but not selected for normal workflow
@@ -167,6 +167,36 @@ reinstall the Graphify runtime (`.venv-graphify/`) for its hooks to function.
 
 ---
 
+## Preloaded skills by Finverse agent
+
+Claude Code injects each listed skill's full content into that agent's context
+at startup through the agent's `skills:` frontmatter. This is an always-loaded
+task method, not a separate Skill tool call or a trained model. The agent's
+own prompt and tool list still determine its job and what it can execute.
+
+| Agent | Skills loaded at launch | Task capability |
+|---|---|---|
+| finverse-product-manager | `domain-modeling` | sharpen role, assignment, and action terms before acceptance criteria |
+| finverse-design-lead | `design-taste-frontend` | read the Finverse brief and review visual direction; dashboard rules stay in the product specs |
+| finverse-ux-designer | `design-taste-frontend` | design role-specific screens from the brand and action contract |
+| finverse-engineering-lead | `codebase-design`, `ponytail` | choose a clear module seam and minimum implementation |
+| finverse-frontend-builder | `ponytail`, `tdd` | implement lean behavior with meaningful tests |
+| finverse-qa-lead | `finverse-qa-execution` | decide readiness from executed evidence |
+| finverse-qa-tester | `finverse-qa-execution` | run targeted Playwright checks when available; report actual results |
+| finverse-access-reviewer | `finverse-access-contract` | trace route, read, and write scope; run focused checks |
+| finverse-data-analyst | `finverse-reporting-contract` | define fact-based metrics and attribution with worked examples |
+| finverse-devops-engineer | `ponytail` | keep local tooling and CI setup lean |
+
+The three `finverse-*` skills above are project-local skills in
+`.claude/skills/`; they are intentionally absent from `skills-lock.json`.
+Workers without a `Skill` tool can still use these preloaded skills. The QA
+tester and access reviewer have Bash for targeted checks but no Write/Edit;
+they report findings to their parent instead of fixing application code.
+Future skill packs are mapped here only after installation and a concrete
+role/task fit are verified.
+
+---
+
 ## Known issues
 
 ### Unknown-skill error (2026-09-27)
@@ -174,15 +204,13 @@ reinstall the Graphify runtime (`.venv-graphify/`) for its hooks to function.
 **Issue:** The Skill tool returned `Unknown skill: writing-for-agents` even though
 the skill appeared in `skills-lock.json`.
 
-**Cause:** Matt Pocock skills installed in `skills-lock.json` appear to require a
-different registration path to become invocable via the Skill tool. The `.claude/skills/`
-directory does not exist in this project, which may explain why the harness cannot find
-them by name. The exact registration path is not confirmed.
+**Current evidence:** `.claude/skills/` exists and `writing-for-agents` was
+successfully invoked via the Skill tool in Step 009. The Step 008 error did
+not establish a persistent registration failure. If it recurs, inspect the
+session's loaded skill list and the specific skill's frontmatter before
+claiming a cause. Reading SKILL.md directly is not proof of Skill invocation.
 
-**Workaround:** Read the skill's SKILL.md file directly when needed. This is
-not equivalent to successful invocation but gives access to the skill's content.
-
-**Status:** Unresolved. Separate from the CLI auto-update failure below.
+**Status:** Historical transient error; no current directory issue.
 
 ### CLI auto-update warning (2026-09-27)
 
@@ -209,7 +237,7 @@ the actual model. To raise the context window, append `[1m]` to the model name o
 
 1. **Prefer specific over general:** Use `tdd` for test-driven work, `diagnosing-bugs` for debugging.
 2. **One workflow per task:** Do not run both `code-review` (Matt Pocock) and the built-in `code-review` on the same change; choose one.
-3. **Check invocability:** Skills with `disable-model-invocation: true` in their frontmatter must be user-invoked. Do not have agents auto-invoke `wizard`, `grill-me`, `update-config`, `keybindings-help`, `init`, `loop`, or `fewer-permission-prompts`.
+3. **Check invocability:** Skills with `disable-model-invocation: true` in their frontmatter must be user-invoked and cannot be preloaded. This includes the project-local `implement`, `to-spec`, `to-tickets`, `wizard`, and `grill-me` skills. Do not have agents auto-invoke the built-in user-only commands either.
 4. **Load before creating:** Always load `dataviz` before creating any chart; `artifact-design` before creating any artifact.
 5. **In-progress skills:** Installed but not selected for this project's normal workflow; prefer stable alternatives.
 6. **ECC agents ≠ skills:** ECC provides both agent definitions and skills. Do not reference ECC agent names in skill invocations.

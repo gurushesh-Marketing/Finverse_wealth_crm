@@ -161,3 +161,89 @@ In the Claude Code session, `/reload-plugins` reported 1 plugin, 386 skills, 74 
   - `docs/process/BUILD_LOG.md` — this entry appended.
 - Verification and result: `git diff --check` — no whitespace errors. LF→CRLF line-ending notices on tracked files are expected on Windows and are not errors. The working tree at Step 010 start contained 7 modified tracked files (`.claude/settings.json`, `.gitignore`, `CLAUDE.md`, `docs/process/SKILL_MAP.md`, `docs/process/STATUS.md`, `docs/process/BUILD_LOG.md`, `skills-lock.json`) plus untracked skill files in `.claude/skills/` and `.claude/CLAUDE.md`. This step modified `docs/process/SKILL_MAP.md`, `docs/process/STATUS.md`, `docs/process/BUILD_LOG.md`.
 - Problem and fix: The Step 010 attempt was interrupted mid-session after editing SKILL_MAP.md only; model hand-back stalled. This completion preserves that edit and finishes STATUS.md and BUILD_LOG.md.
+
+## Step 011 — Phase 0 Implementation (2026-09-28)
+
+- Purpose: Implement Phase 0 of the Finverse CRM frontend in the existing apps/web app. Deliver Finverse brand tokens, responsive workspace shell with permission-derived navigation, typed session/fixture contracts, route-level loading/empty/denied/error states, and Playwright configuration.
+- Exact Claude prompt: pasted instruction block beginning "Implement Phase 0 of the Finverse CRM frontend in the existing apps/web app. Do the work, not just a plan…"
+- What it was expected to change:
+  1. Finverse brand assets and semantic theme tokens in apps/web.
+  2. A responsive shared workspace shell with accessible navigation and a mobile layout.
+  3. Typed Role, Vertical and WorkspaceSession contracts from CLAUDE.md, plus an explicit fixture session.
+  4. A typed fixture repository interface and minimal sample data kept outside components.
+  5. Route-level loading, empty, denied and error presentations where applicable.
+  6. Playwright configuration for later workflow tests.
+- What actually changed:
+  - Brand tokens: Replaced Nova defaults with Finverse oklch values in `apps/web/src/app/globals.css` (deep navy `oklch(0.28 0.12 255)` primary, warm gold `oklch(0.72 0.18 85)` accent, Inter/Inter Tight/JetBrains Mono fonts).
+  - Workspace shell: Created responsive layout with desktop sidebar (`apps/web/src/components/shell/Sidebar.tsx`), mobile sheet nav (`apps/web/src/components/shell/MobileNav.tsx` with SSR guard), and main shell (`apps/web/src/components/shell/WorkspaceShell.tsx`).
+  - Navigation: Permission-derived via `getAccessibleModuleGroups(fixtureSession)` in `WorkspaceShell.tsx`; only shows wealth modules for SC fixture session.
+  - Session types: Defined `Role`, `Vertical`, `WorkspaceSession` in `apps/web/src/lib/session.ts` with fixture session for Wealth SC.
+  - Repository contract: Created `IRepository` interface in `apps/web/src/lib/repository/types.ts` and `FixtureRepository` implementation in `apps/web/src/lib/repository/fixture.ts` with session-scoped reads.
+  - Module manifest: 17 modules defined in `apps/web/src/lib/modules.ts` with `canAccessModule`, `getAccessibleModuleGroups`, `getDefaultModule` helpers.
+  - Route groups: `(workspace)` layout in `apps/web/src/app/(workspace)/layout.tsx` renders `WorkspaceShell`; root redirects to `/workspace`.
+  - Wealth dashboard: Server component at `apps/web/src/app/(workspace)/wealth/dashboard/page.tsx` with access check, suspense boundary, and client component `WealthDashboardContent.tsx`.
+  - Dashboard content: Shows stat cards, pipeline funnel, activity breakdown, prospect status, recent activity placeholder (all illustrative data labeled).
+  - States: Implemented loading (`LoadingSkeleton.tsx`), empty (`EmptyState.tsx`), denied (`AccessDenied.tsx`), error (`error.tsx`) states per contract.
+  - Playwright: Configured in `apps/web/playwright.config.ts` with chromium/firefox/webkit/mobile projects and `webServer: pnpm dev`.
+  - Route directories created: `/wealth/{dashboard,prospects,deals,activities,reports}`.
+  - Fixed lint errors:
+    - Renamed `const module` → `const found` in `modules.ts:291` (`@next/next/no-assign-module-variable`).
+    - Replaced `{}` as `any` with proper types in `fixture.ts:516,539` (`@typescript-eslint/no-explicit-any`).
+    - Changed `const filtered` → `let filtered` in `fixture.ts:getActivityCountByType`.
+    - Removed unused `cn` imports and fixed `react-hooks/set-state-in-effect` by removing mounted state pattern.
+    - Added SSR guard `if (typeof document === 'undefined') return null;` to `MobileNav.tsx`.
+    - Fixed `Metadata.creator` type in `layout.tsx`.
+    - Fixed `Vertical` import in `fixture.ts` and `types.ts`.
+  - Build verification: `pnpm build` and `pnpm lint` both pass with zero errors/warnings.
+  - No Playwright test added yet (Phase 0 has meaningful behavior but test deferred per instruction).
+- Verification and result:
+  - Lint: Zero errors, zero warnings (`pnpm lint`).
+  - Build: Successful production build (`pnpm build`).
+  - TypeScript: Zero errors in build output.
+  - UI: Verified permission-derived navigation (SC sees only wealth modules), brand colors applied, responsive layout works.
+  - Session scoping: Fixture repository correctly filters mock data by vertical/team/employee.
+- Problem and fix:
+  - MobileNav SSR: `createPortal(navContent, document.body)` would error during SSR; added `typeof document !== 'undefined'` guard.
+  - Dashboard data fetching: Initial try/catch wrapping JSX violated `react-hooks/error-boundaries`; rewrote to propagate errors to Next.js error boundary.
+  - Module access: Fixed `hasVertical` logic to correctly check for all four verticals (CEO/CFO case).
+  - Import issues: Fixed relative import paths in `types.ts` and `fixture.ts`.
+- Files changed (apps/web/):
+  - src/app/globals.css
+  - src/app/layout.tsx
+  - src/app/page.tsx
+  - src/app/(workspace)/layout.tsx
+  - src/app/(workspace)/loading.tsx
+  - src/app/(workspace)/LoadingSkeleton.tsx
+  - src/app/(workspace)/error.tsx
+  - src/app/(workspace)/wealth/dashboard/page.tsx
+  - src/app/(workspace)/wealth/dashboard/WealthDashboardContent.tsx
+  - src/app/(workspace)/wealth/dashboard/DashboardSkeleton.tsx
+  - src/lib/session.ts
+  - src/lib/repository/types.ts
+  - src/lib/repository/fixture.ts
+  - src/lib/modules.ts
+  - src/components/shell/Sidebar.tsx
+  - src/components/shell/MobileNav.tsx
+  - src/components/shell/WorkspaceShell.tsx
+  - src/components/ui/EmptyState.tsx
+  - src/components/ui/AccessDenied.tsx
+  - playwright.config.ts
+  - Created directories: src/app/(workspace)/wealth/{dashboard,prospects,deals,activities,reports}/
+
+## Step 011 — Next.js and shadcn/ui scaffold (2026-09-28)
+
+- Purpose: create the production frontend in the existing repository without a nested Git repository.
+- Exact terminal commands: from the repo root, `New-Item -ItemType Directory -Path "apps" -Force | Out-Null`; `pnpm create next-app@latest apps/web --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-pnpm --disable-git --no-agents-md --yes`; then from `apps/web`, `pnpm dlx shadcn@latest init`, selecting Base UI and Nova; `pnpm run build`; `pnpm run lint`.
+- What it was expected to change: add one Next.js App Router application under `apps/web`, one app lockfile, shadcn configuration and starter components; preserve the existing root Git and Claude instructions.
+- What actually changed: the user reported Next.js 16.3.6 created `apps/web`; shadcn detected Next.js and Tailwind v4, wrote `components.json`, updated fonts and `src/app/globals.css`, and created `src/components/ui/button.tsx` and `src/lib/utils.ts`. Git initialization was skipped. The app remains untracked pending review.
+- Verification and result: user-reported production build compiled, finished TypeScript, and generated its two starter routes; `pnpm run lint` returned without an error. These checks cover the starter app, not CRM behavior.
+- Problem and fix, if any: none reported. Finverse branding, role scope, fixtures, and Playwright remain Phase 0 work.
+
+## Step 012 — Preload role skills into Finverse agents (2026-09-28)
+
+- Purpose: make each Finverse agent start with a relevant task method in its context, rather than relying on an optional mid-task Skill lookup; correct inaccurate invocability documentation.
+- Exact user instruction: "before anything correct this agents to skills loop ... i want the agents to be a skilled task oriented workers". The configuration edits were made directly to the project files; no installation command was run.
+- What it was expected to change: add verified, role-specific `skills:` frontmatter to all ten agents; give QA workers the ability to execute targeted checks; fix the `implement` classification and document the preload chain.
+- What actually changed: all ten `.claude/agents/finverse-*.md` definitions now preload a small set of skills. Three focused project skills were added for QA execution, access contract review, and reporting logic. QA tester and access reviewer gained Bash for targeted checks while remaining non-writers. `AGENT_WORKFLOW.md` and `SKILL_MAP.md` now distinguish preload, optional Skill calls, and Agent delegation; `STATUS.md` records the checkpoint.
+- Verification and result: static checks verify that every referenced preload skill exists and has no `disable-model-invocation: true`; `git diff --check` and config-specific checks are recorded with the task result. Runtime evidence that Claude Code actually injects each preload is pending a fresh-session delegation.
+- Problem and fix, if any: `implement` and several other Matt Pocock skills were listed as agent-invocable despite user-only frontmatter; their mapping was corrected. The stale claim that `.claude/skills/` does not exist was removed. No future skill pack was added before installation.
