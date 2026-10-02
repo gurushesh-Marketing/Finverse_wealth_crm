@@ -5,18 +5,19 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { ModuleGroup } from '@/lib/modules';
-import { fixtureSession } from '@/lib/session';
+import type { WorkspaceSession } from '@/lib/session';
 
 interface SidebarProps {
   moduleGroups: ModuleGroup[];
+  session: WorkspaceSession;
+  displayName: string;
   onClose?: () => void;
 }
 
-export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
+export function Sidebar({ moduleGroups, session, displayName, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Auto-expand the group containing the current path
   const currentGroupKey = moduleGroups.find(g =>
     g.modules.some(m => pathname.startsWith(m.href))
   )?.key;
@@ -45,21 +46,12 @@ export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
       role="navigation"
       aria-label="Main navigation"
     >
-      {/* Brand header */}
-      <div className="flex h-16 items-center gap-3 px-4 border-b border-sidebar-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <svg
-            className="h-5 w-5 text-primary-foreground"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
+      {/* Brand lockup (deck reference 006) */}
+      <div className="border-b border-sidebar-border px-4 py-4">
+        <img src="/finverse-logo.png" alt="Finverse Wealth" className="h-10 w-auto" />
+        <div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Workspace / {session.role}
         </div>
-        <span className="font-heading font-semibold text-lg text-foreground">
-          Finverse CRM
-        </span>
       </div>
 
       {/* Navigation */}
@@ -69,7 +61,7 @@ export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
             <button
               type="button"
               className={cn(
-                'w-full flex items-center gap-2 px-2 py-1.5 text-xs font-medium uppercase tracking-wider',
+                'w-full flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]',
                 'text-muted-foreground hover:text-foreground transition-colors',
                 'rounded-md'
               )}
@@ -101,7 +93,7 @@ export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
                 isGroupExpanded(group.key) ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
               )}
             >
-              <ul className="space-y-0.5 pl-2" role="list">
+              <ul className="space-y-0.5 pl-1" role="list">
                 {group.modules.map(module => {
                   const isActive = pathname === module.href || pathname.startsWith(module.href + '/');
                   return (
@@ -109,11 +101,11 @@ export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
                       <Link
                         href={module.href}
                         className={cn(
-                          'flex items-center gap-2 px-2.5 py-2 text-sm rounded-lg transition-colors',
+                          'flex items-center gap-2 px-2.5 py-1.5 text-sm rounded-lg transition-colors',
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                           isActive
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
                         )}
                         onClick={onClose}
                         aria-current={isActive ? 'page' : undefined}
@@ -141,7 +133,6 @@ export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
           </div>
         ))}
 
-        {/* Placeholder for non-SC roles - shows when no modules accessible */}
         {moduleGroups.length === 0 && (
           <div className="px-4 py-8 text-center text-muted-foreground text-sm">
             <p>No modules available for your role.</p>
@@ -150,20 +141,23 @@ export function Sidebar({ moduleGroups, onClose }: SidebarProps) {
         )}
       </nav>
 
-      {/* Session info footer */}
-      <div className="border-t border-sidebar-border p-3">
-        <div className="flex items-center gap-3 px-2 py-2">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-sm font-medium text-primary">
-              {fixtureSession.employeeId.slice(-3)}
-            </span>
+      {/* Scope + session footer (deck reference 006) */}
+      <div className="border-t border-sidebar-border p-4 space-y-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Your scope</p>
+          <p className="mt-1 text-sm font-medium text-foreground">
+            {session.verticalGrants.join(', ')}
+          </p>
+          <p className="text-xs text-muted-foreground">Assigned hierarchy only</p>
+        </div>
+        <div className="flex items-center gap-2.5 rounded-lg border border-sidebar-border bg-card px-2.5 py-2">
+          <div className="h-8 w-8 rounded-full bg-accent/15 flex items-center justify-center">
+            <span className="text-sm font-semibold text-accent">{displayName.slice(0, 1)}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">
-              {fixtureSession.role} • {fixtureSession.verticalGrants.join(', ')}
-            </p>
+            <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
             <p className="text-xs text-muted-foreground truncate">
-              {fixtureSession.activeAssignmentId}
+              {session.role} · <span className="font-mono">{session.activeAssignmentId}</span>
             </p>
           </div>
         </div>

@@ -12,12 +12,17 @@
 
 import type {
   IRepository,
+  IWealthLeadRepository,
   Prospect,
   Activity,
   Deal,
   ProspectFilters,
   ActivityFilters,
   DealFilters,
+  Lead,
+  LeadActivity,
+  LeadTask,
+  LeadFilters,
   PaginatedResult,
 } from './types';
 import type { WorkspaceSession, Vertical } from '../session';

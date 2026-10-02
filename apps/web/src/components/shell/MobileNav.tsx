@@ -1,25 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import type { ModuleGroup } from '@/lib/modules';
-import { fixtureSession } from '@/lib/session';
+import type { WorkspaceSession } from '@/lib/session';
 import { X, Menu, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MobileNavProps {
   moduleGroups: ModuleGroup[];
+  session: WorkspaceSession;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function MobileNav({ moduleGroups, isOpen, onClose }: MobileNavProps) {
+const emptySubscribe = () => () => {};
+
+export function MobileNav({ moduleGroups, session, isOpen, onClose }: MobileNavProps) {
   const pathname = usePathname();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Auto-expand the group containing the current path
+  // Hydration-safe "is mounted" flag: the server snapshot is false and the
+  // client snapshot is true, so the first client render matches SSR and the
+  // portal mounts afterwards (no typeof-document branch, no mismatch).
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+
   const currentGroupKey = moduleGroups.find(g =>
     g.modules.some(m => pathname.startsWith(m.href))
   )?.key;
@@ -56,19 +63,7 @@ export function MobileNav({ moduleGroups, isOpen, onClose }: MobileNavProps) {
         {/* Header */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <svg
-                className="h-5 w-5 text-primary-foreground"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              </svg>
-            </div>
-            <span className="font-heading font-semibold text-lg text-foreground">
-              Finverse CRM
-            </span>
+            <img src="/finverse-logo.png" alt="Finverse Wealth" className="h-9 w-auto" />
           </div>
           <button
             type="button"
@@ -123,8 +118,8 @@ export function MobileNav({ moduleGroups, isOpen, onClose }: MobileNavProps) {
                             'flex items-center gap-2 px-2.5 py-2 text-sm rounded-lg transition-colors',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                             isActive
-                              ? 'bg-accent text-accent-foreground font-medium'
-                              : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+                              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                              : 'text-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                           )}
                           onClick={onClose}
                           aria-current={isActive ? 'page' : undefined}
@@ -163,17 +158,17 @@ export function MobileNav({ moduleGroups, isOpen, onClose }: MobileNavProps) {
         {/* Session info footer */}
         <div className="border-t border-border p-3">
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-medium text-primary">
-                {fixtureSession.employeeId.slice(-3)}
+            <div className="h-8 w-8 rounded-full bg-accent/15 flex items-center justify-center">
+              <span className="text-sm font-semibold text-accent">
+                {session.employeeId.slice(-3)}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
-                {fixtureSession.role} • {fixtureSession.verticalGrants.join(', ')}
+                {session.role} • {session.verticalGrants.join(', ')}
               </p>
               <p className="text-xs text-muted-foreground truncate">
-                {fixtureSession.activeAssignmentId}
+                {session.activeAssignmentId}
               </p>
             </div>
           </div>
@@ -182,10 +177,7 @@ export function MobileNav({ moduleGroups, isOpen, onClose }: MobileNavProps) {
     </div>
   );
 
-  // Guard against SSR: createPortal only works in the browser
-  if (typeof document === 'undefined') {
-    return null;
-  }
+  if (!mounted) return null;
   return createPortal(navContent, document.body);
 }
 

@@ -34,14 +34,15 @@ export default defineConfig({
       use: { ...devices['iPhone 12'] },
     },
   ],
-  // webServer disabled - using running dev server
-// webServer: {
-//   command: 'pnpm dev',
-//   url: 'http://localhost:3000',
-//   reuseExistingServer: true,
-//   timeout: 120000,
-//   env: {
-//     PORT: '3000',
-//   },
-// },
+  webServer: {
+    command: 'pnpm dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
+    timeout: 120000,
+    env: {
+      PORT: '3000',
+      // ponytail: ambient NODE_ENV=production stalls `next dev` before Ready; force dev mode for the test server only.
+      NODE_ENV: 'development',
+    },
+  },
 });

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "powershell",
+      "Shell(Write-Output:*)",
+      "Shell(powershell -NoProfile -Command \"Start-Sleep -Seconds 57 # FVCHECK-STALL\")",
+      "Shell(powershell -NoProfile -Command \"Start-Sleep -Seconds 56 # FVCHECK-BG\")",
+      "Shell(cmd:*)",
+      "agent_output",
+      "Shell(where:*)",
+      "Shell(pdftotext:*)",
+      "Shell(mkdir \"$env:COMMANDCODE_SCRATCHPAD\\visual\" 2>$null; node \"$env:COMMANDCODE_SCRATCHPAD\\capture-screens.js\" \"$env:COMMANDCODE_SCRATCHPAD\\visual\" before)",
+      "Shell(pnpm:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

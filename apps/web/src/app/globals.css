@@ -49,82 +49,87 @@
 }
 
 :root {
-  /* Finverse Brand Tokens — trust-first, premium financial CRM */
-  /* Primary: Deep navy (trust, stability) */
-  /* Accent: Warm gold (wealth, premium) */
-  /* Typography: Inter for UI, Inter Tight for headings */
+  /* Finverse Brand Tokens — authoritative values from
+     docs/brand/Finverse Wealth Brand Guidelines.pdf (verified user-supplied spec):
+     primary teal #113F3D / #155451, sage #6FA8A2 / #7FB5AE, mint #DCEEEA,
+     ink #1B1F1E, muted text #6B7280, white #FFFFFF.
+     Headings: Manrope. Body/UI: Inter. Mono: JetBrains Mono (IDs/times).
+     Colors inside public/finverse-logo.png are the original artwork and are
+     never recolored. */
 
-  --background: oklch(0.985 0.003 240);
-  --foreground: oklch(0.15 0.02 240);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.02 240);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.02 240);
-  --primary: oklch(0.28 0.12 255);
-  --primary-foreground: oklch(0.985 0.003 240);
-  --secondary: oklch(0.95 0.01 240);
-  --secondary-foreground: oklch(0.25 0.05 255);
-  --muted: oklch(0.95 0.01 240);
-  --muted-foreground: oklch(0.55 0.02 240);
-  --accent: oklch(0.72 0.18 85);
-  --accent-foreground: oklch(0.15 0.02 240);
-  --destructive: oklch(0.58 0.22 25);
-  --border: oklch(0.88 0.01 240);
-  --input: oklch(0.88 0.01 240);
-  --ring: oklch(0.28 0.12 255 / 0.4);
-  --chart-1: oklch(0.28 0.12 255);
-  --chart-2: oklch(0.72 0.18 85);
-  --chart-3: oklch(0.55 0.15 160);
-  --chart-4: oklch(0.65 0.2 320);
-  --chart-5: oklch(0.45 0.12 280);
+  --background: #FFFFFF;
+  --foreground: #1B1F1E;
+  --card: #FFFFFF;
+  --card-foreground: #1B1F1E;
+  --popover: #FFFFFF;
+  --popover-foreground: #1B1F1E;
+  --primary: #113F3D;
+  --primary-foreground: #FFFFFF;
+  --secondary: #DCEEEA;
+  --secondary-foreground: #1B1F1E;
+  --muted: #DCEEEA;
+  --muted-foreground: #6B7280;
+  --accent: #155451;
+  --accent-foreground: #FFFFFF;
+  /* [ASSUMPTION] the supplied palette contains no error red; minimal red is
+     reserved for destructive/validation states until Finverse confirms one. */
+  --destructive: #C2413B;
+  --border: #DCEEEA;
+  --input: #DCEEEA;
+  --ring: #15545166;
+  --chart-1: #113F3D;
+  --chart-2: #6FA8A2;
+  --chart-3: #7FB5AE;
+  --chart-4: #155451;
+  --chart-5: #DCEEEA;
   --radius: 0.5rem;
-  --sidebar: oklch(0.99 0.002 240);
-  --sidebar-foreground: oklch(0.15 0.02 240);
-  --sidebar-primary: oklch(0.28 0.12 255);
-  --sidebar-primary-foreground: oklch(0.985 0.003 240);
-  --sidebar-accent: oklch(0.95 0.01 240);
-  --sidebar-accent-foreground: oklch(0.25 0.05 255);
-  --sidebar-border: oklch(0.88 0.01 240);
-  --sidebar-ring: oklch(0.28 0.12 255 / 0.4);
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1B1F1E;
+  --sidebar-primary: #113F3D;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #DCEEEA;
+  --sidebar-accent-foreground: #155451;
+  --sidebar-border: #DCEEEA;
+  --sidebar-ring: #15545166;
 
-  /* Finverse brand fonts */
+  /* Finverse brand fonts (loaded via next/font in layout.tsx) */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-heading: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 
 .dark {
-  --background: oklch(0.12 0.02 240);
-  --foreground: oklch(0.97 0.003 240);
-  --card: oklch(0.15 0.02 240);
-  --card-foreground: oklch(0.97 0.003 240);
-  --popover: oklch(0.15 0.02 240);
-  --popover-foreground: oklch(0.97 0.003 240);
-  --primary: oklch(0.65 0.15 255);
-  --primary-foreground: oklch(0.12 0.02 240);
-  --secondary: oklch(0.22 0.03 240);
-  --secondary-foreground: oklch(0.9 0.01 240);
-  --muted: oklch(0.22 0.03 240);
-  --muted-foreground: oklch(0.65 0.02 240);
-  --accent: oklch(0.75 0.18 85);
-  --accent-foreground: oklch(0.12 0.02 240);
-  --destructive: oklch(0.65 0.2 25);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.15 255 / 0.4);
-  --chart-1: oklch(0.65 0.15 255);
-  --chart-2: oklch(0.75 0.18 85);
-  --chart-3: oklch(0.6 0.15 160);
-  --chart-4: oklch(0.7 0.18 320);
-  --chart-5: oklch(0.55 0.12 280);
-  --sidebar: oklch(0.1 0.02 240);
-  --sidebar-foreground: oklch(0.97 0.003 240);
-  --sidebar-primary: oklch(0.65 0.15 255);
-  --sidebar-primary-foreground: oklch(0.12 0.02 240);
-  --sidebar-accent: oklch(0.22 0.03 240);
-  --sidebar-accent-foreground: oklch(0.9 0.01 240);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.65 0.15 255 / 0.4);
+  --background: #1B1F1E;
+  --foreground: #ECF2F0;
+  --card: #232927;
+  --card-foreground: #ECF2F0;
+  --popover: #232927;
+  --popover-foreground: #ECF2F0;
+  --primary: #7FB5AE;
+  --primary-foreground: #113F3D;
+  --secondary: #27403E;
+  --secondary-foreground: #DCEEEA;
+  --muted: #27403E;
+  --muted-foreground: #9CA3AF;
+  --accent: #6FA8A2;
+  --accent-foreground: #113F3D;
+  --destructive: #E08A85;
+  --border: #33403D;
+  --input: #33403D;
+  --ring: #6FA8A266;
+  --chart-1: #7FB5AE;
+  --chart-2: #6FA8A2;
+  --chart-3: #5E9C95;
+  --chart-4: #DCEEEA;
+  --chart-5: #155451;
+  --sidebar: #1B1F1E;
+  --sidebar-foreground: #ECF2F0;
+  --sidebar-primary: #7FB5AE;
+  --sidebar-primary-foreground: #113F3D;
+  --sidebar-accent: #27403E;
+  --sidebar-accent-foreground: #DCEEEA;
+  --sidebar-border: #33403D;
+  --sidebar-ring: #6FA8A266;
 }
 
 @layer base {

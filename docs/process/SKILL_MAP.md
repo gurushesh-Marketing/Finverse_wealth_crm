@@ -2,9 +2,83 @@
 
 This document records the exact installed skills, their sources, purposes, and invocation rules.
 
-Last updated: 2026-09-28 (Step 010)
+Last updated: 2026-09-30 (Step 016)
 
 ---
+
+## Command Code skill migration (2026-09-30 — Step 016)
+
+Skills selected and copied to `.commandcode/skills/<name>/` at project scope.
+Original sources under `.claude/skills/` and the ECC plugin are unchanged.
+
+**Status vocabulary (kept distinct):**
+- **Copied/adapted** — files are in `.commandcode/skills/` with the listed
+  compatibility adaptations.
+- **Discovered by Command Code** — confirmed in `cmdc skills list`. **17/17
+  project skills discovered on 2026-09-30 via `cmdc skills list --debug`; no
+  skips and no warnings.**
+- **Runtime-tested** — exercised in a live agent run. **None so far.**
+
+| Skill (actual name) | Source & version | Destination | Adaptations | Invocation | Intended agents | Tool/runtime needs | Status |
+|---|---|---|---|---|---|---|---|
+| `finverse-access-contract` | project-local (Step 012, `.claude/skills/`) | `.commandcode/skills/finverse-access-contract/` | description "Preload for" → intended-use; `WorkspaceSession` path now cites `CLAUDE.md` §4 + `FRONTEND_EXECUTION.md` | agent-eligible | finverse-access-reviewer | read/search; focused checks need shell/browser (mismatch logged) | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `finverse-qa-execution` | project-local (Step 012) | `.commandcode/skills/finverse-qa-execution/` | description "Preload for" → intended-use | agent-eligible | finverse-qa-tester, finverse-qa-lead | `shell_command` + Playwright/browser tooling (browser pending) | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `finverse-reporting-contract` | project-local (Step 012) | `.commandcode/skills/finverse-reporting-contract/` | description "Preload for" → intended-use | agent-eligible | finverse-data-analyst | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `design-taste-frontend` | copied project skill (no `skills-lock.json` entry; `LICENSE` preserved) | `.commandcode/skills/design-taste-frontend/` | none (landing-page scope exclusion noted in agent connections) | agent-eligible | finverse-design-lead, finverse-ux-designer, finverse-frontend-builder | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `ponytail` | `DietrichGebert/ponytail` (skills-lock.json; frontmatter `license: MIT`) | `.commandcode/skills/ponytail/` | none | agent-eligible | finverse-frontend-builder, finverse-backend-builder, finverse-devops-engineer | edit/write + shell for coding tasks | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `ponytail-review` | `DietrichGebert/ponytail` (skills-lock.json) | `.commandcode/skills/ponytail-review/` | none | agent-eligible | finverse-engineering-lead | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `domain-modeling` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/domain-modeling/` | none (refs `CONTEXT-FORMAT.md`, `ADR-FORMAT.md` copied) | agent-eligible | finverse-product-manager, finverse-engineering-lead, finverse-backend-builder, finverse-data-analyst | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `codebase-design` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/codebase-design/` | `DESIGN-IT-TWICE.md` parallel sub-agents → main-coordinator-dispatched design workers; refs `DEEPENING.md` copied | agent-eligible | finverse-engineering-lead | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `tdd` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/tdd/` | "call the Skill tool with" → `/skill:codebase-design` invocation; refs `tests.md`, `mocking.md` copied | agent-eligible | finverse-frontend-builder, finverse-backend-builder | `shell_command` for test runs | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `diagnosing-bugs` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/diagnosing-bugs/` | none (`scripts/hitl-loop.template.sh` copied as unexecuted template) | agent-eligible | finverse-engineering-lead | feedback loops need shell execution (mismatch logged) | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `writing-for-agents` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/writing-for-agents/` | none (ref `SKILL-MECHANICS.md` copied) | agent-eligible | none assigned — coordinator/human documentation use | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `grilling` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/grilling/` | sub-agent fact-finding → dispatch request to the main coordinator (single-level delegation) | agent-eligible | finverse-product-manager | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `grill-me` | `mattpocock/skills` (skills-lock.json) | `.commandcode/skills/grill-me/` | router body: "Call the Skill tool with grilling" → `/skill:grilling`; `disable-model-invocation: true` preserved | **explicit-user-only** (human invokes `/skill:grill-me`) | none (never agent-invoked) | — | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `frontend-patterns` | ECC `ecc@ecc` **2.2.2**, commit `e482e579415fde18357cafce70f177ae19fd7f03` (from `installed_plugins.json`) | `.commandcode/skills/frontend-patterns/` | none | agent-eligible | finverse-frontend-builder | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `backend-patterns` | ECC `ecc@ecc` 2.2.2, commit `e482e579…` | `.commandcode/skills/backend-patterns/` | none | agent-eligible | finverse-backend-builder | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `postgres-patterns` | ECC `ecc@ecc` 2.2.2, commit `e482e579…` | `.commandcode/skills/postgres-patterns/` | `database-reviewer` agent referral → dispatch request to the main coordinator (ECC agents unavailable) | agent-eligible | finverse-backend-builder | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+| `security-review` | ECC `ecc@ecc` 2.2.2, commit `e482e579…` | `.commandcode/skills/security-review/` | none (`cloud-infrastructure-security.md` ref copied; bash blocks are illustrative) | agent-eligible | finverse-security-reviewer | read/search | Copied/adapted; discovered by Command Code; not runtime-tested |
+
+### ECC selection record
+
+The installed ECC manifest (`~/.claude/plugins/installed_plugins.json`) and the
+marketplace skill directory were inspected. At most four ECC skills were
+selected, one per required area: `frontend-patterns` (frontend implementation),
+`backend-patterns` (backend implementation), `postgres-patterns`
+(PostgreSQL/database), `security-review` (security review).
+
+Unavailable / not-selected candidates recorded rather than invented:
+`database-reviewer` is an ECC **agent**, not a skill (referenced by
+`postgres-patterns`; adapted to a coordinator dispatch request). Considered
+but not selected (four-skill cap): `react-patterns`, `nextjs-turbopack`,
+`database-migrations`, `security-scan`, `mysql-patterns`, `frontend-a11y`,
+`api-design`, and the framework-specific `*-security` skills.
+
+### Migration method notes
+
+- Invocation restrictions verified from frontmatter before copying:
+  `grill-me` is the only selected skill with `disable-model-invocation: true`
+  (preserved verbatim; no wrapper created to circumvent user-only invocation).
+- No embedded commands were executed to inspect any skill. No hooks, plugin
+  settings, MCP configuration, or global permissions were imported.
+- Nested delegation in migrated content (`grilling`, `codebase-design`
+  DESIGN-IT-TWICE, `postgres-patterns`) is adapted so the main coordinator
+  dispatches those tasks and workers return findings or dispatch requests.
+- Workers must not launch another coding CLI through the shell to circumvent
+  the single-level delegation boundary.
+
+### Still pending (not migrated in this task)
+
+Graphify, Claude-Mem, Jev integration, and additional skill packs remain
+pending — do not record them as migrated.
+
+---
+
+## Legacy Claude Code installation records (historical)
+
+Everything below this line documents the Claude Code setup and is superseded
+by the Command Code migration section above where they conflict. Left for
+history.
 
 ## Installed skills — Matt Pocock skill pack
 
