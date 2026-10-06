@@ -1021,8 +1021,36 @@ Concise execution record for the v2 build. Each entry names executed evidence.
     - Established Section 9 in `docs/process/PRODUCTION_HANDOVER.md`: feature-branch collaboration within the SAME CRM, setup commands, migration steps, test execution, and vertical ownership.
     - Verified secretless `.env.example`.
 
-
-
-
-
+- **Step 033 (2026-10-07) — MG-09 Commercial Exception Authorization Defect Remediated & Verified**:
+  - **1. Server-Side Approval Authority Derivation (MG-09 Remediated)**:
+    - Addressed security defect where server trusted client-supplied `input.delegatedLimitMet` (which defaulted to `true`).
+    - Made `delegatedLimitMet` optional and deprecated in `packages/contracts/src/manager.ts`. Rebuilt `@finverse/contracts`. Removed client-supplied flag from `apps/web/src/pages/ManagerPages.tsx`.
+    - Implemented server-side authority derivation `resolveCommercialApprovalAuthority` in `apps/api/src/repo/manager.ts`:
+      * Checks authenticated role (`scope.role === 'MG'`).
+      * Rejects `custom-terms` exceptions (Deck P152 reserves this strictly for RM/Legal/Finance).
+      * Rejects if `!exception.delegated_limit_met` in database.
+      * Resolves active Delegation of Authority (DoA) policy (`DOA-2026-V1` in `finance_policies`) and verifies approval limits (`approval_limits->>'MG' > 0`).
+      * Enforces deck invariant: **Unset authority means approval denied**. If policy or threshold is unset, returns 403 Forbidden. Illustrative policies explicitly labeled `[Deck P320 Category 3: Approvals and limits]`.
+  - **2. Team & Vertical Scope Enforcement Before Reading or Deciding**:
+    - Hardened `listCommercialExceptions`, `getCommercialException`, and `decideCommercialException` in `apps/api/src/repo/manager.ts`:
+      * Joins `leads` and requester `assignments` (via `requested_by_employee_id`) using `COALESCE` to verify `team_id` is within `scope.teams` and `vertical` matches `scope.verticals`.
+      * Cross-team and cross-vertical exceptions are omitted from lists and rejected with 403 Forbidden on direct read or decision attempts. Added `GET /commercial-exceptions/:id` route to `apps/api/src/routes/manager.ts`.
+  - **3. Atomic State Transition & Concurrency Safety**:
+    - Wrapped `decideCommercialException` in a database transaction (`BEGIN` / `COMMIT` / `ROLLBACK`).
+    - Applied row-level lock: `SELECT ... FOR UPDATE OF c`.
+    - Checked status under lock: rejects non-pending exceptions with 400 Bad Request.
+    - Conditional transition: `UPDATE commercial_exceptions SET ... WHERE id = $5 AND status = 'pending' RETURNING *`.
+    - Concurrent requests serialize safely: exactly one wins and finalizes, while concurrent/repeated attempts fail with 400 Bad Request.
+  - **4. Targeted Node:Test Suite Passing (14/14)**:
+    - Updated `apps/api/test/manager.api.test.ts` with targeted test cases proving:
+      * Sending `delegatedLimitMet: true` cannot override insufficient authority (403 Forbidden).
+      * Omitting `delegatedLimitMet` cannot grant authority (403 Forbidden).
+      * Foreign team's exception cannot be read or changed (403 Forbidden).
+      * Valid configured approval and permitted escalation to RM both succeed (200 OK).
+      * Repeated and concurrent decisions cannot overwrite finalized state (atomic 400 Bad Request rejection).
+    - Executed against dedicated test database `finverse_test`: **14 tests, 14 pass, 0 fail, 0 skipped, duration 12,676ms**.
+  - **5. Evidence & Knowledge Graphs Refreshed**:
+    - Executed `scripts/record_test_execution.py`, producing updated `evidence/manager_test_execution_record.json`.
+    - Refreshed requirements graph via `scripts/build_requirements_graph.py` and validated with `scripts/verify_evidence_integrity.py` (0 violations).
+    - Updated codebase graph via Graphify extraction.
 

@@ -17,6 +17,9 @@ const TEST_TASK_ID = `TSK-TEST-${Date.now().toString(36)}`;
 const TEST_ESCALATION_ID = `ESC-TEST-${Date.now().toString(36)}`;
 const TEST_EXCEPTION_ID = `EXC-TEST-${Date.now().toString(36)}`;
 const TEST_EXCEPTION_BREACH_ID = `EXC-BREACH-${Date.now().toString(36)}`;
+const TEST_FOREIGN_LEAD_ID = `LEAD-FOREIGN-${Date.now().toString(36)}`;
+const TEST_FOREIGN_EXCEPTION_ID = `EXC-FOREIGN-${Date.now().toString(36)}`;
+const TEST_CONCURRENT_EXCEPTION_ID = `EXC-CONC-${Date.now().toString(36)}`;
 
 interface Session {
   cookie: string;
@@ -77,14 +80,19 @@ async function cleanupTestData() {
   await db.query(`DELETE FROM manager_forecasts WHERE risk_notes LIKE $1`, [`%${RUN}%`]);
   await db.query(`DELETE FROM source_remediations WHERE justification LIKE $1`, [`%${RUN}%`]);
   await db.query(`DELETE FROM employee_lifecycle_requests WHERE business_justification LIKE $1`, [`%${RUN}%`]);
-  await db.query(`DELETE FROM commercial_exceptions WHERE id IN ($1, $2)`, [TEST_EXCEPTION_ID, TEST_EXCEPTION_BREACH_ID]);
+  await db.query(`DELETE FROM commercial_exceptions WHERE id IN ($1, $2, $3, $4)`, [
+    TEST_EXCEPTION_ID,
+    TEST_EXCEPTION_BREACH_ID,
+    TEST_FOREIGN_EXCEPTION_ID,
+    TEST_CONCURRENT_EXCEPTION_ID,
+  ]);
   await db.query(`DELETE FROM overdue_escalations WHERE id = $1`, [TEST_ESCALATION_ID]);
   await db.query(`DELETE FROM lead_tasks WHERE id = $1`, [TEST_TASK_ID]);
   await db.query(`DELETE FROM team_forecasts WHERE id = $1`, [TEST_FORECAST_ID]);
   await db.query(`DELETE FROM reviews WHERE reviewer_employee_id = 'EMP-007' AND period = $1`, [`Rev-${RUN}`]);
   await db.query(`DELETE FROM report_schedules WHERE dedupe_key LIKE $1`, [`%${RUN.toLowerCase()}%`]);
-  await db.query(`DELETE FROM lead_ownership_events WHERE lead_id = $1`, [TEST_LEAD_ID]);
-  await db.query(`DELETE FROM leads WHERE id = $1`, [TEST_LEAD_ID]);
+  await db.query(`DELETE FROM lead_ownership_events WHERE lead_id IN ($1, $2)`, [TEST_LEAD_ID, TEST_FOREIGN_LEAD_ID]);
+  await db.query(`DELETE FROM leads WHERE id IN ($1, $2)`, [TEST_LEAD_ID, TEST_FOREIGN_LEAD_ID]);
 }
 
 before(async () => {
@@ -97,6 +105,13 @@ before(async () => {
     VALUES ($1, 'wealth', 'TEAM-WEALTH-ALPHA', 'contacted', 'Manager Test Lead', '+919876500099', 'English', 'V1 Wealth Portfolio', 'Campaign C12', now(), now())
     ON CONFLICT (id) DO NOTHING
   `, [TEST_LEAD_ID]);
+
+  // Foreign banking lead outside Neel's scope
+  await db.query(`
+    INSERT INTO leads (id, vertical, team_id, stage, display_name, phone, preferred_language, product, source, created_at, updated_at)
+    VALUES ($1, 'banking', 'TEAM-BANKING-ALPHA', 'contacted', 'Banking Foreign Lead', '+919876500088', 'English', 'Corporate Term Loan', 'Branch Intake', now(), now())
+    ON CONFLICT (id) DO NOTHING
+  `, [TEST_FOREIGN_LEAD_ID]);
 
   await db.query(`
     INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status, created_at)
@@ -129,6 +144,20 @@ before(async () => {
     VALUES ($1, $2, 'EMP-001', 'rate-discount', '75% advisory fee discount', 'Standard advisory fee 1.5% AUM', 'Strategic anchor client family office', false, 'pending')
     ON CONFLICT (id) DO NOTHING
   `, [TEST_EXCEPTION_BREACH_ID, TEST_LEAD_ID]);
+
+  // Foreign commercial exception outside Neel's scope
+  await db.query(`
+    INSERT INTO commercial_exceptions (id, lead_id, requested_by_employee_id, exception_type, requested_terms, standard_terms, business_justification, delegated_limit_met, status)
+    VALUES ($1, $2, 'EMP-004', 'rate-discount', '50 bps interest rebate', 'Standard rate 9.5%', 'Corporate borrower', true, 'pending')
+    ON CONFLICT (id) DO NOTHING
+  `, [TEST_FOREIGN_EXCEPTION_ID, TEST_FOREIGN_LEAD_ID]);
+
+  // Concurrent decision test exception within scope
+  await db.query(`
+    INSERT INTO commercial_exceptions (id, lead_id, requested_by_employee_id, exception_type, requested_terms, standard_terms, business_justification, delegated_limit_met, status)
+    VALUES ($1, $2, 'EMP-001', 'fee-waiver', '5% onboarding waiver', 'Standard fee INR 50,000', 'Concurrent decision test', true, 'pending')
+    ON CONFLICT (id) DO NOTHING
+  `, [TEST_CONCURRENT_EXCEPTION_ID, TEST_LEAD_ID]);
 
   const app = createApp();
   server = app.listen(0);
@@ -402,64 +431,140 @@ test('MG-08: Repeated SLA Breach Resolution & Action Logging (Deck P149–P150)'
   assert.ok(slaRes.body.recoveryActionId, 'Recovery management action created');
 });
 
-// ─── Test Case 10: MG-09 Commercial Exceptions & Authority Limits ───
+// ─── Test Case 10: MG-09 Commercial Exceptions & Server-Side Authority Enforcement ───
 test('MG-09: Delegated Commercial Exception Approval, RM Escalation & Authority Limits (Deck P151–P152, Deck P320 Cat 3)', async () => {
   const excList = await call('GET', '/manager/commercial-exceptions', { cookie: neel.cookie });
   assert.equal(excList.status, 200, 'MG-09 list exceptions returns 200');
   assert.ok(excList.body.some((e: any) => e.id === TEST_EXCEPTION_ID), 'Within-limit exception listed');
   assert.ok(excList.body.some((e: any) => e.id === TEST_EXCEPTION_BREACH_ID), 'Exceeding-limit exception listed');
+  // Proving scope: Foreign Banking exception is NOT listed
+  assert.ok(!excList.body.some((e: any) => e.id === TEST_FOREIGN_EXCEPTION_ID), "Foreign team's exception is NOT returned in manager list");
 
-  // NEGATIVE TEST 1: Manager approval BLOCKED server-side when requested terms exceed delegated limit
-  const unauthorizedApproval = await call('POST', '/manager/commercial-exceptions/decide', {
+  // TEST REQUIREMENT 1: Sending delegatedLimitMet:true cannot override insufficient authority
+  const clientAssertsLimit = await call('POST', '/manager/commercial-exceptions/decide', {
     cookie: neel.cookie,
     json: {
       exceptionId: TEST_EXCEPTION_BREACH_ID,
       decision: 'approved',
-      decisionNotes: 'Manager attempted unauthorized approval above authority limit',
-      delegatedLimitMet: false,
+      decisionNotes: 'Client sends delegatedLimitMet:true attempting to force approval',
+      delegatedLimitMet: true,
     },
   });
-  assert.equal(unauthorizedApproval.status, 403, 'Server strictly rejects approval exceeding Manager delegated limit with 403 FORBIDDEN');
+  assert.equal(clientAssertsLimit.status, 403, 'Sending delegatedLimitMet:true cannot override insufficient authority (returns 403 FORBIDDEN)');
 
-  // PERMITTED ESCALATION: Manager escalates breach exception to Regional Manager
+  // TEST REQUIREMENT 2: Omitting delegatedLimitMet cannot grant authority
+  const clientOmitsLimit = await call('POST', '/manager/commercial-exceptions/decide', {
+    cookie: neel.cookie,
+    json: {
+      exceptionId: TEST_EXCEPTION_BREACH_ID,
+      decision: 'approved',
+      decisionNotes: 'Client omits delegatedLimitMet field completely',
+    },
+  });
+  assert.equal(clientOmitsLimit.status, 403, 'Omitting delegatedLimitMet cannot grant authority (returns 403 FORBIDDEN)');
+
+  // TEST REQUIREMENT 3: Another team's/vertical's exception cannot be read or changed
+  const foreignReadRes = await call('GET', `/manager/commercial-exceptions/${TEST_FOREIGN_EXCEPTION_ID}`, {
+    cookie: neel.cookie,
+  });
+  assert.equal(foreignReadRes.status, 403, "Another team's/vertical's exception cannot be read (returns 403 FORBIDDEN)");
+
+  const foreignApproveRes = await call('POST', '/manager/commercial-exceptions/decide', {
+    cookie: neel.cookie,
+    json: {
+      exceptionId: TEST_FOREIGN_EXCEPTION_ID,
+      decision: 'approved',
+      decisionNotes: 'Attempting to approve another team exception',
+    },
+  });
+  assert.equal(foreignApproveRes.status, 403, "Another team's/vertical's exception cannot be approved (returns 403 FORBIDDEN)");
+
+  const foreignEscalateRes = await call('POST', '/manager/commercial-exceptions/decide', {
+    cookie: neel.cookie,
+    json: {
+      exceptionId: TEST_FOREIGN_EXCEPTION_ID,
+      decision: 'escalated_to_rm',
+      decisionNotes: 'Attempting to escalate another team exception',
+    },
+  });
+  assert.equal(foreignEscalateRes.status, 403, "Another team's/vertical's exception cannot be changed/escalated (returns 403 FORBIDDEN)");
+
+  // TEST REQUIREMENT 4: Valid configured approval and permitted escalation still work
+  // Permitted escalation on breach exception
   const permittedEscalation = await call('POST', '/manager/commercial-exceptions/decide', {
     cookie: neel.cookie,
     json: {
       exceptionId: TEST_EXCEPTION_BREACH_ID,
       decision: 'escalated_to_rm',
       decisionNotes: 'Discount 75% exceeds Wealth Manager authority threshold. Escalated to RM per policy.',
-      delegatedLimitMet: false,
     },
   });
-  assert.equal(permittedEscalation.status, 200, 'Escalation to RM returns 200');
+  assert.equal(permittedEscalation.status, 200, 'Permitted escalation to RM returns 200');
   assert.equal(permittedEscalation.body.status, 'escalated_to_rm');
   assert.equal(permittedEscalation.body.delegated_limit_met, false);
 
-  // PERMITTED APPROVAL: Manager approves within-limit exception
+  // Permitted approval on within-limit exception (without client delegatedLimitMet)
   const permittedApproval = await call('POST', '/manager/commercial-exceptions/decide', {
     cookie: neel.cookie,
     json: {
       exceptionId: TEST_EXCEPTION_ID,
       decision: 'approved',
-      decisionNotes: '10% onboarding fee waiver is within Manager delegated limit of 25%.',
-      delegatedLimitMet: true,
+      decisionNotes: '10% onboarding fee waiver is within Manager delegated authority limit.',
     },
   });
-  assert.equal(permittedApproval.status, 200, 'Permitted approval returns 200');
+  assert.equal(permittedApproval.status, 200, 'Valid configured approval returns 200');
   assert.equal(permittedApproval.body.status, 'approved');
   assert.equal(permittedApproval.body.delegated_limit_met, true);
 
-  // NEGATIVE TEST 2: Cannot re-decide an already finalized exception (returns 400 VALIDATION_FAILED)
+  // TEST REQUIREMENT 5: Repeated/concurrent decisions cannot overwrite a finalized decision
+  // Repeated decision on already finalized exception
   const redecideAttempt = await call('POST', '/manager/commercial-exceptions/decide', {
     cookie: neel.cookie,
     json: {
       exceptionId: TEST_EXCEPTION_ID,
       decision: 'rejected',
       decisionNotes: 'Attempting to reject an already approved exception',
-      delegatedLimitMet: true,
     },
   });
-  assert.equal(redecideAttempt.status, 400, 'Cannot re-decide finalized exception');
+  assert.equal(redecideAttempt.status, 400, 'Repeated decision cannot overwrite finalized decision (returns 400 BAD REQUEST)');
+
+  // Concurrent decisions on pending exception: atomic serialization
+  const [conc1, conc2] = await Promise.all([
+    call('POST', '/manager/commercial-exceptions/decide', {
+      cookie: neel.cookie,
+      json: {
+        exceptionId: TEST_CONCURRENT_EXCEPTION_ID,
+        decision: 'approved',
+        decisionNotes: 'Concurrent request A: within-limit approval',
+      },
+    }),
+    call('POST', '/manager/commercial-exceptions/decide', {
+      cookie: neel.cookie,
+      json: {
+        exceptionId: TEST_CONCURRENT_EXCEPTION_ID,
+        decision: 'escalated_to_rm',
+        decisionNotes: 'Concurrent request B: escalation to RM',
+      },
+    }),
+  ]);
+
+  const concStatuses = [conc1.status, conc2.status].sort();
+  assert.deepEqual(
+    concStatuses,
+    [200, 400],
+    'Atomic transition: exactly one concurrent request succeeds (200), the other is rejected (400)'
+  );
+
+  // Confirm database record has exactly one valid finalized status
+  const finalConcRes = await db.query('SELECT status, decided_by_manager_employee_id FROM commercial_exceptions WHERE id = $1', [
+    TEST_CONCURRENT_EXCEPTION_ID,
+  ]);
+  assert.equal(finalConcRes.rows.length, 1);
+  assert.ok(
+    ['approved', 'escalated_to_rm'].includes(finalConcRes.rows[0].status),
+    'Concurrent exception finalized with single winning decision'
+  );
+  assert.equal(finalConcRes.rows[0].decided_by_manager_employee_id, 'EMP-007');
 });
 
 // ─── Test Case 11: MG-10 Source Quality Remediation ───

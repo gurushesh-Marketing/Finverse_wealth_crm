@@ -115,7 +115,7 @@ export const decideCommercialExceptionSchema = z.object({
   exceptionId: z.string().min(1),
   decision: z.enum(['approved', 'rejected', 'escalated_to_rm']),
   decisionNotes: z.string().trim().min(5, 'Decision notes are required.'),
-  delegatedLimitMet: z.boolean().default(true),
+  delegatedLimitMet: z.boolean().optional(),
 });
 export type DecideCommercialExceptionInput = z.infer<typeof decideCommercialExceptionSchema>;
 

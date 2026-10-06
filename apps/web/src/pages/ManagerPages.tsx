@@ -1240,7 +1240,6 @@ export function ManagerExceptionsPage() {
         exceptionId: activeExcId,
         decision,
         decisionNotes: decisionNotes.trim(),
-        delegatedLimitMet: target?.delegated_limit_met ?? true,
       });
       setActiveExcId('');
       setDecisionNotes('');

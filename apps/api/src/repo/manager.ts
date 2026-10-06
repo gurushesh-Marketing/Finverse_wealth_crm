@@ -724,48 +724,227 @@ export async function resolveSlaBreach(scope: Scope, input: ResolveSlaBreachInpu
 export async function listCommercialExceptions(scope: Scope) {
   assertMg(scope);
   const { rows } = await pool.query(
-    `SELECT c.*, l.display_name AS lead_name, e.display_name AS requester_name
+    `SELECT c.*,
+            COALESCE(l.team_id, req_a.team_id) AS team_id,
+            COALESCE(l.vertical, req_a.vertical) AS vertical,
+            l.display_name AS lead_name,
+            e.display_name AS requester_name
        FROM commercial_exceptions c
        LEFT JOIN leads l ON l.id = c.lead_id
+       LEFT JOIN assignments req_a ON req_a.employee_id = c.requested_by_employee_id
+            AND req_a.effective_from <= CURRENT_DATE
+            AND (req_a.effective_to IS NULL OR req_a.effective_to > CURRENT_DATE)
        JOIN employees e ON e.id = c.requested_by_employee_id
-      ORDER BY c.created_at DESC`
+      WHERE (
+        (l.team_id IS NOT NULL AND l.team_id = ANY($1) AND l.vertical = ANY($2))
+        OR
+        (l.team_id IS NULL AND req_a.team_id = ANY($1) AND req_a.vertical = ANY($2))
+      )
+      ORDER BY c.created_at DESC`,
+    [scope.teams, scope.verticals]
   );
   return rows;
 }
 
-export async function decideCommercialException(scope: Scope, input: DecideCommercialExceptionInput) {
+export async function getCommercialException(scope: Scope, exceptionId: string) {
   assertMg(scope);
   const { rows: [exc] } = await pool.query(
-    `SELECT * FROM commercial_exceptions WHERE id = $1`,
-    [input.exceptionId]
+    `SELECT c.*,
+            COALESCE(l.team_id, req_a.team_id) AS team_id,
+            COALESCE(l.vertical, req_a.vertical) AS vertical,
+            l.display_name AS lead_name,
+            e.display_name AS requester_name
+       FROM commercial_exceptions c
+       LEFT JOIN leads l ON l.id = c.lead_id
+       LEFT JOIN assignments req_a ON req_a.employee_id = c.requested_by_employee_id
+            AND req_a.effective_from <= CURRENT_DATE
+            AND (req_a.effective_to IS NULL OR req_a.effective_to > CURRENT_DATE)
+       JOIN employees e ON e.id = c.requested_by_employee_id
+      WHERE c.id = $1`,
+    [exceptionId]
   );
   if (!exc) throw notFound();
 
-  // State Machine Guard: Cannot re-decide an already finalized exception
-  if (exc.status !== 'pending') {
-    throw new HttpError(400, 'VALIDATION_FAILED', `Commercial exception has already been decided with status '${exc.status}'.`);
+  const isTeamScoped = exc.team_id && scope.teams.includes(exc.team_id);
+  const isVerticalScoped = !exc.vertical || scope.verticals.includes(exc.vertical);
+  if (!isTeamScoped || !isVerticalScoped) {
+    throw forbidden('Unauthorized: Commercial exception belongs to another team or vertical [Deck P002].');
   }
 
-  // Server-Side Authority Enforcement [Deck P151–P152, Deck P320 Category 3: Approvals and limits]:
-  // "Validation (MG-09): Unset limits mean no approval authority. Product eligibility and mandatory terms remain enforced."
-  // "Exception Handling (MG-09): Finance or policy exceptions go to the relevant owner; Manager title does not authorise them automatically."
-  // Illustrative Configuration: Delegated limit compliance indicates whether requested terms fall within Manager authority.
-  // If delegatedLimitMet is false, Manager CANNOT approve the exception. It must be escalated to Regional Manager (RM) or rejected.
-  const limitMet = input.delegatedLimitMet !== undefined ? input.delegatedLimitMet : exc.delegated_limit_met;
-  if (input.decision === 'approved' && !limitMet) {
-    throw forbidden(
-      'Unauthorized decision: Requested commercial exception exceeds Manager delegated authority limit [Deck P320 Category 3: Approvals and limits]. Must be escalated to Regional Manager.'
+  return exc;
+}
+
+/**
+ * Server-Side Delegated Authority Resolution [Deck P151–P152, Deck P320 Category 3: Approvals and limits]
+ *
+ * Rules:
+ * 1. "Validation (MG-09): Unset limits mean no approval authority. Product eligibility and mandatory terms remain enforced."
+ * 2. "Exception Handling (MG-09): Finance or policy exceptions go to the relevant owner; Manager title does not authorise them automatically."
+ * 3. Authority is derived from:
+ *    - Authenticated grant: Manager role ('MG') within active assignment scope.
+ *    - Trusted server-side DoA policy (e.g. finance_policies DOA-2026-V1 with approval_limits->>'MG').
+ *    - Exception type eligibility: Managers are restricted from approving legal/custom-terms exceptions.
+ *    - Exception record limit assessment: exc.delegated_limit_met recorded server-side.
+ * 4. Client-supplied delegatedLimitMet must NEVER grant authority.
+ * 5. Unset authority means approval denied.
+ */
+async function resolveCommercialApprovalAuthority(
+  client: any,
+  scope: Scope,
+  exception: {
+    id: string;
+    exception_type: string;
+    delegated_limit_met: boolean;
+    requested_terms: string;
+    standard_terms: string;
+  }
+): Promise<{ permitted: boolean; reason?: string }> {
+  // 1. Role grant verification
+  if (scope.role !== 'MG') {
+    return { permitted: false, reason: 'Role does not possess Manager delegation' };
+  }
+
+  // 2. Exception type policy check [Deck P152: Policy exceptions go to relevant owner]
+  // 'custom-terms' requires legal/executive authority and is never delegated to branch Manager
+  if (exception.exception_type === 'custom-terms') {
+    return {
+      permitted: false,
+      reason: 'Manager title does not authorise custom contract terms. Must be escalated to Regional Manager or Legal/Finance [Deck P152].',
+    };
+  }
+
+  // 3. Exception record pre-qualification verification (derived from trusted database record, NEVER client input)
+  if (!exception.delegated_limit_met) {
+    return {
+      permitted: false,
+      reason: 'Requested terms exceed Manager delegated authority threshold [Deck P320 Category 3].',
+    };
+  }
+
+  // 4. Trusted DoA Policy configuration check [Deck P320 Category 3: Approvals and limits]
+  // Consult active Delegation of Authority (DoA) policy from finance_policies table
+  try {
+    const { rows: policies } = await client.query(
+      `SELECT approval_limits FROM finance_policies
+        WHERE category = 'delegation_of_authority' AND status = 'active'
+        ORDER BY effective_date DESC LIMIT 1`
     );
+    if (policies.length === 0) {
+      // Unset authority policy means approval denied, per the deck
+      return {
+        permitted: false,
+        reason: 'Delegation of authority policy is unset. Unset limits mean no approval authority [Deck P152, Deck P320 Cat 3].',
+      };
+    }
+    const limits = policies[0].approval_limits || {};
+    const mgLimit = Number(limits.MG);
+    if (!mgLimit || mgLimit <= 0) {
+      // Unset limit means approval denied
+      return {
+        permitted: false,
+        reason: 'Manager delegated approval limit is unset or zero in active DoA policy. Unset limits mean no approval authority [Deck P152, Deck P320 Cat 3].',
+      };
+    }
+  } catch {
+    // If finance_policies table is unavailable in this environment, illustrative policy requires explicit configured grant
+    return {
+      permitted: false,
+      reason: 'Delegation of authority policy could not be verified from trusted server configuration [Deck P152].',
+    };
   }
 
-  const { rows: [updated] } = await pool.query(
-    `UPDATE commercial_exceptions
-        SET status = $1, decision_notes = $2, decided_by_manager_employee_id = $3, decided_at = now(), delegated_limit_met = $4
-      WHERE id = $5
-      RETURNING *`,
-    [input.decision, input.decisionNotes, scope.employeeId, limitMet, input.exceptionId]
-  );
-  return updated;
+  return { permitted: true };
+}
+
+export async function decideCommercialException(scope: Scope, input: DecideCommercialExceptionInput) {
+  assertMg(scope);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Fetch exception with row-level lock and scope context
+    const { rows: [exc] } = await client.query(
+      `SELECT c.*,
+              COALESCE(l.team_id, req_a.team_id) AS team_id,
+              COALESCE(l.vertical, req_a.vertical) AS vertical
+         FROM commercial_exceptions c
+         LEFT JOIN leads l ON l.id = c.lead_id
+         LEFT JOIN assignments req_a ON req_a.employee_id = c.requested_by_employee_id
+              AND req_a.effective_from <= CURRENT_DATE
+              AND (req_a.effective_to IS NULL OR req_a.effective_to > CURRENT_DATE)
+        WHERE c.id = $1
+          FOR UPDATE OF c`,
+      [input.exceptionId]
+    );
+
+    if (!exc) {
+      throw notFound();
+    }
+
+    // 2. Enforce scope BEFORE deciding (deny-by-default on cross-team or cross-vertical access)
+    const isTeamScoped = exc.team_id && scope.teams.includes(exc.team_id);
+    const isVerticalScoped = !exc.vertical || scope.verticals.includes(exc.vertical);
+    if (!isTeamScoped || !isVerticalScoped) {
+      throw forbidden('Unauthorized: Commercial exception belongs to another team or vertical [Deck P002].');
+    }
+
+    // 3. State Machine Guard: Cannot re-decide an already finalized exception
+    if (exc.status !== 'pending') {
+      throw new HttpError(
+        400,
+        'VALIDATION_FAILED',
+        `Commercial exception has already been decided with status '${exc.status}'.`
+      );
+    }
+
+    // 4. Server-Side Authority Enforcement [Deck P151–P152, Deck P320 Category 3: Approvals and limits]:
+    // Client-supplied delegatedLimitMet is strictly ignored.
+    const authCheck = await resolveCommercialApprovalAuthority(client, scope, exc);
+
+    if (input.decision === 'approved' && !authCheck.permitted) {
+      throw forbidden(
+        `Unauthorized decision: ${authCheck.reason || 'Manager lacks delegated approval authority'} [Deck P320 Category 3: Approvals and limits]. Must be escalated to Regional Manager.`
+      );
+    }
+
+    // Determine final delegated limit flag based purely on server verification (true for approved within-limit, false if breach)
+    const finalDelegatedLimitMet = input.decision === 'approved' ? true : exc.delegated_limit_met;
+
+    // 5. Atomic State Transition from 'pending' to finalized
+    const { rows: [updated] } = await client.query(
+      `UPDATE commercial_exceptions
+          SET status = $1,
+              decision_notes = $2,
+              decided_by_manager_employee_id = $3,
+              decided_at = now(),
+              delegated_limit_met = $4
+        WHERE id = $5 AND status = 'pending'
+        RETURNING *`,
+      [
+        input.decision,
+        input.decisionNotes,
+        scope.employeeId,
+        finalDelegatedLimitMet,
+        input.exceptionId,
+      ]
+    );
+
+    if (!updated) {
+      throw new HttpError(
+        400,
+        'VALIDATION_FAILED',
+        'Commercial exception was concurrently finalized by another request.'
+      );
+    }
+
+    await client.query('COMMIT');
+    return updated;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ─── MG-10: Source Quality Remediation ───

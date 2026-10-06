@@ -176,6 +176,10 @@ export function managerRouter(): Router {
     res.json(await mg.listCommercialExceptions(scopeOf(req)));
   }));
 
+  router.get('/commercial-exceptions/:id', wrap(async (req, res) => {
+    res.json(await mg.getCommercialException(scopeOf(req), req.params.id));
+  }));
+
   router.post('/commercial-exceptions/decide', wrap(async (req, res) => {
     const parsed = decideCommercialExceptionSchema.parse(req.body);
     res.json(await mg.decideCommercialException(scopeOf(req), parsed));

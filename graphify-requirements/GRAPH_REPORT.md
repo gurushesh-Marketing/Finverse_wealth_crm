@@ -1,4 +1,4 @@
-# Graph Report - finverse-crm-v2  (2026-10-06)
+# Graph Report - finverse-crm-v2  (2026-10-07)
 
 ## Corpus Check
 - 13 files · ~245,000 words

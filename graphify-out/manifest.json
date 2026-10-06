@@ -510,16 +510,16 @@
     "semantic_hash": "1b48639ceac46c2227bf9664ae56fe05"
   },
   "apps/api/src/repo/manager.ts": {
-    "mtime": 1791302771.0850594,
-    "seen": 1791304051.1789184,
-    "ast_hash": "3e6c301d792f08af5d62a2f686219757",
-    "semantic_hash": "3e6c301d792f08af5d62a2f686219757"
+    "mtime": 1791313653.1052291,
+    "seen": 1791313773.998388,
+    "ast_hash": "c05ab3bbd67dd0d6736cb8d61204a175",
+    "semantic_hash": "c05ab3bbd67dd0d6736cb8d61204a175"
   },
   "apps/api/src/routes/manager.ts": {
-    "mtime": 1791184040.4850204,
-    "seen": 1791184530.567717,
-    "ast_hash": "8ed692e8f54a8e9c6656765f8a413555",
-    "semantic_hash": "8ed692e8f54a8e9c6656765f8a413555"
+    "mtime": 1791313438.4576962,
+    "seen": 1791313773.9999082,
+    "ast_hash": "fa0a4859cf14d22bf13da3677a8ecfff",
+    "semantic_hash": "fa0a4859cf14d22bf13da3677a8ecfff"
   },
   "apps/web/src/components/auth/DemoAccessPanel.tsx": {
     "mtime": 1791140601.5350492,
@@ -540,10 +540,10 @@
     "semantic_hash": "2a7e42e73f3e78fb819730e4fcc12740"
   },
   "apps/web/src/pages/ManagerPages.tsx": {
-    "mtime": 1791302839.6978314,
-    "seen": 1791304051.2292411,
-    "ast_hash": "6a509290cd2aa4806bfd0b23e67f913b",
-    "semantic_hash": "6a509290cd2aa4806bfd0b23e67f913b"
+    "mtime": 1791313451.5072784,
+    "seen": 1791313774.0077481,
+    "ast_hash": "1a3491570d8f99e6ee51bf0116a9d2c2",
+    "semantic_hash": "1a3491570d8f99e6ee51bf0116a9d2c2"
   },
   "database/migrations/0008_manager.sql": {
     "mtime": 1791140836.8334858,
@@ -558,10 +558,10 @@
     "semantic_hash": "59a940ee876839dc650f980c99beb5d1"
   },
   "packages/contracts/src/manager.ts": {
-    "mtime": 1791183948.8792193,
-    "seen": 1791184530.5758955,
-    "ast_hash": "3c74f8855ee5238aded9ff29ce84f5c0",
-    "semantic_hash": "3c74f8855ee5238aded9ff29ce84f5c0"
+    "mtime": 1791313378.0765796,
+    "seen": 1791313774.0140293,
+    "ast_hash": "4821a7aaf0b931c7d744171d45bbc3b0",
+    "semantic_hash": "4821a7aaf0b931c7d744171d45bbc3b0"
   },
   "apps/api/src/repo/regional-manager.ts": {
     "mtime": 1791188856.4166405,
@@ -726,16 +726,16 @@
     "semantic_hash": "bcc95f0071f56c7b354e8c1b6cd9d09b"
   },
   "apps/api/test/manager.api.test.ts": {
-    "mtime": 1791303251.473098,
-    "seen": 1791304051.192098,
-    "ast_hash": "3615fe5505307814c650931ca013dc6d",
-    "semantic_hash": "3615fe5505307814c650931ca013dc6d"
+    "mtime": 1791313582.1027546,
+    "seen": 1791313774.0007076,
+    "ast_hash": "c87f037f4b298badcfddaffe0570b83c",
+    "semantic_hash": "c87f037f4b298badcfddaffe0570b83c"
   },
   "evidence/manager_test_execution_record.json": {
-    "mtime": 1791303469.6181946,
-    "seen": 1791304051.2454958,
-    "ast_hash": "cb44bed0cbf382fcabb6ec5afa24f741",
-    "semantic_hash": "cb44bed0cbf382fcabb6ec5afa24f741"
+    "mtime": 1791313918.047767,
+    "seen": 1791313962.081518,
+    "ast_hash": "d8bcc46fb6057bf56aae43952c6b0d80",
+    "semantic_hash": "d8bcc46fb6057bf56aae43952c6b0d80"
   },
   "scripts/fix_demo_hashes.ts": {
     "mtime": 1791191227.1522903,

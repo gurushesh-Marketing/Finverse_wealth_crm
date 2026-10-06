@@ -1,42 +1,38 @@
-# Project status — CHECKPOINT (step 032)
+# Project status — CHECKPOINT (step 033)
 
-Last updated: 2026-10-06. This checkpoint supersedes earlier status sections;
+Last updated: 2026-10-07. This checkpoint supersedes earlier status sections;
 contradictions are reconciled against recorded evidence in BUILD_LOG steps
-004–032 and COVERAGE_MATRIX.md. No credentials are stored in process docs —
+004–033 and COVERAGE_MATRIX.md. No credentials are stored in process docs —
 synthetic demo accounts and local connection settings live in the gitignored
 `.env` and `database/seed.ts` only.
 
 ## 1. Current milestone and roadmap status
 
-- **WEALTH MANAGER CHECKPOINT CLOSED & PUBLISHED (MG-01…MG-13 Fully Verified)**:
-  - **Discrete Test Runner Counts Corrected**: Refactored `apps/api/test/manager.api.test.ts` from a monolithic block into **14 discrete, top-level node:test cases** (1 role authorization gate + 13 action cases `MG-01` through `MG-13`).
-  - **Actual Test Runner Execution Results**:
-    - Command: `node --import tsx --test apps/api/test/manager.api.test.ts` against dedicated test database (`finverse_test`).
-    - Runner Metrics: **14 tests, 14 pass, 0 fail, 0 skipped, duration 17,250ms**.
-    - Exit code: `0`. Demo database (`finverse_crm`) and dev preview kept completely intact and preserved.
-  - **Evidence Freshness Repaired with Cryptographic Composite Fingerprints**:
-    - Discontinued hardcoded `PASS` generation. Built and executed `scripts/record_test_execution.py` to record real runtime results to `evidence/manager_test_execution_record.json`.
-    - Captures command, exit code, timestamp, runner metrics, and recursive SHA-256 tree hashes across:
-      * Application API source (`apps/api/src/`)
-      * Application Web source (`apps/web/src/`)
-      * Database Migrations (`database/migrations/`)
-      * Shared Contracts (`packages/contracts/src/`)
-      * Test Suite (`apps/api/test/manager.api.test.ts`)
-    - `scripts/build_requirements_graph.py` and `scripts/verify_evidence_integrity.py` dynamically consume this record and mark evidence **STALE** if any application source or migration file diverges from the recorded hashes.
-  - **Specific MG-09 Acceptance Gap Closed**:
-    - Evaluated against Action Deck P151–P152 requirements: "Finance or policy exceptions go to the relevant owner; Manager title does not authorise them automatically."
-    - Enforced server-side delegated authority validation in `apps/api/src/repo/manager.ts`:
-      * Requests exceeding Manager delegated authority are strictly rejected with `403 FORBIDDEN` (`Unauthorized decision: Requested commercial exception exceeds Manager delegated authority limit [Deck P320 Category 3]`).
-      * Terminal re-decisions are rejected with `400 BAD REQUEST`.
-      * Permitted within-limit approvals and escalations to Regional Manager (`RM-08`) operate normally.
-      * Unresolved authority thresholds labeled explicitly as illustrative configuration under client decision category 3 (`[Deck P320 Category 3]`).
-    - UI in `apps/web/src/pages/ManagerPages.tsx` updated with illustrative delegated limit banner, breach warning badge, and disabled "Approve (Within Limit)" action when limits are breached.
-  - **Visual Acceptance Across All 7 Manager Routes**:
-    - Inspected and aligned all 7 routes against Action Deck P135–P160 and brand guidelines: Overview (`MG-01`), Leaders (`MG-02`, `MG-10`), Capacity (`MG-03`, `MG-04`, `MG-12`), Targets (`MG-05`), Forecasts (`MG-06`, `MG-07`), Exceptions (`MG-08`, `MG-09`), Reports (`MG-13`).
-    - Verified single solid primary button hierarchy, `#113F3D` brand tokens, Manrope/Inter typography, form validation, error states, and responsive drawer ergonomics.
-  - **Dhanan Operations & Developer Handoff Published**:
-    - Section 9 established in `docs/process/PRODUCTION_HANDOVER.md` for Dhanan's feature-branch collaboration within the SAME CRM.
-    - Verified clean `.env.example` with zero secrets and instructions for ports, test DB, and migrations.
+- **WEALTH MANAGER CHECKPOINT CLOSED & MG-09 AUTHORIZATION DEFECT REMEDIATED**:
+  - **Server-Side Authority Derivation (MG-09 Remediated)**:
+    - Fixed vulnerability where client-supplied `delegatedLimitMet` was trusted. `packages/contracts/src/manager.ts` updated to make `delegatedLimitMet` optional and deprecated. The server never consults client input to grant authority.
+    - Server independently derives approval authority via `resolveCommercialApprovalAuthority`: verifies authenticated Manager role, active Delegation of Authority (DoA) policy (`DOA-2026-V1` in `finance_policies`), exception type eligibility (rejects `custom-terms` which require RM/Legal per Deck P152), and database record pre-qualification (`delegated_limit_met`).
+    - Enforced deck rule: **Unset authority means approval denied**. If DoA policy or limit is missing/unset, approval is denied (403 Forbidden). Illustrative policies remain explicitly labeled `[Deck P320 Category 3: Approvals and limits]`.
+  - **Scope Enforcement Before Reading or Deciding (MG-09 Remediated)**:
+    - Enforced scope on `listCommercialExceptions`, `getCommercialException`, and `decideCommercialException`: joining `leads` and requester `assignments` to verify `team_id` is within `scope.teams` and vertical matches `scope.verticals`.
+    - Cross-team / cross-vertical exceptions cannot be read or changed (403 Forbidden).
+  - **Atomic State Transition (MG-09 Remediated)**:
+    - Wrapped `decideCommercialException` in a database transaction with `FOR UPDATE OF c` row-level lock.
+    - Transition is strictly conditional on `status = 'pending'`. Concurrent/repeated requests cannot overwrite finalized records; race conditions serialize safely with exactly one winning decision and the other rejected with 400 Bad Request.
+  - **Targeted Test Execution Verified**:
+    - `apps/api/test/manager.api.test.ts` updated with targeted tests proving:
+      * Sending `delegatedLimitMet: true` cannot override insufficient authority (403 Forbidden).
+      * Omitting `delegatedLimitMet` cannot grant authority (403 Forbidden).
+      * Foreign team's exception cannot be read or changed (403 Forbidden).
+      * Valid configured approval and permitted escalation to RM both succeed (200 OK).
+      * Repeated and concurrent decisions cannot overwrite finalized state (atomic 400 Bad Request rejection).
+    - Runner Metrics: **14 tests, 14 pass, 0 fail, 0 skipped, duration 12,676ms** against isolated test database `finverse_test`.
+  - **Evidence Freshness & Knowledge Graphs Refreshed**:
+    - Execution record regenerated at `evidence/manager_test_execution_record.json` with fresh composite fingerprints.
+    - Requirements graph rebuilt and verified (135 actions, 0 ungrounded claims).
+    - Code graph incrementally refreshed with Graphify (1753 nodes, 3895 edges).
+  - **Dhanan Operations & Developer Handoff Maintained**:
+    - Section 9 in `docs/process/PRODUCTION_HANDOVER.md` intact for feature branch collaboration within the same CRM. Clean `.env.example` verified.
 
 ## 2. Checks actually executed vs remaining verification reality
 
