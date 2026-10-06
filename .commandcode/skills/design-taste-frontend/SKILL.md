@@ -124,13 +124,13 @@ For these directions, there is **no single official package**. Build with native
 Unless the design read picks a real design system (Section 2.A), these are the defaults:
 
 ### 3.A Stack
-* **Framework:** React or Next.js. Default to Server Components (RSC).
-  * **RSC SAFETY:** Global state works ONLY in Client Components. In Next.js, wrap providers in a `"use client"` component.
-  * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top. Server Components render static layouts only.
+* **Framework:** React SPA (Vite) in this project — there is no Next.js runtime and no Server Components (RSC).
+  * **STATE:** All components run on the client; keep global providers at the app root.
+  * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf component.
 * **Styling:** **Tailwind v4** (default). Tailwind v3 only if the existing project demands it.
   * For v4: do NOT use `tailwindcss` plugin in `postcss.config.js`. Use `@tailwindcss/postcss` or the Vite plugin.
 * **Animation:** **Motion** (the library formerly known as Framer Motion). Import from `motion/react` (`import { motion } from "motion/react"`). The `framer-motion` package still works as a legacy alias - prefer `motion/react` in new code.
-* **Fonts:** Always use `next/font` (Next.js) or self-host with `@font-face` + `font-display: swap`. Never link Google Fonts via `<link>` in production.
+* **Fonts:** Self-host with `@font-face` + `font-display: swap` (e.g. `@fontsource/*` packages). Never link Google Fonts via `<link>` in production.
 
 ### 3.B State
 * Local `useState` / `useReducer` for isolated UI.

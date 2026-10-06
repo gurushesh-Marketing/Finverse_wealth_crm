@@ -4,10 +4,14 @@ Status: execution plan, 26 September 2026. The coded design source is `crm-proto
 
 ## Technical direction
 
-- Build one production frontend in Next.js App Router, React, TypeScript, Tailwind CSS and shadcn/ui. Next.js includes React; do not maintain a separate React SPA as the production CRM.
-- Keep `crm-prototype/` as a visual and interaction reference while porting its tokens, logo, shell and components. New work belongs in the production app, not in PDF builders or screenshot scripts.
-- Use one package manager (`pnpm`) and one lockfile for the app. Add dependencies only when a vertical slice needs them. Candidate additions are Zod for runtime boundary validation, React Hook Form for substantial forms, TanStack Table for large scoped tables, and Playwright for end-to-end workflows. The shadcn/ui CLI adds component source to the project; it is a component foundation, not the CRM business logic.
-- The frontend may use a typed mock repository first. Define the request/response and error contracts now, so the mock can be replaced by the real API without rewriting UI behavior.
+- Build one integrated CRM application in a pnpm monorepo:
+  - Frontend: `apps/web` (React, Vite, TypeScript, React Router, Tailwind CSS v4, and shadcn/ui Base UI).
+  - Backend: `apps/api` (Express, TypeScript, PostgreSQL via parameterized queries, session authentication).
+  - Shared Contracts: `packages/contracts` (shared Zod schemas for runtime request/response validation).
+  - Database: `database/migrations` and `database/seeds` (PostgreSQL versioned SQL migrations and deterministic synthetic seeds).
+- Keep `crm-prototype/` as a visual and interaction reference while porting tokens, logo, shell and components. New work belongs in the production app.
+- Use `pnpm` workspaces with a single root lockfile. Dependencies include Zod for runtime boundary validation, React Router for client routing, and Playwright / Vitest for testing.
+- Authorization is enforced on every server read and mutation; a hidden UI menu is not authorization. Real credentials are server-only and gitignored.
 - Keep example names, amounts, products and pipeline stages visibly labelled as illustrative until Finverse approves vertical policies.
 
 ## One role, one workspace
@@ -43,7 +47,7 @@ Reuse primitives for tables, filters, forms, dialog/drawer, permission message, 
 
 ### 0. Foundation
 
-Create the Next.js app, install shadcn/ui, port the supplied brand assets and tokens, set up TypeScript strict mode, linting, Playwright and a fixture-backed repository interface. Implement the shared responsive shell and an explicit workspace-session fixture. Establish route-level empty/error states. Verify the app builds on Windows.
+Create the pnpm workspace (`apps/web`, `apps/api`, `packages/contracts`, `database`), install shadcn/ui Base UI, port the supplied brand assets and tokens, set up TypeScript strict mode, linting, Vitest, Playwright, and versioned PostgreSQL migrations with Express session authentication. Implement the shared responsive shell and explicit workspace-session contract. Establish route-level empty/error states. Verify the stack builds and runs on Windows.
 
 ### 1. Caller vertical slice — SC-01 through SC-16
 
@@ -76,14 +80,20 @@ Cover all 135 catalogue actions with an implementation status: working, intentio
 5. The reporting consequence described in `action_catalogue_v2.json` is tested where the mock can represent it.
 6. The flow is usable by keyboard and at the relevant desktop/mobile widths.
 
-## Claude Code working brief
+## Antigravity execution brief
 
-Start Claude Code from this workspace and give it one slice at a time. The first prompt can be:
+Operate within the Antigravity IDE with the main Builder conversation owning coordination, implementation, and integration:
 
-> Read `planning/crm/FRONTEND_EXECUTION.md`, `planning/crm/action_catalogue_v2.json`, and the existing `crm-prototype/`. Build Phase 0 and the SC-01 to SC-03 portion of Phase 1 in a new Next.js production app. Preserve the supplied Finverse logo, palette and role-adaptive design. Implement real state transitions against a typed fixture repository, not static click-throughs. Keep the production role session fixture separate from the review prototype routes. Add meaningful Playwright tests for caller scope, search/filter, record open, empty state and mobile width. Run build and tests; report working controls, remaining mock boundaries and exact files changed.
+> Read `docs/product/FRONTEND_EXECUTION.md`, `docs/product/action_catalogue_v2.json`, and authoritative deck references. Build and verify the vertical slice in the pnpm workspace (`apps/web`, `apps/api`, `packages/contracts`, `database`). Preserve the supplied Finverse logo, palette and role-adaptive design. Implement real state transitions against the Express API and PostgreSQL database, enforced by server authorization. Keep the workspace session contract strictly checked on both client routes and backend queries/mutations. Add meaningful tests for scope, filters, transitions, empty states and mobile widths. Run build and tests; report working controls, exact files changed, and evidence.
 
-After this slice passes, continue with SC-04 through SC-16, then Team Lead. Do not ask the agent to implement all 135 actions in one prompt. Review each completed slice against the deck's validation, system effect, reporting effect and exception rules.
+Do not attempt to implement all 135 actions in a single session. Review each completed slice against the deck's validation, system effect, reporting effect and exception rules.
 
-## Agent-tool discipline
+## Tooling and runtime discipline
 
-Use one baseline orchestration system in Claude Code, then add specialized skills only when a task calls for them. Record installed plugins, versions and active hooks. Avoid overlapping always-on style, memory and security hooks. Graphify is useful as a milestone index after a slice lands; it should not replace concise source-of-truth specifications. An external model router should use a stable, known working route for a coding slice, with tests deciding correctness rather than token allowance or model count.
+- Work with the selected host model: **Gemini Flash Medium** (`Gemini 3.8 Flash (Medium)`).
+- Antigravity IDE does not support native background worker delegation or custom agent registration. Specialist role definitions in `docs/process/roles/` serve as human-readable guidelines and specialized review instructions.
+- Preserve both Graphify knowledge graphs:
+  - `graphify-requirements/graph.json` for requirements and handoffs.
+  - `graphify-out/graph.json` for codebase symbols and relationships.
+- Use project-local `.venv-graphify` (`.\.venv-graphify\Scripts\graphify.exe`) with deterministic freshness helpers. Update the code graph after a completed implementation slice, not after every individual file edit.
+- Tests decide correctness; real database isolation ensures test suites do not contaminate or wipe persistent demo data.

@@ -1,87 +1,184 @@
-'use client';
+import { useState, type FormEvent } from 'react';
+import type { FollowUpInput } from '@finverse/contracts';
+import { ApiError, api } from '../../lib/api';
+import { Button } from '../ui/button';
+import { FieldError, Input, Label, Textarea } from '../ui/input';
+import { Select } from '../ui/select';
+import { SuccessNote } from '../ui/states';
 
-import { useActionState } from 'react';
-import { saveFollowUpAction, type FollowUpFormState } from '@/app/(workspace)/banking/clients/[id]/actions';
-import { Button } from '@/components/ui/button';
+const ACTION_LABELS: Record<string, string> = {
+  'voice-call': 'Voice call',
+  whatsapp: 'WhatsApp',
+  email: 'Email',
+  meeting: 'Meeting',
+  'document-check': 'Document check',
+  other: 'Other',
+};
 
-const initialState: FollowUpFormState = {};
+export function FollowUpForm({
+  leadId,
+  onSaved,
+}: {
+  leadId: string;
+  onSaved: () => Promise<void> | void;
+}) {
+  const [action, setAction] = useState('voice-call');
+  const [purpose, setPurpose] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [priority, setPriority] = useState('normal');
+  const [reminder, setReminder] = useState('15');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-const controlClass =
-  'h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
-const labelClass = 'text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground';
-
-function fieldErrorFor(error: string | undefined, field: 'due' | 'purpose'): string | null {
-  if (!error) return null;
-  if (field === 'purpose' && error.includes('Purpose')) return error;
-  if (field === 'due' && error.toLowerCase().includes('due')) return error;
-  return null;
-}
-
-export function FollowUpForm({ leadId }: { leadId: string }) {
-  const [state, formAction, pending] = useActionState(saveFollowUpAction, initialState);
-  const dueError = fieldErrorFor(state.error, 'due');
-  const purposeError = fieldErrorFor(state.error, 'purpose');
-  const generalError = state.error && !dueError && !purposeError ? state.error : null;
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaved(false);
+    setFormError(null);
+    setConflict(null);
+    const errors: Record<string, string[]> = {};
+    if (purpose.trim().length < 3) errors.purpose = ['Purpose must be at least 3 characters.'];
+    if (!date) errors.dueAt = ['Choose a date.'];
+    if (!time) errors.dueAt = [...(errors.dueAt ?? []), 'Choose a time.'];
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setSaving(false);
+      return;
+    }
+    const dueAt = new Date(`${date}T${time}`);
+    if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+      setFieldErrors({ dueAt: ['Due time must be in the future.'] });
+      setSaving(false);
+      return;
+    }
+    setFieldErrors({});
+    const input: FollowUpInput = {
+      action: action as FollowUpInput['action'],
+      purpose: purpose.trim(),
+      dueAt: dueAt.toISOString(),
+      priority: priority as FollowUpInput['priority'],
+      reminderMinutes: Number(reminder) as 5 | 15 | 30 | 60,
+    };
+    try {
+      await api.followUp(leadId, input);
+      setSaved(true);
+      setPurpose('');
+      await onSaved();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === 'VALIDATION_FAILED') setFieldErrors(err.fieldErrors ?? {});
+        else if (err.code === 'DUPLICATE_OPEN_TASK') setConflict(err.message);
+        else setFormError('Follow-up could not be saved. Try again.');
+      } else {
+        setFormError('Follow-up could not be saved. Try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <form action={formAction} className="space-y-3" aria-label="Schedule follow-up">
-      <input type="hidden" name="leadId" value={leadId} />
-      {generalError ? (
-        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{generalError}</p>
-      ) : null}
-      {state.success ? (
-        <p role="status" className="rounded-lg bg-accent/10 px-3 py-2 text-sm font-medium text-accent">{state.success}</p>
-      ) : null}
-
-      <div className="space-y-1">
-        <label htmlFor="fu-action" className={labelClass}>Next action</label>
-        <select id="fu-action" name="action" defaultValue="Follow-up call" className={controlClass}>
-          <option>Follow-up call</option>
-          <option>WhatsApp message</option>
-          <option>Await documents</option>
-        </select>
+    <form onSubmit={onSubmit} noValidate className="space-y-3">
+      <div>
+        <Label htmlFor="fu-action">Action</Label>
+        <Select id="fu-action" value={action} onChange={(e) => setAction(e.target.value)}>
+          {Object.entries(ACTION_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
       </div>
-
-      <div className="space-y-1">
-        <label htmlFor="fu-due" className={labelClass}>Due date and time</label>
-        <input
-          id="fu-due"
-          name="dueAt"
-          type="datetime-local"
-          aria-invalid={dueError ? true : undefined}
-          className={controlClass}
-        />
-        {dueError ? (
-          <p role="alert" className="text-xs font-medium text-destructive">{dueError}</p>
-        ) : (
-          <p className="text-xs text-muted-foreground">Must be in the future.</p>
-        )}
-      </div>
-
-      <div className="space-y-1">
-        <label htmlFor="fu-purpose" className={labelClass}>Purpose</label>
-        <input
+      <div>
+        <Label htmlFor="fu-purpose">Purpose</Label>
+        <Textarea
           id="fu-purpose"
-          name="purpose"
-          placeholder="e.g. Confirm documents"
-          aria-invalid={purposeError ? true : undefined}
-          className={controlClass}
+          rows={2}
+          value={purpose}
+          placeholder="Confirm documents"
+          aria-invalid={fieldErrors.purpose ? true : undefined}
+          onChange={(e) => setPurpose(e.target.value)}
         />
-        {purposeError ? <p role="alert" className="text-xs font-medium text-destructive">{purposeError}</p> : null}
+        <FieldError>{fieldErrors.purpose?.[0]}</FieldError>
       </div>
-
-      <div className="space-y-1">
-        <label htmlFor="fu-priority" className={labelClass}>Priority</label>
-        <select id="fu-priority" name="priority" defaultValue="normal" className={controlClass}>
-          <option value="low">low</option>
-          <option value="normal">normal</option>
-          <option value="high">high</option>
-        </select>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="fu-date">Due date</Label>
+          <Input
+            id="fu-date"
+            type="date"
+            value={date}
+            aria-invalid={fieldErrors.dueAt ? true : undefined}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="fu-time">Due time</Label>
+          <Input
+            id="fu-time"
+            type="time"
+            value={time}
+            aria-invalid={fieldErrors.dueAt ? true : undefined}
+            onChange={(e) => setTime(e.target.value)}
+          />
+        </div>
       </div>
-
-      <Button type="submit" disabled={pending} className="w-full">
-        {pending ? 'Saving…' : 'Save follow-up'}
-      </Button>
+      <FieldError>{fieldErrors.dueAt?.[0]}</FieldError>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="fu-priority">Priority</Label>
+          <Select id="fu-priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="low">Low</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="fu-reminder">Reminder</Label>
+          <Select id="fu-reminder" value={reminder} onChange={(e) => setReminder(e.target.value)}>
+            <option value="5">5 minutes before</option>
+            <option value="15">15 minutes before</option>
+            <option value="30">30 minutes before</option>
+            <option value="60">60 minutes before</option>
+          </Select>
+        </div>
+      </div>
+      {conflict ? (
+        <div role="alert" className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-accent">
+          {conflict}
+        </div>
+      ) : null}
+      {formError ? (
+        <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {formError}
+        </div>
+      ) : null}
+      {saved ? <SuccessNote>Follow-up saved. Task and timeline updated.</SuccessNote> : null}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={saving} aria-busy={saving}>
+          {saving ? 'Saving…' : 'Save follow-up'}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={saving}
+          onClick={() => {
+            setPurpose('');
+            setDate('');
+            setTime('');
+            setFieldErrors({});
+            setFormError(null);
+            setConflict(null);
+            setSaved(false);
+          }}
+        >
+          Cancel
+        </Button>
+      </div>
     </form>
   );
 }

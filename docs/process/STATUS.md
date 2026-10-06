@@ -1,64 +1,56 @@
-# Project status
+# Project status — CHECKPOINT (step 032)
 
-Last updated: 2026-10-01 (Step 025 — branding complete+verified; goal INCOMPLETE, Parts 3–6 pending)
+Last updated: 2026-10-06. This checkpoint supersedes earlier status sections;
+contradictions are reconciled against recorded evidence in BUILD_LOG steps
+004–032 and COVERAGE_MATRIX.md. No credentials are stored in process docs —
+synthetic demo accounts and local connection settings live in the gitignored
+`.env` and `database/seed.ts` only.
 
-> **GOAL HANDOFF (read first):** Wealth Caller SC-01…SC-28 completion gate → TL-01…TL-18. Track every row in `docs/process/COVERAGE_MATRIX.md`. **Part 2 (branding) is DONE and verified**: `apps/web/public/finverse-logo.png` = faithful crop of the NEW Finverse Logo.pdf artwork (original colors), applied to login + Sidebar + MobileNav; exact tokens applied (primary #113F3D/#155451, sage #6FA8A2/#7FB5AE, mint #DCEEEA, ink #1B1F1E, muted #6B7280, white #FFFFFF; navy/gold removed); Manrope headings + Inter body verified `loaded` in browser (computed colours exact). **Next (Parts 3–6, dependency order):** build the Wealth Caller workspace — nav expansion to the deck's 8 SC items (My day, Lead Inbox, Conversations, Calendar & tasks, My pipeline, Documents, Performance, Reviews & help; expect nav-test label updates), then SC-01…SC-28 per the matrix entry points and the full catalogue contracts (SC-15…SC-28 records still to be read in full from `action_catalogue_v2.json`), caller memory + provider simulators + PDF report (SC-27), then the completion-gate verification suite and final handoff. Preview: http://localhost:3000 (restore after restarts). Demo accounts: `ravi@`/`sana@`/`asha@finverse.demo`, password `demo1234` (Wealth caller = asha). Evidence: scratchpad `visual/` (brand-*/before-*/after-*/deck-*); logo source render verified. Tooling: `read_file` refuses PDFs (headless-Edge render instead — PDF viewer zoom is nondeterministic, crop from a known-good render); scratchpad env rotates across compactions (use absolute paths to the 10804061-… scratchpad); PowerShell cwd persists; lint carries 3 known `no-img-element` warnings on logo imgs + 5 fixture.ts warnings. Latest results: Playwright 4/4, lint 0 errors, build PASS.
+## 1. Current milestone and roadmap status
 
----
+- **WEALTH MANAGER CHECKPOINT CLOSED & PUBLISHED (MG-01…MG-13 Fully Verified)**:
+  - **Discrete Test Runner Counts Corrected**: Refactored `apps/api/test/manager.api.test.ts` from a monolithic block into **14 discrete, top-level node:test cases** (1 role authorization gate + 13 action cases `MG-01` through `MG-13`).
+  - **Actual Test Runner Execution Results**:
+    - Command: `node --import tsx --test apps/api/test/manager.api.test.ts` against dedicated test database (`finverse_test`).
+    - Runner Metrics: **14 tests, 14 pass, 0 fail, 0 skipped, duration 17,250ms**.
+    - Exit code: `0`. Demo database (`finverse_crm`) and dev preview kept completely intact and preserved.
+  - **Evidence Freshness Repaired with Cryptographic Composite Fingerprints**:
+    - Discontinued hardcoded `PASS` generation. Built and executed `scripts/record_test_execution.py` to record real runtime results to `evidence/manager_test_execution_record.json`.
+    - Captures command, exit code, timestamp, runner metrics, and recursive SHA-256 tree hashes across:
+      * Application API source (`apps/api/src/`)
+      * Application Web source (`apps/web/src/`)
+      * Database Migrations (`database/migrations/`)
+      * Shared Contracts (`packages/contracts/src/`)
+      * Test Suite (`apps/api/test/manager.api.test.ts`)
+    - `scripts/build_requirements_graph.py` and `scripts/verify_evidence_integrity.py` dynamically consume this record and mark evidence **STALE** if any application source or migration file diverges from the recorded hashes.
+  - **Specific MG-09 Acceptance Gap Closed**:
+    - Evaluated against Action Deck P151–P152 requirements: "Finance or policy exceptions go to the relevant owner; Manager title does not authorise them automatically."
+    - Enforced server-side delegated authority validation in `apps/api/src/repo/manager.ts`:
+      * Requests exceeding Manager delegated authority are strictly rejected with `403 FORBIDDEN` (`Unauthorized decision: Requested commercial exception exceeds Manager delegated authority limit [Deck P320 Category 3]`).
+      * Terminal re-decisions are rejected with `400 BAD REQUEST`.
+      * Permitted within-limit approvals and escalations to Regional Manager (`RM-08`) operate normally.
+      * Unresolved authority thresholds labeled explicitly as illustrative configuration under client decision category 3 (`[Deck P320 Category 3]`).
+    - UI in `apps/web/src/pages/ManagerPages.tsx` updated with illustrative delegated limit banner, breach warning badge, and disabled "Approve (Within Limit)" action when limits are breached.
+  - **Visual Acceptance Across All 7 Manager Routes**:
+    - Inspected and aligned all 7 routes against Action Deck P135–P160 and brand guidelines: Overview (`MG-01`), Leaders (`MG-02`, `MG-10`), Capacity (`MG-03`, `MG-04`, `MG-12`), Targets (`MG-05`), Forecasts (`MG-06`, `MG-07`), Exceptions (`MG-08`, `MG-09`), Reports (`MG-13`).
+    - Verified single solid primary button hierarchy, `#113F3D` brand tokens, Manrope/Inter typography, form validation, error states, and responsive drawer ergonomics.
+  - **Dhanan Operations & Developer Handoff Published**:
+    - Section 9 established in `docs/process/PRODUCTION_HANDOVER.md` for Dhanan's feature-branch collaboration within the SAME CRM.
+    - Verified clean `.env.example` with zero secrets and instructions for ports, test DB, and migrations.
 
-## Current checkpoint
+## 2. Checks actually executed vs remaining verification reality
 
-**Phase:** Banking milestone 1 delivered in the shared app — shared login → Banking caller dashboard → assigned lead queue → prospect detail → validated follow-up save with durable persistence. Journey tests 4/4 green.
+**Truthful Verification Evidence Taxonomy (Audited across 135 Actions):**
+- **Breakdown**:
+  - `CURRENT_REVISION_VERIFIED`: 13 actions (`MG-01` through `MG-13` with dedicated test suite `apps/api/test/manager.api.test.ts`, verified execution record, and browser visual proof).
+  - `HISTORICAL_PASS_UNVERIFIED_IN_CURRENT_REVISION`: 46 actions (`SC-01..28` and `TL-01..18`, which have dedicated suites with historically reported passes).
+  - `HISTORICAL_LIFECYCLE_PASS_UNVERIFIED_IN_CURRENT_REVISION`: 18 actions (the specific RM, NM, CEO, CFO actions exercised in lifecycle tests).
+  - `IMPLEMENTED_UNVERIFIED_BY_TESTS`: 33 actions (remaining implemented actions in RM, NM, CEO, CFO).
+  - `UNIMPLEMENTED_PLANNED`: 25 actions (`DE-01..07`, `HR-01..07`, `SA-01..11`).
 
-**Completed:**
-- Step 001–013: foundation through Phase 0 (see BUILD_LOG history)
-- Step 014–017: Command Code foundation, 12 agents, 17 skills, execution guardrails
-- Step 018–019: FV-CYCLE1 nav repair (builder timeout) and independent verification
-- Step 020–021: Caller journey batch 1 (Wealth, partial — see blockers), shared-app architecture clarification
-- Step 022: **Banking milestone 1 implemented directly by the main session** — persistent local SQLite database (node:sqlite, zero new dependencies) with synthetic seed; shared login + server-resolved WorkspaceSession (role/vertical/team/permissions) with permission-based landing; Banking caller dashboard, assigned lead queue (search/filters/empty state), prospect detail (summary/tasks/timeline, honest `SIMULATED — no provider integration` Call/WhatsApp controls); SC-11 follow-up save (future due + action + purpose validation) writing task + timeline activity + lead update through the repository interface; every read/mutation session-scoped server-side. Verified: 4/4 Playwright tests green, lint 0 errors, build PASS, durable rows confirmed on disk.
+## 3. Active processes, preview, workers
 
-**Committed at:** 9df1a6e (Steps 014–022 uncommitted)
-
----
-
-## Implemented URLs (localhost preview, http://localhost:3000 — user's server, preserved)
-
-- Increment 1 (storage + seed): `apps/web/.data/finverse.db` (gitignored) — users/assignments/sessions/leads/lead_tasks/lead_activities, illustrative seed data
-- Increment 2 (shared auth + landing): **http://localhost:3000/login** (one login for all verticals; demo users `ravi@` / `sana@` / `asha@finverse.demo`, password `demo1234`)
-- Increment 3 (journey screens): **http://localhost:3000/banking/dashboard**, **http://localhost:3000/banking/clients** (queue), **http://localhost:3000/banking/clients/FV-2003** (detail + follow-up)
-- Increment 4 (persistence): logout/login round-trip verified by test; durable rows verified on disk
-
----
-
-## Verification evidence (Step 022)
-
-- **Playwright (Chromium, --retries=0): 4/4 PASS (8.0s)** — journey: login → permission landing → scoped queue + search → detail + simulated labels → follow-up validation (purpose required, future-due) → save → tasks/timeline update → logout/login persistence; isolation: cross-caller (Sana ↛ Ravi's FV-2003) and cross-vertical (Asha denied on banking record); nav: Wealth SC sidebar isolation + banking route denied state.
-- **Lint:** exit 0 — 0 errors, 5 known unused-import warnings in preserved Wealth `fixture.ts` (unchanged).
-- **Build:** exit 0 — routes `/`, `/login`, `/banking/dashboard`, `/banking/clients`, `/banking/clients/[id]`, `/wealth/dashboard`.
-- **Persistence:** saved follow-up row durable in `.data/finverse.db` (`TASK-1790852622732` on FV-2003, "Follow-up call / Confirm documents") — process-independent storage; a restarted app reads the same file. Full two-process restart check was cut short (QA turn limit; its `pnpm start` on :3100 failed) — file-level evidence stands in its place, recorded honestly.
-- **Independent QA (bg-5-769c335e):** ran 54 tool uses over 856s and **hit its maxTurns (25) before returning a final report** — incomplete verdict, but its partial findings drove two real fixes (see below). No processes left behind (:3100 free; user preview :3000 preserved throughout).
-
-**Defects found and fixed during verification:**
-1. SC action grants omitted `deal.read` (broke the 5-link sidebar contract) — fixed to fixture-contract parity.
-2. Sidebar footer displayed the fixture session instead of the live session — fixed (session prop).
-3. Native `required` validation swallowed server error messages — switched to server-driven validation for consistent `role="alert"` display.
-4. Spec races (login redirect and GET-form navigation landing after clicks) — synchronized with `waitForURL`.
-
----
-
-## Remaining gaps
-
-- SC-06 dialer states / SC-09 WhatsApp sending: simulated label-only controls (explicitly out of scope).
-- SC-04/05/08/10/12–SC-28 (incl. qualification, documents, TL+ surfaces): not built.
-- Wealth journey batch (Step 020 blockers B1–B4): pending authorized continuation; preserved `types.ts`/`fixture.ts` work intact and now extended (FollowUpInput/ILeadFollowUpRepository, `isOverdue`).
-- App-restart persistence proven at file level only; a clean two-instance restart check remains a QA item.
-- [ASSUMPTION] items A1–A8 from the design spec still await Finverse decisions.
-- Production authentication, real API/database, communication integrations: future deliverables — this milestone is fixture/seed-based demo behavior, explicitly not production authorization.
-
----
-
-## Notes
-
-- Local database approach: `node:sqlite` (built-in; zero new packages) at `apps/web/.data/finverse.db`, behind the typed repository interfaces (`IWealthLeadRepository`, `ILeadFollowUpRepository`). Auth: scrypt-hashed demo passwords, SHA-256 session tokens in HttpOnly cookies, server-resolved `WorkspaceSession` on every request.
-- URL/role/vertical parameters grant nothing: all repository methods take the session explicitly and scope in the SQL itself.
-- Retry discipline this step: each conditioned re-run targeted a distinct newly-diagnosed failure (4 suite runs total); no identical command was ever rerun unchanged.
+- **Preview: http://localhost:5173** (Vite dev server running).
+- **Backend API: http://localhost:4000** (Express server running).
+- **PostgreSQL Database**: Container `fvc2-postgres` running healthy on port 5433 with persistent volume `fvc2-pgdata`.
+- **Exact Next Task**: Wealth Regional Manager (`RM-01`..`RM-10`) — audit actions against physical deck pages, verify/add test assertions, inspect browser views, and verify evidence. Feature development pauses here for handoff review.
