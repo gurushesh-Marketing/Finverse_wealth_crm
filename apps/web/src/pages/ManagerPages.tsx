@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { managerApi } from '../lib/manager-api';
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -9,13 +9,68 @@ import { Panel, BusyButton } from '../components/ui/panel';
 import { EmptyState, SkeletonRows, SuccessNote } from '../components/ui/states';
 import type { MgPeriod } from '@finverse/contracts';
 
-function useLoad<T = any>(fn: () => Promise<T>): [T | null, () => void] {
+export interface UseLoadState {
+  loading: boolean;
+  initialLoading: boolean;
+  error: string | null;
+  clearError: () => void;
+}
+
+export function useLoad<T = any>(
+  fn: () => Promise<T>
+): [T | null, () => void, UseLoadState] {
   const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reqIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+
   const load = useCallback(() => {
-    void fn().then(setData).catch(() => setData(null));
+    const currentReqId = ++reqIdRef.current;
+    setLoading(true);
+    setError(null);
+
+    fn()
+      .then((res) => {
+        if (!isMountedRef.current || currentReqId !== reqIdRef.current) return;
+        setData(res);
+        setError(null);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (!isMountedRef.current || currentReqId !== reqIdRef.current) return;
+        setError(err?.message || 'Failed to load data. Please retry.');
+        setLoading(false);
+      });
   }, [fn]);
-  useEffect(load, [load]);
-  return [data, load];
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    load();
+    return () => {
+      reqIdRef.current++;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  return [
+    data,
+    load,
+    {
+      loading,
+      initialLoading: loading && data === null,
+      error,
+      clearError,
+    },
+  ];
 }
 
 function useSubmitAction() {
@@ -54,7 +109,8 @@ function FormField({ label, children, error }: { label: string; children: ReactN
 export function ManagerOverviewPage() {
   const [period, setPeriod] = useState<MgPeriod>('month-to-date');
   const [comparison, setComparison] = useState('previous-period');
-  const [data, load] = useLoad<any>(() => managerApi.overview(period, comparison));
+  const loadOverview = useCallback(() => managerApi.overview(period, comparison), [period, comparison]);
+  const [data, load, { loading, initialLoading, error, clearError }] = useLoad(loadOverview);
   const [actionDrawerOpen, setActionDrawerOpen] = useState(false);
   const [selectedTlId, setSelectedTlId] = useState('');
   const [title, setTitle] = useState('');
@@ -104,10 +160,22 @@ export function ManagerOverviewPage() {
               <option value="previous-period">vs Prev Period</option>
               <option value="target-pace">vs Target Pace</option>
             </Select>
-            <Button size="sm" variant="outline" onClick={load}>Refresh</Button>
+            <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+              {loading && data ? 'Refreshing…' : 'Refresh'}
+            </Button>
           </div>
         }
       />
+
+      {error ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load overview: {error}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={load}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
 
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
@@ -116,14 +184,19 @@ export function ManagerOverviewPage() {
         </div>
       ) : null}
 
-      {!data ? (
+      {initialLoading && !data ? (
         <SkeletonRows rows={4} />
+      ) : !data ? (
+        <EmptyState title="No overview data" message="Overview metrics could not be loaded for the selected period." />
       ) : (
         <>
-          <p className="text-xs text-muted-foreground">
-            Scope: {data.teams.map((t: any) => t.name).join(' + ')} · As of {new Date(data.asOf).toLocaleTimeString()} ·
-            Role: Wealth Manager ({data.manager.name})
-          </p>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <p>
+              Scope: {data.teams.map((t: any) => t.name).join(' + ')} · As of {new Date(data.asOf).toLocaleTimeString()} ·
+              Role: Wealth Manager ({data.manager.name})
+            </p>
+            {loading ? <span className="font-mono text-[11px] text-primary animate-pulse">Refreshing…</span> : null}
+          </div>
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {data.kpis.map((k: any) => (
@@ -271,12 +344,16 @@ export function ManagerOverviewPage() {
 // ─── MG-02 & MG-10: Team Leaders Page ───
 export function ManagerLeadersPage() {
   const [tab, setTab] = useState<'scorecard' | 'source-quality'>('scorecard');
-  const [tls] = useLoad<any[]>(() => managerApi.getTls());
+  const loadTls = useCallback(() => managerApi.getTls(), []);
+  const [tls] = useLoad<any[]>(loadTls);
   const [selectedTlId, setSelectedTlId] = useState<string>('EMP-003'); // Tara Iyer default
-  const [scorecardData, loadScorecard] = useLoad<any>(() =>
-    selectedTlId ? managerApi.getTlScorecard(selectedTlId, 'September') : Promise.resolve(null)
+  const loadScorecard = useCallback(
+    () => (selectedTlId ? managerApi.getTlScorecard(selectedTlId, 'September') : Promise.resolve(null)),
+    [selectedTlId]
   );
-  const [sourceData, loadSources] = useLoad<any>(() => managerApi.getSourceQuality('September'));
+  const [scorecardData, loadScorecardFn, { loading: scLoading, initialLoading: scInitialLoading, error: scError, clearError: clearScError }] = useLoad<any>(loadScorecard);
+  const loadSources = useCallback(() => managerApi.getSourceQuality('September'), []);
+  const [sourceData, loadSourcesFn, { loading: sqLoading, initialLoading: sqInitialLoading, error: sqError, clearError: clearSqError }] = useLoad<any>(loadSources);
 
   // MG-10 Remediate Drawer State
   const [remDrawerOpen, setRemDrawerOpen] = useState(false);
@@ -304,7 +381,7 @@ export function ManagerLeadersPage() {
       });
       setRemDrawerOpen(false);
       setJustification('');
-      loadSources();
+      loadSourcesFn();
     }, 'Remediation request logged and routed to campaign owner.');
   };
 
@@ -342,23 +419,40 @@ export function ManagerLeadersPage() {
 
       {tab === 'scorecard' ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium">Select Team Leader:</span>
-            <Select
-              value={selectedTlId}
-              onChange={(e) => setSelectedTlId(e.target.value)}
-              className="w-64"
-            >
-              {tls?.map((t: any) => (
-                <option key={t.id} value={t.id}>
-                  {t.display_name} ({t.team_names.join(', ')})
-                </option>
-              ))}
-            </Select>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">Select Team Leader:</span>
+              <Select
+                value={selectedTlId}
+                onChange={(e) => setSelectedTlId(e.target.value)}
+                className="w-64"
+              >
+                {tls?.map((t: any) => (
+                  <option key={t.id} value={t.id}>
+                    {t.display_name} ({t.team_names.join(', ')})
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button size="sm" variant="outline" onClick={loadScorecardFn} disabled={scLoading}>
+              {scLoading && scorecardData ? 'Refreshing…' : 'Refresh'}
+            </Button>
           </div>
 
-          {!scorecardData ? (
+          {scError ? (
+            <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+              <span>Failed to load scorecard: {scError}</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadScorecardFn}>Retry</Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearScError}>Dismiss</Button>
+              </div>
+            </div>
+          ) : null}
+
+          {scInitialLoading && !scorecardData ? (
             <SkeletonRows rows={3} />
+          ) : !scorecardData ? (
+            <EmptyState title="No scorecard data" message="Select a team leader to view operational profile and metrics." />
           ) : (
             <div className="grid gap-4 lg:grid-cols-3">
               <Card className="lg:col-span-1">
@@ -445,8 +539,26 @@ export function ManagerLeadersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {!sourceData ? (
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" onClick={loadSourcesFn} disabled={sqLoading}>
+              {sqLoading && sourceData ? 'Refreshing…' : 'Refresh'}
+            </Button>
+          </div>
+
+          {sqError ? (
+            <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+              <span>Failed to load source quality: {sqError}</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadSourcesFn}>Retry</Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearSqError}>Dismiss</Button>
+              </div>
+            </div>
+          ) : null}
+
+          {sqInitialLoading && !sourceData ? (
             <SkeletonRows rows={3} />
+          ) : !sourceData ? (
+            <EmptyState title="No source quality data" message="No source quality cohort data available for September." />
           ) : (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -565,9 +677,12 @@ export function ManagerLeadersPage() {
 // ─── MG-03, MG-04, MG-12: Capacity & Transfers Page ───
 export function ManagerCapacityPage() {
   const [tab, setTab] = useState<'transfers' | 'recovery' | 'lifecycle'>('transfers');
-  const [transfers, loadTransfers] = useLoad<any[]>(() => managerApi.listTransfers());
-  const [capacity, loadCapacity] = useLoad<any>(() => managerApi.getCapacity());
-  const [lifecycle, loadLifecycle] = useLoad<any[]>(() => managerApi.getLifecycleRequests());
+  const loadTransfers = useCallback(() => managerApi.listTransfers(), []);
+  const [transfers, loadTransfersFn, { loading: trLoading, initialLoading: trInitialLoading, error: trError, clearError: clearTrError }] = useLoad<any[]>(loadTransfers);
+  const loadCapacity = useCallback(() => managerApi.getCapacity(), []);
+  const [capacity, loadCapacityFn, { loading: capLoading, initialLoading: capInitialLoading, error: capError, clearError: clearCapError }] = useLoad<any>(loadCapacity);
+  const loadLifecycle = useCallback(() => managerApi.getLifecycleRequests(), []);
+  const [lifecycle, loadLifecycleFn, { loading: lcLoading, initialLoading: lcInitialLoading, error: lcError, clearError: clearLcError }] = useLoad<any[]>(loadLifecycle);
 
   // MG-03 New Transfer State
   const [sourceTeam, setSourceTeam] = useState('TEAM-WEALTH-ALPHA');
@@ -603,7 +718,7 @@ export function ManagerCapacityPage() {
         reason: transferReason.trim(),
       });
       setTransferReason('');
-      loadTransfers();
+      loadTransfersFn();
     }, 'Transfer request submitted.');
   };
 
@@ -614,7 +729,7 @@ export function ManagerCapacityPage() {
         decision,
         resolutionNotes: decision === 'approved' ? 'Approved by Manager' : 'Returned for adjustment',
       });
-      loadTransfers();
+      loadTransfersFn();
     }, `Transfer ${decision}.`);
   };
 
@@ -631,7 +746,7 @@ export function ManagerCapacityPage() {
         notes: planNotes,
         approved,
       });
-      loadCapacity();
+      loadCapacityFn();
     }, approved ? 'Capacity plan approved and enacted.' : 'Plan draft saved.');
   };
 
@@ -650,9 +765,12 @@ export function ManagerCapacityPage() {
       });
       setJustification('');
       setHandoffPlan('');
-      loadLifecycle();
+      loadLifecycleFn();
     }, 'Lifecycle request submitted to HR & RM.');
   };
+
+  const isCurrentTabLoading = tab === 'transfers' ? trLoading : tab === 'recovery' ? capLoading : lcLoading;
+  const handleCurrentRefresh = tab === 'transfers' ? loadTransfersFn : tab === 'recovery' ? loadCapacityFn : loadLifecycleFn;
 
   return (
     <div className="space-y-6">
@@ -660,7 +778,7 @@ export function ManagerCapacityPage() {
         title="Capacity, transfers & promotions"
         subtitle="Approve cross-team transfers (MG-03), plan capacity (MG-04), and request promotions (MG-12)"
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant={tab === 'transfers' ? 'default' : 'outline'} onClick={() => setTab('transfers')}>
               Lead Transfers (MG-03)
             </Button>
@@ -670,9 +788,42 @@ export function ManagerCapacityPage() {
             <Button size="sm" variant={tab === 'lifecycle' ? 'default' : 'outline'} onClick={() => setTab('lifecycle')}>
               Employee Lifecycle (MG-12)
             </Button>
+            <Button size="sm" variant="outline" onClick={handleCurrentRefresh} disabled={isCurrentTabLoading}>
+              {isCurrentTabLoading ? 'Refreshing…' : 'Refresh'}
+            </Button>
           </div>
         }
       />
+
+      {trError && tab === 'transfers' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load transfers: {trError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadTransfersFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearTrError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {capError && tab === 'recovery' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load capacity data: {capError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadCapacityFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearCapError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {lcError && tab === 'lifecycle' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load lifecycle requests: {lcError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadLifecycleFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearLcError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
 
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
@@ -715,7 +866,9 @@ export function ManagerCapacityPage() {
           <Card className="lg:col-span-2">
             <CardHeader><CardTitle className="text-base">Pending & Decided Transfer Requests</CardTitle></CardHeader>
             <CardContent>
-              {!transfers ? <SkeletonRows rows={2} /> : transfers.length === 0 ? (
+              {trInitialLoading && !transfers ? <SkeletonRows rows={2} /> : !transfers ? (
+                <EmptyState title="No transfer data" message="Transfer records could not be loaded." />
+              ) : transfers.length === 0 ? (
                 <EmptyState title="No transfer requests" message="No pending cross-team lead transfers in your scope." />
               ) : (
                 <div className="space-y-3">
@@ -745,7 +898,9 @@ export function ManagerCapacityPage() {
         </div>
       ) : tab === 'recovery' ? (
         <div className="space-y-4">
-          {!capacity ? <SkeletonRows rows={3} /> : (
+          {capInitialLoading && !capacity ? <SkeletonRows rows={3} /> : !capacity ? (
+            <EmptyState title="No capacity data" message="Capacity records could not be loaded." />
+          ) : (
             <>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Card className="p-4 text-center">
@@ -849,7 +1004,9 @@ export function ManagerCapacityPage() {
           <Card className="lg:col-span-2">
             <CardHeader><CardTitle className="text-base">Lifecycle Requests (HR & RM Queue)</CardTitle></CardHeader>
             <CardContent>
-              {!lifecycle ? <SkeletonRows rows={2} /> : lifecycle.length === 0 ? (
+              {lcInitialLoading && !lifecycle ? <SkeletonRows rows={2} /> : !lifecycle ? (
+                <EmptyState title="No lifecycle data" message="Lifecycle records could not be loaded." />
+              ) : lifecycle.length === 0 ? (
                 <EmptyState title="No lifecycle requests" message="No pending employee promotions or transfers." />
               ) : (
                 <div className="space-y-3">
@@ -876,19 +1033,23 @@ export function ManagerCapacityPage() {
 
 // ─── MG-05: Targets Page ───
 export function ManagerTargetsPage() {
-  const [data, load] = useLoad<any>(() => managerApi.getTargets('October'));
+  const loadTargets = useCallback(() => managerApi.getTargets('October'), []);
+  const [data, load, { loading, initialLoading, error, clearError }] = useLoad<any>(loadTargets);
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const s = useSubmitAction();
 
   useEffect(() => {
     if (data?.tls) {
-      const init: Record<string, number> = {};
-      const count = data.tls.length || 1;
-      const share = Math.floor(data.target.approvedParentTarget / count);
-      data.tls.forEach((t: any) => {
-        init[t.id] = share;
+      setAllocations((prev) => {
+        if (Object.keys(prev).length > 0) return prev;
+        const init: Record<string, number> = {};
+        const count = data.tls.length || 1;
+        const share = Math.floor(data.target.approvedParentTarget / count);
+        data.tls.forEach((t: any) => {
+          init[t.id] = share;
+        });
+        return init;
       });
-      setAllocations(init);
     }
   }, [data]);
 
@@ -922,7 +1083,22 @@ export function ManagerTargetsPage() {
       <PageHeader
         title="Target distribution to TLs"
         subtitle="Allocate approved Manager target to Team Leads with explicit remainder reconciliation · MG-05"
+        actions={
+          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+            {loading && data ? 'Refreshing…' : 'Refresh'}
+          </Button>
+        }
       />
+
+      {error ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load targets: {error}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={load}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
 
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
@@ -931,7 +1107,9 @@ export function ManagerTargetsPage() {
         </div>
       ) : null}
 
-      {!data ? <SkeletonRows rows={3} /> : (
+      {initialLoading && !data ? <SkeletonRows rows={3} /> : !data ? (
+        <EmptyState title="No target data" message="Target records could not be loaded for October." />
+      ) : (
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-1">
             <CardHeader><CardTitle className="text-base">Parent Target Reconciliation</CardTitle></CardHeader>
@@ -999,8 +1177,10 @@ export function ManagerTargetsPage() {
 // ─── MG-06 & MG-07: Forecasts Page ───
 export function ManagerForecastsPage() {
   const [tab, setTab] = useState<'review-tl' | 'submit-rm'>('review-tl');
-  const [tlForecasts, loadTl] = useLoad<any[]>(() => managerApi.getForecasts('October'));
-  const [rollup, loadRollup] = useLoad<any>(() => managerApi.getForecastRollup('October'));
+  const loadTl = useCallback(() => managerApi.getForecasts('October'), []);
+  const [tlForecasts, loadTlFn, { loading: tlLoading, initialLoading: tlInitialLoading, error: tlError, clearError: clearTlError }] = useLoad<any[]>(loadTl);
+  const loadRollup = useCallback(() => managerApi.getForecastRollup('October'), []);
+  const [rollup, loadRollupFn, { loading: rollupLoading, initialLoading: rollupInitialLoading, error: rollupError, clearError: clearRollupError }] = useLoad<any>(loadRollup);
 
   // MG-06 Decide State
   const [decideForecastId, setDecideForecastId] = useState('');
@@ -1025,8 +1205,8 @@ export function ManagerForecastsPage() {
       });
       setDecideForecastId('');
       setFeedback('');
-      loadTl();
-      loadRollup();
+      loadTlFn();
+      loadRollupFn();
     }, `Forecast ${decision}.`);
   };
 
@@ -1048,9 +1228,12 @@ export function ManagerForecastsPage() {
         overrideReason: adj !== 0 ? overrideReason : undefined,
         riskNotes: riskNotes.trim(),
       });
-      loadRollup();
+      loadRollupFn();
     }, 'Manager forecast frozen and submitted to Regional Manager.');
   };
+
+  const isCurrentTabLoading = tab === 'review-tl' ? tlLoading : rollupLoading;
+  const handleCurrentRefresh = tab === 'review-tl' ? loadTlFn : loadRollupFn;
 
   return (
     <div className="space-y-6">
@@ -1058,16 +1241,39 @@ export function ManagerForecastsPage() {
         title="Pipeline & forecast"
         subtitle="Challenge and approve TL forecasts (MG-06) and submit consolidated Manager forecast to RM (MG-07)"
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant={tab === 'review-tl' ? 'default' : 'outline'} onClick={() => setTab('review-tl')}>
               Review TL Forecasts (MG-06)
             </Button>
             <Button size="sm" variant={tab === 'submit-rm' ? 'default' : 'outline'} onClick={() => setTab('submit-rm')}>
               Consolidated Submission (MG-07)
             </Button>
+            <Button size="sm" variant="outline" onClick={handleCurrentRefresh} disabled={isCurrentTabLoading}>
+              {isCurrentTabLoading ? 'Refreshing…' : 'Refresh'}
+            </Button>
           </div>
         }
       />
+
+      {tlError && tab === 'review-tl' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load TL forecasts: {tlError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadTlFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearTlError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {rollupError && tab === 'submit-rm' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load forecast consolidation: {rollupError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadRollupFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearRollupError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
 
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
@@ -1080,7 +1286,9 @@ export function ManagerForecastsPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Submitted Team Lead Forecasts (October)</CardTitle></CardHeader>
           <CardContent>
-            {!tlForecasts ? <SkeletonRows rows={2} /> : tlForecasts.length === 0 ? (
+            {tlInitialLoading && !tlForecasts ? <SkeletonRows rows={2} /> : !tlForecasts ? (
+              <EmptyState title="No forecast data" message="Forecasts could not be loaded." />
+            ) : tlForecasts.length === 0 ? (
               <EmptyState title="No forecasts submitted" message="Team leads have not submitted forecasts for October yet." />
             ) : (
               <div className="space-y-4">
@@ -1167,7 +1375,9 @@ export function ManagerForecastsPage() {
           <Card className="lg:col-span-2">
             <CardHeader><CardTitle className="text-base">Accepted Forecast Submissions</CardTitle></CardHeader>
             <CardContent>
-              {!rollup ? <SkeletonRows rows={2} /> : rollup.acceptedForecasts.length === 0 ? (
+              {rollupInitialLoading && !rollup ? <SkeletonRows rows={2} /> : !rollup ? (
+                <EmptyState title="No consolidation data" message="Consolidated forecast data could not be loaded." />
+              ) : rollup.acceptedForecasts.length === 0 ? (
                 <EmptyState title="No accepted forecasts" message="Accept TL submissions in the Review tab first before consolidating." />
               ) : (
                 <div className="space-y-3">
@@ -1193,8 +1403,10 @@ export function ManagerForecastsPage() {
 // ─── MG-08 & MG-09: Exceptions Page ───
 export function ManagerExceptionsPage() {
   const [tab, setTab] = useState<'sla-breach' | 'commercial'>('sla-breach');
-  const [breaches, loadBreaches] = useLoad<any[]>(() => managerApi.getSlaBreaches());
-  const [exceptions, loadExceptions] = useLoad<any[]>(() => managerApi.getCommercialExceptions());
+  const loadBreaches = useCallback(() => managerApi.getSlaBreaches(), []);
+  const [breaches, loadBreachesFn, { loading: brLoading, initialLoading: brInitialLoading, error: brError, clearError: clearBrError }] = useLoad<any[]>(loadBreaches);
+  const loadExceptions = useCallback(() => managerApi.getCommercialExceptions(), []);
+  const [exceptions, loadExceptionsFn, { loading: excLoading, initialLoading: excInitialLoading, error: excError, clearError: clearExcError }] = useLoad<any[]>(loadExceptions);
 
   // MG-08 Resolution State
   const [activeEscId, setActiveEscId] = useState('');
@@ -1221,7 +1433,7 @@ export function ManagerExceptionsPage() {
       });
       setActiveEscId('');
       setResolutionPlan('');
-      loadBreaches();
+      loadBreachesFn();
     }, 'SLA recovery action logged.');
   };
 
@@ -1243,9 +1455,12 @@ export function ManagerExceptionsPage() {
       });
       setActiveExcId('');
       setDecisionNotes('');
-      loadExceptions();
+      loadExceptionsFn();
     }, `Commercial exception ${decision}.`);
   };
+
+  const isCurrentTabLoading = tab === 'sla-breach' ? brLoading : excLoading;
+  const handleCurrentRefresh = tab === 'sla-breach' ? loadBreachesFn : loadExceptionsFn;
 
   return (
     <div className="space-y-6">
@@ -1253,16 +1468,39 @@ export function ManagerExceptionsPage() {
         title="Exceptions & escalation resolution"
         subtitle="Resolve repeated SLA failures (MG-08) and approve delegated commercial exceptions (MG-09)"
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant={tab === 'sla-breach' ? 'default' : 'outline'} onClick={() => setTab('sla-breach')}>
               SLA Breach Recovery (MG-08)
             </Button>
             <Button size="sm" variant={tab === 'commercial' ? 'default' : 'outline'} onClick={() => setTab('commercial')}>
               Commercial Exceptions (MG-09)
             </Button>
+            <Button size="sm" variant="outline" onClick={handleCurrentRefresh} disabled={isCurrentTabLoading}>
+              {isCurrentTabLoading ? 'Refreshing…' : 'Refresh'}
+            </Button>
           </div>
         }
       />
+
+      {brError && tab === 'sla-breach' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load SLA breaches: {brError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadBreachesFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearBrError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {excError && tab === 'commercial' ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load commercial exceptions: {excError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadExceptionsFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearExcError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
 
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
@@ -1275,7 +1513,9 @@ export function ManagerExceptionsPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">SLA Breaches & Overdue Task Escalations</CardTitle></CardHeader>
           <CardContent>
-            {!breaches ? <SkeletonRows rows={2} /> : breaches.length === 0 ? (
+            {brInitialLoading && !breaches ? <SkeletonRows rows={2} /> : !breaches ? (
+              <EmptyState title="No SLA breach data" message="SLA breach records could not be loaded." />
+            ) : breaches.length === 0 ? (
               <EmptyState title="No active SLA breaches" message="All tasks and team SLAs are currently healthy." />
             ) : (
               <div className="space-y-3">
@@ -1338,7 +1578,9 @@ export function ManagerExceptionsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {!exceptions ? <SkeletonRows rows={2} /> : exceptions.length === 0 ? (
+            {excInitialLoading && !exceptions ? <SkeletonRows rows={2} /> : !exceptions ? (
+              <EmptyState title="No commercial exception data" message="Commercial exceptions could not be loaded." />
+            ) : exceptions.length === 0 ? (
               <EmptyState title="No commercial exceptions" message="No pending commercial or fee exception requests." />
             ) : (
               <div className="space-y-4">
@@ -1436,9 +1678,11 @@ export function ManagerExceptionsPage() {
 
 // ─── MG-11: Reviews Page ───
 export function ManagerReviewsPage() {
-  const [tls] = useLoad<any[]>(() => managerApi.getTls());
+  const loadTls = useCallback(() => managerApi.getTls(), []);
+  const [tls] = useLoad<any[]>(loadTls);
   const [selectedTlId, setSelectedTlId] = useState('EMP-003'); // Tara Iyer default
-  const [reviews, loadReviews] = useLoad<any[]>(() => managerApi.getReviews(selectedTlId));
+  const loadReviews = useCallback(() => managerApi.getReviews(selectedTlId), [selectedTlId]);
+  const [reviews, loadReviewsFn, { loading: revLoading, initialLoading: revInitialLoading, error: revError, clearError: clearRevError }] = useLoad<any[]>(loadReviews);
 
   const [strengths, setStrengths] = useState('Strong team discipline and high task adherence across Alpha.');
   const [blockers, setBlockers] = useState('Capacity pinch during surge campaigns; ageing follow-up backlog.');
@@ -1460,7 +1704,7 @@ export function ManagerReviewsPage() {
         commitments: [{ dimension: 'Task SLA', goal: goal.trim(), targetDate }],
         supportNeeded: 'Additional caller allocation from pool',
       });
-      loadReviews();
+      loadReviewsFn();
     }, 'TL performance review completed and commitments distributed.');
   };
 
@@ -1469,7 +1713,22 @@ export function ManagerReviewsPage() {
       <PageHeader
         title="Team lead performance reviews"
         subtitle="Versioned TL reviews, scorecard reflection, and visible commitments · MG-11"
+        actions={
+          <Button size="sm" variant="outline" onClick={loadReviewsFn} disabled={revLoading}>
+            {revLoading && reviews ? 'Refreshing…' : 'Refresh'}
+          </Button>
+        }
       />
+
+      {revError ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load reviews: {revError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadReviewsFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearRevError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
 
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
@@ -1514,7 +1773,9 @@ export function ManagerReviewsPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Review History & Commitments</CardTitle></CardHeader>
           <CardContent>
-            {!reviews ? <SkeletonRows rows={2} /> : reviews.length === 0 ? (
+            {revInitialLoading && !reviews ? <SkeletonRows rows={2} /> : !reviews ? (
+              <EmptyState title="No review data" message="Reviews could not be loaded." />
+            ) : reviews.length === 0 ? (
               <EmptyState title="No prior reviews" message="No previous reviews recorded for this TL." />
             ) : (
               <div className="space-y-3">
@@ -1543,8 +1804,10 @@ export function ManagerReviewsPage() {
 // ─── MG-13: Reports & Meeting Pack Page ───
 export function ManagerReportsPage() {
   const [period, setPeriod] = useState<MgPeriod>('month-to-date');
-  const [preview, loadPreview] = useLoad<any>(() => managerApi.previewMeetingPack(period));
-  const [schedules, loadSchedules] = useLoad<any[]>(() => managerApi.getSchedules());
+  const loadPreview = useCallback(() => managerApi.previewMeetingPack(period), [period]);
+  const [preview, loadPreviewFn, { loading: prevLoading, initialLoading: prevInitialLoading, error: prevError, clearError: clearPrevError }] = useLoad<any>(loadPreview);
+  const loadSchedules = useCallback(() => managerApi.getSchedules(), []);
+  const [schedules, loadSchedulesFn, { loading: schedLoading, initialLoading: schedInitialLoading, error: schedError, clearError: clearSchedError }] = useLoad<any[]>(loadSchedules);
 
   const [schedName, setSchedName] = useState('Weekly Regional Meeting Pack');
   const [cadence, setCadence] = useState<'weekly' | 'monthly'>('weekly');
@@ -1568,7 +1831,7 @@ export function ManagerReportsPage() {
         period: 'month-to-date',
         recipients: list,
       });
-      loadSchedules();
+      loadSchedulesFn();
     }, 'Recurring schedule created.');
   };
 
@@ -1578,15 +1841,15 @@ export function ManagerReportsPage() {
         title="Manager meeting pack & schedules"
         subtitle="Audited binary PDF export and permission-checked recurring schedules · MG-13"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={period} onChange={(e) => setPeriod(e.target.value as MgPeriod)} className="w-36 text-xs">
               <option value="this-week">This week</option>
               <option value="month-to-date">Month to date</option>
               <option value="quarter-to-date">Quarter to date</option>
               <option value="last-month">Last month</option>
             </Select>
-            <Button size="sm" variant="outline" onClick={loadPreview}>
-              Refresh
+            <Button size="sm" variant="outline" onClick={loadPreviewFn} disabled={prevLoading}>
+              {prevLoading && preview ? 'Refreshing…' : 'Refresh'}
             </Button>
             <BusyButton busy={s.busy} onClick={handleExportPdf}>
               Export Meeting Pack (PDF)
@@ -1595,6 +1858,26 @@ export function ManagerReportsPage() {
         }
       />
 
+      {prevError ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load preview: {prevError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadPreviewFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearPrevError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {schedError ? (
+        <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <span>Failed to load schedules: {schedError}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={loadSchedulesFn}>Retry</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={clearSchedError}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
+
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? (
         <div role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
@@ -1602,7 +1885,9 @@ export function ManagerReportsPage() {
         </div>
       ) : null}
 
-      {!preview ? <SkeletonRows rows={3} /> : (
+      {prevInitialLoading && !preview ? <SkeletonRows rows={3} /> : !preview ? (
+        <EmptyState title="No preview available" message="Meeting pack preview could not be generated." />
+      ) : (
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader><CardTitle className="text-base">Pack Preview — Executive Summary & TL Appendix</CardTitle></CardHeader>

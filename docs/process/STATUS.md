@@ -1,14 +1,31 @@
-# Project status — CHECKPOINT (step 033)
+# Project status — CHECKPOINT (step 034)
 
 Last updated: 2026-10-07. This checkpoint supersedes earlier status sections;
 contradictions are reconciled against recorded evidence in BUILD_LOG steps
-004–033 and COVERAGE_MATRIX.md. No credentials are stored in process docs —
+004–034 and COVERAGE_MATRIX.md. No credentials are stored in process docs —
 synthetic demo accounts and local connection settings live in the gitignored
 `.env` and `database/seed.ts` only.
 
 ## 1. Current milestone and roadmap status
 
-- **WEALTH MANAGER CHECKPOINT CLOSED & MG-09 AUTHORIZATION DEFECT REMEDIATED**:
+- **MANAGER WORKSPACE RENDER LOOP & REPEATED-FETCH ELIMINATED (Step 034)**:
+  - **Stabilized Data Loaders & Request Lifecycle (`apps/web/src/pages/ManagerPages.tsx`)**:
+    - Eliminated inline function recreation in `useLoad`: all subpage loaders (`ManagerOverviewPage`, `ManagerLeadersPage`, `ManagerCapacityPage`, `ManagerTargetsPage`, `ManagerForecastsPage`, `ManagerExceptionsPage`, `ManagerReviewsPage`, `ManagerReportsPage`) now use stable `useCallback` hooks anchored to true external dependencies (`period`, `comparison`, `selectedTlId`, etc.).
+    - Implemented monotonic sequence tracking (`reqIdRef`) and unmount safety (`isMountedRef`) in `useLoad` to discard stale/superseded responses and prevent memory leaks.
+    - Preserved existing data during background refresh (`initialLoading && !data` skeleton condition); background refresh errors surface inline without blanking data or resetting user form state.
+    - Zero `eslint-disable` rules added; StrictMode and React hook dependency rules strictly obeyed.
+  - **E2E Browser Regression Suite Added & Passed (`apps/web/e2e/manager-render-loop.spec.ts`)**:
+    - Verified idle stability (0 repeated fetches while idle for 2.5s+).
+    - Verified drawer toggling and input typing trigger zero network requests.
+    - Verified filter changes and explicit Refresh buttons trigger exactly 1 request.
+    - Verified failed refresh displays error banner while keeping existing table/card data visible.
+    - Verified on both Desktop Chromium and Mobile Chromium (4/4 passed).
+  - **Full Monorepo Checks Passing**:
+    - Web E2E branding and journey suites: 26/26 passed.
+    - API manager test suite: 14/14 passed.
+    - Monorepo typecheck, lint, and build: 0 errors.
+    - Evidence integrity verified and Graphify knowledge graphs updated.
+- **WEALTH MANAGER CHECKPOINT CLOSED & MG-09 AUTHORIZATION DEFECT REMEDIATED (Step 033)**:
   - **Server-Side Authority Derivation (MG-09 Remediated)**:
     - Fixed vulnerability where client-supplied `delegatedLimitMet` was trusted. `packages/contracts/src/manager.ts` updated to make `delegatedLimitMet` optional and deprecated. The server never consults client input to grant authority.
     - Server independently derives approval authority via `resolveCommercialApprovalAuthority`: verifies authenticated Manager role, active Delegation of Authority (DoA) policy (`DOA-2026-V1` in `finance_policies`), exception type eligibility (rejects `custom-terms` which require RM/Legal per Deck P152), and database record pre-qualification (`delegated_limit_met`).

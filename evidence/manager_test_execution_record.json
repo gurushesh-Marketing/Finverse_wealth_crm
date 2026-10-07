@@ -2,17 +2,17 @@
   "suite_id": "manager_api",
   "command": "node --import tsx --test apps/api/test/manager.api.test.ts",
   "exit_code": 0,
-  "timestamp": "2026-10-06T19:11:44.708243+00:00",
+  "timestamp": "2026-10-07T09:57:49.559798+00:00",
   "test_runner_results": {
     "total": 14,
     "pass": 14,
     "fail": 0,
     "skipped": 0,
-    "duration_ms": 13180.5838
+    "duration_ms": 14175.6438
   },
   "fingerprints": {
     "api_src": "d7a5346ab03ba958c8d5ff3985e3fbd598a83f732a878203314a8bfc3e70eeb2",
-    "web_src": "fee4ee872d5e83a49cde6cb0ad18d1b8a02c6b39982457127a42742f82497903",
+    "web_src": "6b6304080138b7ff4f23675b068e2c5b3265a839586e3fb52d89809172135660",
     "migrations": "965e951cb7e2e2dbfe447835afd1811850f467af829a20427576a5aed18c8d42",
     "contracts": "12fd94a44e1294fc4a2d284a5e4d7b0465048fda4e1cda4db11eea90fdf2193d",
     "test_file": "2c2695574ea25c0090370cbd399c2719098e267183984b6a1c75d8d588c16822"

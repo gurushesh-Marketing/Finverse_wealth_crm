@@ -1054,3 +1054,44 @@ Concise execution record for the v2 build. Each entry names executed evidence.
     - Refreshed requirements graph via `scripts/build_requirements_graph.py` and validated with `scripts/verify_evidence_integrity.py` (0 violations).
     - Updated codebase graph via Graphify extraction.
 
+- **Step 034 (2026-10-07) — Manager Workspace Repeated-Fetch & Render Loop Eliminated**:
+  - **1. Stabilized Data Loaders & Request Lifecycle (`apps/web/src/pages/ManagerPages.tsx`)**:
+    - Identified root cause of infinite fetch loop: `useLoad` received inline arrow functions that created new function references on every render, triggering `useEffect` repeatedly.
+    - Redesigned `useLoad` hook:
+      * Introduced `UseLoadState` interface with `loading`, `initialLoading`, `error`, and `clearError()`.
+      * Stabilized request lifecycle via monotonic `reqIdRef` counter and unmount protection via `isMountedRef`. Out-of-order or stale responses resulting from rapid filter transitions are safely ignored.
+      * Non-blanking background refresh: preserves existing `data` on subsequent refreshes or refresh errors. Skeleton loaders only display during initial load (`initialLoading && !data`).
+    - Stabilized loaders across all 8 subpages using `useCallback` with explicit dependencies:
+      * `ManagerOverviewPage`: `loadOverview` keyed to `[period, comparison]`. Added refresh button and non-blanking error banner with retry/dismiss.
+      * `ManagerLeadersPage`: `loadTls` (`[]`), `loadScorecard` (`[selectedTlId]`), `loadSources` (`[]`). Added refresh buttons and non-blanking error alerts.
+      * `ManagerCapacityPage`: `loadTransfers`, `loadCapacity`, `loadLifecycle` (`[]`). Added tab-aware refresh button and non-blanking error alerts.
+      * `ManagerTargetsPage`: `loadTargets` (`[]`). Preserves user allocation inputs across refreshes (`setAllocations((prev) => ...)`). Added refresh button and non-blanking error alert.
+      * `ManagerForecastsPage`: `loadTl` and `loadRollup` (`[]`). Added tab-aware refresh button and non-blanking error alerts.
+      * `ManagerExceptionsPage`: `loadBreaches` and `loadExceptions` (`[]`). Added tab-aware refresh button and non-blanking error alerts.
+      * `ManagerReviewsPage`: `loadTls` (`[]`), `loadReviews` (`[selectedTlId]`). Added refresh button and non-blanking error alert.
+      * `ManagerReportsPage`: `loadPreview` (`[period]`), `loadSchedules` (`[]`). Added refresh button and non-blanking error alert.
+    - Zero `eslint-disable` comments added; StrictMode and React hook dependency rules strictly obeyed.
+  - **2. Playwright E2E Regression Suite Added & Passed (`apps/web/e2e/manager-render-loop.spec.ts`)**:
+    - Created dedicated test suite validating:
+      * Idle overview tab does not repeatedly fetch (waited 2.5s -> 0 requests).
+      * Opening drawer and typing in form inputs triggers 0 network requests.
+      * Changing period filter triggers exactly 1 fetch.
+      * Clicking explicit Refresh triggers exactly 1 fetch.
+      * Failed refresh (mock 500 error) displays non-blanking error banner while keeping existing table/card data visible.
+      * Leaders and Targets tabs remain idle without repeated requests, and input typing does not re-fetch.
+    - Result: **4 passed (14.5s)** across Desktop Chromium and Mobile Chromium.
+  - **3. Full Suite Regression Checks Executed & Passing**:
+    - Web E2E Branding & Journey suites: **26 passed (31.0s)**.
+    - Dedicated Manager API suite (`apps/api/test/manager.api.test.ts`): **14 passed (12,750ms)**.
+    - Monorepo Typecheck: **0 errors** across contracts, api, and web.
+    - Monorepo Lint: **0 errors**.
+    - Web production build: **Passed**.
+  - **4. Evidence & Graph Freshness Refreshed**:
+    - Executed `scripts/record_test_execution.py`, updating `evidence/manager_test_execution_record.json`.
+    - Rebuilt requirements graph via `scripts/build_requirements_graph.py` and validated with `scripts/verify_evidence_integrity.py` (0 violations).
+    - Extracted updated codebase graph via Graphify.
+  - **5. Guardrails Maintained**:
+    - Preserved authentic brand palette, typography, logo, and single solid primary button hierarchy.
+    - Preserved data and live preview.
+    - Zero git commits or pushes performed.
+

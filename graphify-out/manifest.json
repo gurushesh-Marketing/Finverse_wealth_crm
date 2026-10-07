@@ -540,10 +540,10 @@
     "semantic_hash": "2a7e42e73f3e78fb819730e4fcc12740"
   },
   "apps/web/src/pages/ManagerPages.tsx": {
-    "mtime": 1791313451.5072784,
-    "seen": 1791313774.0077481,
-    "ast_hash": "1a3491570d8f99e6ee51bf0116a9d2c2",
-    "semantic_hash": "1a3491570d8f99e6ee51bf0116a9d2c2"
+    "mtime": 1791349413.677862,
+    "seen": 1791349892.9790614,
+    "ast_hash": "4aa88596117fe227a44213b42cf35591",
+    "semantic_hash": "4aa88596117fe227a44213b42cf35591"
   },
   "database/migrations/0008_manager.sql": {
     "mtime": 1791140836.8334858,
@@ -732,10 +732,10 @@
     "semantic_hash": "c87f037f4b298badcfddaffe0570b83c"
   },
   "evidence/manager_test_execution_record.json": {
-    "mtime": 1791313918.047767,
-    "seen": 1791313962.081518,
-    "ast_hash": "d8bcc46fb6057bf56aae43952c6b0d80",
-    "semantic_hash": "d8bcc46fb6057bf56aae43952c6b0d80"
+    "mtime": 1791367083.893543,
+    "seen": 1791367140.823228,
+    "ast_hash": "2823a84c87745bb9eac316bb44dabb46",
+    "semantic_hash": "2823a84c87745bb9eac316bb44dabb46"
   },
   "scripts/fix_demo_hashes.ts": {
     "mtime": 1791191227.1522903,
@@ -754,5 +754,11 @@
     "seen": 1791304051.2536087,
     "ast_hash": "4179519c21b072a3d019aac7a6a7bac4",
     "semantic_hash": "4179519c21b072a3d019aac7a6a7bac4"
+  },
+  "apps/web/e2e/manager-render-loop.spec.ts": {
+    "mtime": 1791366965.2172775,
+    "seen": 1791367140.816892,
+    "ast_hash": "04e147f90d465447ceae6cd916d131ef",
+    "semantic_hash": "04e147f90d465447ceae6cd916d131ef"
   }
 }
