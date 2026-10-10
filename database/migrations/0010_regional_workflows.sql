@@ -15,7 +15,11 @@ VALUES ('REGION-SOUTH', 'South Region', 'wealth')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO teams (id, name, vertical)
-VALUES ('TEAM-WEALTH-GAMMA', 'Wealth Gamma', 'wealth')
+VALUES
+  ('TEAM-WEALTH-ALPHA', 'Wealth Alpha', 'wealth'),
+  ('TEAM-WEALTH-BETA', 'Wealth Beta', 'wealth'),
+  ('TEAM-WEALTH-GAMMA', 'Wealth Gamma', 'wealth'),
+  ('TEAM-BANKING-ALPHA', 'Banking Alpha', 'banking')
 ON CONFLICT (id) DO NOTHING;
 
 UPDATE teams SET region_id = 'REGION-SOUTH'
