@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+import { ensureBootstrapFixtures } from '../database/bootstrap-fixtures';
+
 const testDbUrl = process.env.TEST_DATABASE_URL;
 if (!testDbUrl) {
   console.error('TEST_DATABASE_URL is not set');
@@ -32,6 +34,7 @@ async function run() {
         console.log(`[test-db] skip  ${file}`);
         continue;
       }
+      await ensureBootstrapFixtures(client);
       const sql = readFileSync(resolve('database/migrations', file), 'utf8');
       await client.query('BEGIN');
       try {
@@ -44,6 +47,7 @@ async function run() {
         throw e;
       }
     }
+    await ensureBootstrapFixtures(client);
   } finally {
     client.release();
     await pool.end();

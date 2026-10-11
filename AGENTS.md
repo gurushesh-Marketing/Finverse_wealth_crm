@@ -17,7 +17,7 @@ Consult the canonical document governing the specific domain rather than guessin
 | **Technical Specs** | [`docs/architecture/trd.md`](docs/architecture/trd.md) | REST API routes by role, standard error protocol, Zod contracts, OCC locking (`record_version`), idempotency keys, streaming PDFs, SOLID contract boundaries. |
 | **Application Flows** | [`docs/product/app-flow.md`](docs/product/app-flow.md) | Auth flow, lead state machine (`Not Contacted -> Converted/Lost/Reopened`), tiered escalations (SC->TL->MG->RM->NM->CEO->CFO), referrals. |
 | **UI/UX Interaction** | [`docs/design/design-flow.md`](docs/design/design-flow.md) | Six-zone workspace anatomy, drawer panel flows, mobile priority tasks & bottom sheets, modal dialogs, conflict resolution. |
-| **Relational Schema** | [`docs/architecture/backend-schema.md`](docs/architecture/backend-schema.md) | Actual implemented schema (migrations 0001–0013) vs planned schema (`DE`, `HR`, `SA`), table invariants matrix. |
+| **Relational Schema** | [`docs/architecture/backend-schema.md`](docs/architecture/backend-schema.md) | Actual implemented schema (migrations 0001–0014) vs planned schema (`DE`, `HR`, `SA`), table invariants matrix. |
 | **Execution Plan** | [`docs/process/implementation-plan.md`](docs/process/implementation-plan.md) | Phased roadmap, testing levels, 12 deck acceptance scenarios, compact Manager resume packet, SDLC role-completion protocol. |
 
 ## User-Approved Engineering Policies

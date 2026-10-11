@@ -5,6 +5,10 @@ import {
   LedgerEntry,
   PostRevenueRecognitionInput,
   PostCreditNoteInput,
+  PrepareRevenueRecognitionInput,
+  ApproveRevenueRecognitionInput,
+  PrepareCreditNoteInput,
+  ApproveCreditNoteInput,
   ReceivableInvoice,
   CreateInvoiceInput,
   AssignCollectionInput,
@@ -62,6 +66,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const cfoApi = {
+  // Scope
+  async getScope(): Promise<{ scope: { role: string; verticals: string[]; activePeriods: any[]; currency: string } }> {
+    return fetchJson('/api/cfo/scope');
+  },
+
   // CFO-01: Balances Overview
   async getOverview(period?: string): Promise<{ overview: CfoBalancesOverview }> {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
@@ -101,6 +110,34 @@ export const cfoApi = {
     return fetchJson('/api/cfo/ledger/credit-note', {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  },
+
+  async prepareRecognition(input: PrepareRevenueRecognitionInput): Promise<{ entry: LedgerEntry }> {
+    return fetchJson('/api/cfo/ledger/recognition/prepare', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async approveRecognition(id: string, input?: ApproveRevenueRecognitionInput): Promise<{ entry: LedgerEntry }> {
+    return fetchJson(`/api/cfo/ledger/recognition/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(input || {}),
+    });
+  },
+
+  async prepareCreditNote(input: PrepareCreditNoteInput): Promise<{ entry: LedgerEntry }> {
+    return fetchJson('/api/cfo/ledger/credit-note/prepare', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async approveCreditNote(id: string, input?: ApproveCreditNoteInput): Promise<{ entry: LedgerEntry }> {
+    return fetchJson(`/api/cfo/ledger/credit-note/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(input || {}),
     });
   },
 

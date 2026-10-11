@@ -14,6 +14,7 @@ let pool: Pool;
 before(async () => {
   assertTestDatabaseGuard(env.DATABASE_URL);
   pool = new Pool({ connectionString: env.DATABASE_URL });
+  await pool.query(`UPDATE reporting_periods SET status = 'open', lock_governed_writes = false WHERE id = 'PER-2026-Q1'`);
   server = createApp().listen(0);
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const port = (server.address() as AddressInfo).port;
@@ -21,7 +22,15 @@ before(async () => {
 });
 
 after(async () => {
-  if (pool) await pool.end();
+  if (pool) {
+    await pool.query(`UPDATE reporting_periods SET status = 'open', lock_governed_writes = false WHERE id = 'PER-2026-Q1'`);
+    await pool.query(`DELETE FROM sales_finance_handoffs WHERE id NOT IN ('SFH-001', 'SFH-002')`);
+    await pool.query(`DELETE FROM finance_ledger_entries WHERE id LIKE 'LEDG-%'`);
+    await pool.query(`DELETE FROM finance_reconciliations WHERE period_id = 'PER-2026-Q1'`);
+    await pool.query(`UPDATE incentive_disputes SET status = 'open', resolution_amount = NULL, decision_notes = NULL, resolved_by_employee_id = NULL, resolved_at = NULL WHERE id = 'DISP-001'`);
+    await pool.query(`UPDATE sales_finance_handoffs SET review_status = 'pending_verification' WHERE id = 'SFH-001'`);
+    await pool.end();
+  }
   if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
@@ -87,6 +96,7 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
   const vikram = await login('vikram@finverse.demo'); // NM
   const rajiv = await login('rajiv@finverse.demo'); // CEO
   const ananya = await login('ananya@finverse.demo'); // CFO
+  const priya = await login('priya@finverse.demo'); // Finance Officer (EMP-012)
 
   assert.equal(asha.body.session.role, 'SC');
   assert.equal(tara.body.session.role, 'TL');
@@ -95,7 +105,8 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
   assert.equal(vikram.body.session.role, 'NM');
   assert.equal(rajiv.body.session.role, 'CEO');
   assert.equal(ananya.body.session.role, 'CFO');
-  console.log('PASS: All 7 synthetic role logins succeeded with correct role scopes');
+  assert.equal(priya.body.session.role, 'CFO');
+  console.log('PASS: All synthetic role logins succeeded with correct role scopes');
 
   console.log('--- 2. FRONTLINE CALLER (SC) & TEAM LEAD (TL) WORKFLOW ---');
   const RUN = Date.now().toString().slice(-6);
@@ -401,14 +412,33 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
   assert.equal(glBal.status, 200);
   assert.ok(glBal.body.overview, 'CFO balances overview returned');
 
-  // CFO-02 Inspect Sales Finance Handoffs
+  // CFO-02 Inspect & Verify Sales Finance Handoffs
   const handoffs = await call('GET', '/cfo/handoffs', { cookie: ananya.cookie });
   assert.equal(handoffs.status, 200);
   assert.ok(Array.isArray(handoffs.body.handoffs), 'Handoffs list returned');
 
-  // CFO-03 Post Revenue Recognition Entry
-  const revEntry = await call('POST', '/cfo/ledger/recognition', {
-    cookie: ananya.cookie,
+  // Verify handoff SFH-001 for Q1 processing
+  const sfh001 = handoffs.body.handoffs.find((h: any) => h.id === 'SFH-001');
+  if (sfh001 && sfh001.reviewStatus === 'pending_verification') {
+    const vRes = await call('POST', `/cfo/handoffs/${sfh001.id}/verify`, {
+      cookie: ananya.cookie,
+      json: { decision: 'accepted_for_processing' },
+    });
+    assert.equal(vRes.status, 200);
+  }
+
+  // Insert sales win handoff for the converted lifecycle lead in Q1
+  await pool.query(
+    `INSERT INTO sales_finance_handoffs
+     (id, handoff_code, lead_id, vertical, sales_rep_employee_id, converted_amount, earning_milestone, review_status, created_at)
+     VALUES ($1, $2, $3, 'wealth', 'EMP-001', 61500.00, 'mandate_signed', 'accepted_for_processing', '2026-05-20')
+     ON CONFLICT (id) DO NOTHING`,
+    [`SFH-LIFE-${RUN}`, `SFH-CODE-LIFE-${RUN}`, leadId]
+  );
+
+  // CFO-03 Independent Preparation & Approval of Revenue Recognition Entry
+  const revEntry = await call('POST', '/cfo/ledger/recognition/prepare', {
+    cookie: priya.cookie,
     json: {
       periodId: 'PER-2026-Q1',
       vertical: 'wealth',
@@ -422,6 +452,15 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
     },
   });
   assert.equal(revEntry.status, 201);
+  assert.equal(revEntry.body.entry.status, 'pending_approval');
+  assert.equal(revEntry.body.entry.preparedByName, 'Priya Nair');
+
+  // Independent approval by CFO Ananya Roy
+  const appRev = await call('POST', `/cfo/ledger/recognition/${revEntry.body.entry.id}/approve`, {
+    cookie: ananya.cookie,
+  });
+  assert.equal(appRev.status, 200);
+  assert.equal(appRev.body.entry.status, 'posted');
 
   // CFO-08 Three-Way Reconciliation Bridge
   const bridge = await call('GET', '/cfo/reconciliations', { cookie: ananya.cookie });
@@ -452,6 +491,24 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
     },
   });
   assert.equal(freezeInc.status, 200);
+
+  // CFO-13 Audited Dispute Resolution before period close
+  const dispList = await call('GET', '/cfo/incentives/disputes', { cookie: ananya.cookie });
+  assert.equal(dispList.status, 200);
+  assert.ok(Array.isArray(dispList.body.disputes));
+  for (const d of dispList.body.disputes) {
+    if (d.status === 'open') {
+      const resDisp = await call('POST', `/cfo/incentives/disputes/${d.id}/resolve`, {
+        cookie: ananya.cookie,
+        json: {
+          resolution: 'resolved_upheld',
+          resolutionAmount: d.disputedAmount || 25000,
+          decisionNotes: 'Approved and resolved during Q1 period close audit',
+        },
+      });
+      assert.equal(resDisp.status, 200);
+    }
+  }
 
   // CFO-14 Certify Period Close with SHA-256 Hash
   const certify = await call('POST', '/cfo/periods/PER-2026-Q1/certify', {

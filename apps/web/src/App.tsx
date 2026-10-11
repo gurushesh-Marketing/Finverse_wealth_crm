@@ -30,6 +30,7 @@ import {
   RegionalManagersPage,
   RegionalOverviewPage,
   RegionalReportsPage,
+  RegionalReviewsPage,
   RegionalTargetsPage,
   RegionalTerritoriesPage,
 } from './pages/RegionalManagerPages';
@@ -80,6 +81,9 @@ function ProtectedLayout() {
   let routeAllowed = false;
   if (location.pathname === '/') {
     routeAllowed = true;
+  } else if (session.role === 'CFO') {
+    // CFO stays strictly within the finance workspace (/cfo/*)
+    routeAllowed = location.pathname.startsWith('/cfo');
   } else if (session.role === 'CEO') {
     // CEO stays strictly within the executive workspace (/ceo/*)
     routeAllowed = location.pathname.startsWith('/ceo');
@@ -96,13 +100,14 @@ function ProtectedLayout() {
     // TL stays strictly within the management workspace (/management/*)
     routeAllowed = location.pathname.startsWith('/management');
   } else if (session.role === 'SC') {
-    // SC stays within granted vertical workspaces and is blocked from management/manager/regional/national/ceo workspaces
+    // SC stays within granted vertical workspaces and is blocked from management/manager/regional/national/ceo/cfo workspaces
     routeAllowed =
       !location.pathname.startsWith('/management') &&
       !location.pathname.startsWith('/manager') &&
       !location.pathname.startsWith('/regional') &&
       !location.pathname.startsWith('/national') &&
       !location.pathname.startsWith('/ceo') &&
+      !location.pathname.startsWith('/cfo') &&
       session.verticalGrants.some((v) => location.pathname.startsWith(`/${v}`));
   } else {
     routeAllowed = session.verticalGrants.some((v) => location.pathname.startsWith(`/${v}`));
@@ -179,6 +184,7 @@ export function App() {
             <Route path="/regional/targets" element={<RegionalTargetsPage />} />
             <Route path="/regional/approvals" element={<RegionalApprovalsPage />} />
             <Route path="/regional/forecasts" element={<RegionalForecastsPage />} />
+            <Route path="/regional/reviews" element={<RegionalReviewsPage />} />
             <Route path="/regional/reports" element={<RegionalReportsPage />} />
 
             {/* Wealth National Manager Workspace (NM-01..NM-11) */}
@@ -198,6 +204,7 @@ export function App() {
             <Route path="/ceo/overview" element={<CeoOperatingPage />} />
             <Route path="/ceo/verticals" element={<CeoVerticalsPage />} />
             <Route path="/ceo/nms" element={<CeoNmReviewPage />} />
+            <Route path="/ceo/leadership" element={<CeoNmReviewPage />} />
             <Route path="/ceo/targets" element={<CeoTargetsPage />} />
             <Route path="/ceo/forecast" element={<CeoForecastPage />} />
             <Route path="/ceo/growth" element={<CeoGrowthPage />} />

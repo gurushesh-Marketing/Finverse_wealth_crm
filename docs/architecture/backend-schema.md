@@ -15,13 +15,13 @@ The Finverse CRM v2 persistence model is engineered directly in PostgreSQL using
 1. **Relational Integrity Over App Logic:** Foreign keys (`ON DELETE RESTRICT` by default, or cascading where explicitly designated), check constraints, not-null constraints, and unique compound indexes enforce business rules at the persistence layer.
 2. **Strict Prohibition of Hard Deletions (`[Deck P005]`):** Transaction records, customer interaction timelines, financial ledgers, and audit events are permanent. Deletions use soft-deactivations or state transitions.
 3. **Partitioned Multiversion Concurrency:** High-velocity tables (`leads` via `record_version`, `reviews` via `snapshot_version`) enforce optimistic concurrency locking.
-4. **Distinction Between Implemented vs Planned Schema:** This document explicitly distinguishes between schemas currently active in SQL migrations `0001` through `0013` versus planned future schemas for horizontal roles (`DE`, `HR`, `SA`) and vertical expansions.
+4. **Distinction Between Implemented vs Planned Schema:** This document explicitly distinguishes between schemas currently active in SQL migrations `0001` through `0014` versus planned future schemas for horizontal roles (`DE`, `HR`, `SA`) and vertical expansions.
 5. **No Invented Policies:** Commercial policies, accounting standards, vendor integrations, and incentive holdback percentages are not hardcoded as binding deck requirements; they are client decisions (`[Deck P320]`).
 6. **Preservation of Historical Ownership & Performance:** Relational schemas enforce immutable attribution across personnel changes. When an employee transfers, is promoted, or departs, historical lead ownership events (`lead_ownership_events`), call recordings, converted deals (`outcome_requests`), and financial credits remain anchored to the historical employee ID; only open, in-flight tasks and active assignments transition to successors.
 
 ---
 
-## 2. Actual Implemented Schema (Migrations 0001 to 0013)
+## 2. Actual Implemented Schema (Migrations 0001 to 0014)
 
 ### 2.1 Core Organizational & Frontline Foundation (`0001_init.sql`)
 

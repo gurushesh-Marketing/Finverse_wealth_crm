@@ -79,6 +79,7 @@ export const LedgerEntrySchema = z.object({
   reversalLinkedEntryId: z.string().nullable().optional(),
   preparedByEmployeeId: z.string(),
   preparedByName: z.string().optional(),
+  recordVersion: z.number().int().default(1),
   approvedByEmployeeId: z.string().nullable().optional(),
   approvedByName: z.string().nullable().optional(),
   approvedAt: z.string().nullable().optional(),
@@ -86,6 +87,26 @@ export const LedgerEntrySchema = z.object({
   createdAt: z.string(),
 });
 export type LedgerEntry = z.infer<typeof LedgerEntrySchema>;
+
+export const PrepareRevenueRecognitionInputSchema = z.object({
+  periodId: z.string(),
+  vertical: z.enum(['wealth', 'banking', 'shared']).default('wealth'),
+  grossAmount: z.number().positive(),
+  taxAmount: z.number().nonnegative().default(0),
+  policyCode: z.string().min(1),
+  sourceReferenceType: z.string().min(1),
+  sourceReferenceId: z.string().min(1),
+  accountCode: z.string().min(1),
+  description: z.string().min(3),
+});
+export type PrepareRevenueRecognitionInput = z.infer<typeof PrepareRevenueRecognitionInputSchema>;
+
+export const ApproveRevenueRecognitionInputSchema = z.object({
+  entryId: z.string().optional(),
+  recordVersion: z.number().int().optional(),
+  expectedRecordVersion: z.number().int().optional(),
+});
+export type ApproveRevenueRecognitionInput = z.infer<typeof ApproveRevenueRecognitionInputSchema>;
 
 export const PostRevenueRecognitionInputSchema = z.object({
   periodId: z.string(),
@@ -97,14 +118,33 @@ export const PostRevenueRecognitionInputSchema = z.object({
   sourceReferenceId: z.string().min(1),
   accountCode: z.string().min(1),
   description: z.string().min(3),
+  entryId: z.string().optional(),
+  preparedByEmployeeId: z.string().optional(),
 });
 export type PostRevenueRecognitionInput = z.infer<typeof PostRevenueRecognitionInputSchema>;
 
-export const PostCreditNoteInputSchema = z.object({
+export const PrepareCreditNoteInputSchema = z.object({
   originalEntryId: z.string(),
   reversalReason: z.string().min(5),
   policyCode: z.string().min(1),
   creditAmount: z.number().positive(),
+});
+export type PrepareCreditNoteInput = z.infer<typeof PrepareCreditNoteInputSchema>;
+
+export const ApproveCreditNoteInputSchema = z.object({
+  entryId: z.string().optional(),
+  recordVersion: z.number().int().optional(),
+  expectedRecordVersion: z.number().int().optional(),
+});
+export type ApproveCreditNoteInput = z.infer<typeof ApproveCreditNoteInputSchema>;
+
+export const PostCreditNoteInputSchema = z.object({
+  originalEntryId: z.string().optional(),
+  reversalReason: z.string().min(5).optional(),
+  policyCode: z.string().min(1).optional(),
+  creditAmount: z.number().positive().optional(),
+  entryId: z.string().optional(),
+  preparedByEmployeeId: z.string().optional(),
 });
 export type PostCreditNoteInput = z.infer<typeof PostCreditNoteInputSchema>;
 
@@ -245,6 +285,8 @@ export const FinanceReconciliationSchema = z.object({
   unbilledPipelineDifference: z.number(),
   unexplainedVariance: z.number(),
   reconciliationStatus: z.enum(['draft', 'variance_investigation', 'approved_frozen']),
+  version: z.string().optional(),
+  sourceWatermark: z.record(z.string(), z.any()).optional(),
   frozenByName: z.string().nullable().optional(),
   frozenAt: z.string().nullable().optional(),
   explanationNotes: z.string().nullable().optional(),
@@ -254,6 +296,7 @@ export type FinanceReconciliation = z.infer<typeof FinanceReconciliationSchema>;
 
 export const FreezeReconciliationInputSchema = z.object({
   periodId: z.string(),
+  vertical: z.string().optional(),
   explanationNotes: z.string().min(5),
 });
 export type FreezeReconciliationInput = z.infer<typeof FreezeReconciliationInputSchema>;
@@ -379,9 +422,10 @@ export const ReportingPeriodSchema = z.object({
 export type ReportingPeriod = z.infer<typeof ReportingPeriodSchema>;
 
 export const CertifyPeriodCloseInputSchema = z.object({
-  checklistState: z.record(z.string(), z.boolean()),
+  checklistState: z.record(z.string(), z.boolean()).optional(),
+  preCloseChecklist: z.record(z.string(), z.boolean()).optional(),
   certificationNotes: z.string().optional(),
-});
+}).passthrough();
 export type CertifyPeriodCloseInput = z.infer<typeof CertifyPeriodCloseInputSchema>;
 
 export const PeriodReopenRequestSchema = z.object({
@@ -403,6 +447,7 @@ export type PeriodReopenRequest = z.infer<typeof PeriodReopenRequestSchema>;
 
 export const CreatePeriodReopenRequestInputSchema = z.object({
   periodId: z.string(),
+  requestedByEmployeeId: z.string().optional(),
   reason: z.string().min(5),
   impactAssessment: z.string().min(10),
   affectedAccounts: z.array(z.string()).default([]),
@@ -530,12 +575,14 @@ export const FinancePolicySchema = z.object({
   id: z.string(),
   policyCode: z.string(),
   title: z.string(),
-  category: z.enum(['delegation_of_authority', 'revenue_recognition', 'incentive_scheme', 'credit_terms']),
+  category: z.enum(['delegation_of_authority', 'revenue_recognition', 'incentive_scheme', 'credit_terms', 'close_governance']),
   version: z.string(),
   effectiveDate: z.string(),
   rulesSummary: z.string(),
-  approvalLimits: z.record(z.string(), z.number()),
+  approvalLimits: z.record(z.string(), z.any()),
   status: z.enum(['draft', 'pending_approval', 'active', 'superseded']),
+  isDemoPolicy: z.boolean().default(false),
+  clientApproved: z.boolean().default(false),
   proposedByName: z.string().optional(),
   approvedByName: z.string().nullable().optional(),
   createdAt: z.string(),
@@ -544,10 +591,10 @@ export type FinancePolicy = z.infer<typeof FinancePolicySchema>;
 
 export const ProposeFinancePolicyInputSchema = z.object({
   title: z.string().min(3),
-  category: z.enum(['delegation_of_authority', 'revenue_recognition', 'incentive_scheme', 'credit_terms']),
+  category: z.enum(['delegation_of_authority', 'revenue_recognition', 'incentive_scheme', 'credit_terms', 'close_governance']),
   version: z.string().default('1.0'),
   effectiveDate: z.string(),
   rulesSummary: z.string().min(10),
-  approvalLimits: z.record(z.string(), z.number()).default({}),
+  approvalLimits: z.record(z.string(), z.any()).default({}),
 });
 export type ProposeFinancePolicyInput = z.infer<typeof ProposeFinancePolicyInputSchema>;

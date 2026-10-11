@@ -49,6 +49,20 @@ export function errorHandler(
     res.status(err.status).json(errorBody(err.code, err.message, err.details));
     return;
   }
+  if (err?.name === 'ZodError' || Array.isArray(err?.issues)) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of (err.issues || [])) {
+      const path = issue.path?.join('.') || 'root';
+      if (!fieldErrors[path]) fieldErrors[path] = [];
+      fieldErrors[path].push(issue.message);
+    }
+    res.status(400).json(errorBody('VALIDATION_FAILED', 'Validation failed', { fieldErrors }));
+    return;
+  }
+  if (typeof err?.status === 'number' && err.status >= 400 && err.status < 600) {
+    res.status(err.status).json(errorBody(err.code || 'VALIDATION_FAILED', err.message, err.details));
+    return;
+  }
   if (err?.type === 'entity.too.large') {
     res.status(413).json(errorBody('VALIDATION_FAILED', 'Request body is too large.'));
     return;

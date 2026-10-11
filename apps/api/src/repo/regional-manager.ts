@@ -623,6 +623,20 @@ export async function listCrossManagerTransfers(scope: Scope) {
 
 export async function createCrossManagerTransfer(scope: Scope, input: CreateCrossManagerTransferInput) {
   assertRm(scope);
+  // Enforce organizational branch scope: source and destination teams must be within RM's scope
+  if (!scope.teams.includes(input.sourceTeamId) || !scope.teams.includes(input.destinationTeamId)) {
+    throw forbidden('Source and destination teams must be within authorized regional scope.');
+  }
+
+  // Enforce lead scope: all leads must belong to sourceTeamId and be within scope
+  const { rows: leadRows } = await pool.query(
+    `SELECT id, team_id FROM leads WHERE id = ANY($1)`,
+    [input.leadIds]
+  );
+  if (leadRows.length !== input.leadIds.length || leadRows.some((l) => l.team_id !== input.sourceTeamId)) {
+    throw forbidden('Transferred leads must belong to authorized source team.');
+  }
+
   const transferId = id('CMT');
 
   const { rows } = await pool.query(
@@ -660,6 +674,18 @@ export async function decideCrossManagerTransfer(scope: Scope, input: DecideCros
     if (!rows[0]) throw notFound();
     const transfer = rows[0];
 
+    // Atomic transition guard: only pending transfers can be decided
+    if (transfer.status !== 'pending') {
+      throw new HttpError(400, 'VALIDATION_FAILED', 'Transfer request has already been decided.', {
+        fieldErrors: { status: ['ALREADY_DECIDED'] },
+      });
+    }
+
+    // Verify regional scope
+    if (!scope.teams.includes(transfer.source_team_id) || !scope.teams.includes(transfer.destination_team_id)) {
+      throw forbidden('Transfer is outside authorized regional scope.');
+    }
+
     await client.query(
       `UPDATE cross_manager_transfers
           SET status = $1, decided_at = now()
@@ -684,7 +710,7 @@ export async function decideCrossManagerTransfer(scope: Scope, input: DecideCros
         for (const leadId of leadIds) {
           const eventId = id('EV');
           await client.query(
-            `INSERT INTO lead_events (id, lead_id, employee_id, event_type, summary)
+            `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note)
              VALUES ($1, $2, $3, 'cross-manager-transfer', $4)`,
             [
               eventId,
@@ -943,6 +969,25 @@ export async function createRegionalEscalation(scope: Scope, input: CreateRegion
 
 export async function resolveRegionalEscalation(scope: Scope, input: ResolveRegionalEscalationInput) {
   assertRm(scope);
+
+  // If this was an escalated commercial exception from MG-09
+  if (input.escalationId.startsWith('CE-')) {
+    const { rows: ceRows } = await pool.query(
+      `UPDATE commercial_exceptions
+          SET status = $1, decision_notes = $2, decided_at = now()
+        WHERE id = $3
+        RETURNING *`,
+      [input.decision === 'resolved' ? 'approved' : 'rejected', input.recoveryDecision, input.escalationId]
+    );
+    if (!ceRows[0]) throw notFound();
+    return {
+      id: ceRows[0].id,
+      status: input.decision,
+      recovery_decision: input.recoveryDecision,
+      resolved_at: ceRows[0].decided_at,
+    };
+  }
+
   const { rows } = await pool.query(
     `UPDATE regional_escalations
         SET status = $1,
@@ -959,16 +1004,7 @@ export async function resolveRegionalEscalation(scope: Scope, input: ResolveRegi
     ]
   );
 
-  // If this was an escalated commercial exception, also update that record
-  if (input.escalationId.startsWith('CE-')) {
-    await pool.query(
-      `UPDATE commercial_exceptions
-          SET status = $1, decision_notes = $2, decided_at = now()
-        WHERE id = $3`,
-      [input.decision === 'resolved' ? 'approved' : 'rejected', input.recoveryDecision, input.escalationId]
-    );
-  }
-
+  if (!rows[0]) throw notFound();
   return rows[0];
 }
 
@@ -995,6 +1031,19 @@ export async function listManagerReviews(scope: Scope, managerId?: string) {
 
 export async function saveManagerReview(scope: Scope, input: SaveManagerReviewInput) {
   assertRm(scope);
+
+  // Enforce manager scope: reviewee must be an active MG in regional scope
+  const { rows: mgrRows } = await pool.query(
+    `SELECT e.id FROM assignments a
+       JOIN employees e ON e.id = a.employee_id
+      WHERE e.id = $1 AND a.team_id = ANY($2) AND a.role = 'MG'
+      LIMIT 1`,
+    [input.managerEmployeeId, scope.teams]
+  );
+  if (!mgrRows[0]) {
+    throw forbidden('Reviewee must be an authorized Manager within regional scope.');
+  }
+
   const reviewId = id('MRV');
 
   const { rows } = await pool.query(

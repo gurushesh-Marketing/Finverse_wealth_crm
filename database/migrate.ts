@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { Pool } from 'pg';
+import { ensureBootstrapFixtures } from './bootstrap-fixtures';
 
 loadEnv({ path: resolve(process.cwd(), '../../.env') });
 loadEnv({ path: resolve(process.cwd(), '.env') });
@@ -31,6 +32,8 @@ async function main(): Promise<void> {
         console.log(`[migrate] skip   ${file}`);
         continue;
       }
+      // Ensure baseline bootstrap fixtures are present for foreign keys if base schema exists
+      await ensureBootstrapFixtures(client);
       const sql = readFileSync(resolve(MIGRATIONS_DIR, file), 'utf8');
       await client.query('BEGIN');
       try {
@@ -43,6 +46,7 @@ async function main(): Promise<void> {
         throw err;
       }
     }
+    await ensureBootstrapFixtures(client);
     console.log('[migrate] done');
   } finally {
     client.release();

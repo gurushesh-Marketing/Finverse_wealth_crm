@@ -4,6 +4,10 @@ import {
   VerifySalesHandoffInputSchema,
   PostRevenueRecognitionInputSchema,
   PostCreditNoteInputSchema,
+  PrepareRevenueRecognitionInputSchema,
+  ApproveRevenueRecognitionInputSchema,
+  PrepareCreditNoteInputSchema,
+  ApproveCreditNoteInputSchema,
   CreateInvoiceInputSchema,
   AssignCollectionInputSchema,
   ImportReceiptBatchInputSchema,
@@ -29,6 +33,10 @@ import {
   getLedgerEntries,
   postRevenueRecognition,
   postCreditNote,
+  prepareRevenueRecognition,
+  approveRevenueRecognition,
+  prepareCreditNote,
+  approveCreditNote,
   getReceivableInvoices,
   createReceivableInvoice,
   assignCollectionWork,
@@ -61,6 +69,7 @@ import {
   createFinancePackSchedule,
   getFinancePolicies,
   proposeFinancePolicy,
+  getCfoScope,
 } from '../repo/cfo';
 import fs from 'fs';
 import path from 'path';
@@ -78,11 +87,22 @@ export function createCfoRouter(): Router {
     next();
   });
 
+  // CFO Scope
+  router.get('/scope', async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const scope = await getCfoScope(req.auth!.employeeId);
+      res.json({ data: scope, scope });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // CFO-01: Balances Overview
   router.get('/overview', async (req: AuthedRequest, res: Response, next: NextFunction) => {
     try {
       const periodLabel = req.query.period as string | undefined;
-      const overview = await getCfoBalancesOverview(periodLabel);
+      const vertical = req.query.vertical as string | undefined;
+      const overview = await getCfoBalancesOverview(periodLabel, vertical);
       res.json({ overview });
     } catch (err) {
       next(err);
@@ -132,11 +152,53 @@ export function createCfoRouter(): Router {
     }
   });
 
+  router.post('/ledger/recognition/prepare', async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const input = PrepareRevenueRecognitionInputSchema.parse(req.body);
+      const entry = await prepareRevenueRecognition(input, req.auth!.employeeId);
+      res.status(201).json({ entry });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/ledger/recognition/:id/approve', async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const input = ApproveRevenueRecognitionInputSchema.parse(req.body || {});
+      const expectedVersion = input.expectedRecordVersion ?? input.recordVersion;
+      const entry = await approveRevenueRecognition(req.params.id, req.auth!.employeeId, expectedVersion);
+      res.json({ entry });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post('/ledger/credit-note', async (req: AuthedRequest, res: Response, next: NextFunction) => {
     try {
       const input = PostCreditNoteInputSchema.parse(req.body);
       const entry = await postCreditNote(input, req.auth!.employeeId);
       res.status(201).json({ entry });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/ledger/credit-note/prepare', async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const input = PrepareCreditNoteInputSchema.parse(req.body);
+      const entry = await prepareCreditNote(input, req.auth!.employeeId);
+      res.status(201).json({ entry });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/ledger/credit-note/:id/approve', async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const input = ApproveCreditNoteInputSchema.parse(req.body || {});
+      const expectedVersion = input.expectedRecordVersion ?? input.recordVersion;
+      const entry = await approveCreditNote(req.params.id, req.auth!.employeeId, expectedVersion);
+      res.json({ entry });
     } catch (err) {
       next(err);
     }
@@ -327,7 +389,8 @@ export function createCfoRouter(): Router {
   router.post('/periods/:id/certify', async (req: AuthedRequest, res: Response, next: NextFunction) => {
     try {
       const input = CertifyPeriodCloseInputSchema.parse(req.body);
-      const period = await certifyPeriodClose(req.params.id, input, req.auth!.employeeId);
+      const governanceMode = (req.headers['x-governance-mode'] as string) || (req.query.governanceMode as string) || undefined;
+      const period = await certifyPeriodClose(req.params.id, input, req.auth!.employeeId, governanceMode);
       res.json({ period });
     } catch (err) {
       next(err);
@@ -435,6 +498,18 @@ export function createCfoRouter(): Router {
       return;
     }
     res.download(filepath);
+  });
+
+  router.get('/reports/pdf', async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const periodLabel = (req.query.period as string) || 'FY26-Q1';
+      const result = await generateFinancePackPdf(periodLabel, req.auth!.displayName);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      fs.createReadStream(result.filepath).pipe(res);
+    } catch (err) {
+      next(err);
+    }
   });
 
   router.get('/reports/schedules', async (req: AuthedRequest, res: Response, next: NextFunction) => {

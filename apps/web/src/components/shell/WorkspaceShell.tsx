@@ -50,6 +50,19 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+export const ROLE_TITLES: Record<string, string> = {
+  SC: 'Sales caller',
+  TL: 'Team lead',
+  MG: 'Manager',
+  RM: 'Regional manager',
+  NM: 'National manager',
+  CEO: 'Chief Executive Officer',
+  CFO: 'Chief Financial Officer',
+  DE: 'Data entry',
+  HR: 'Human resources',
+  SA: 'Super admin',
+};
+
 export function Sidebar() {
   const { session, logout } = useSession();
   return (
@@ -68,7 +81,7 @@ export function Sidebar() {
       <div className="border-t border-sidebar-border px-4 py-3">
         <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Your scope</div>
         <div className="mt-1 text-xs text-muted-foreground">
-          Wealth · {session!.role === 'TL' ? 'Team Lead' : 'Sales caller'} · {session!.employeeId}
+          Wealth · {ROLE_TITLES[session!.role] || session!.role} · {session!.employeeId}
         </div>
         <div className="mt-2 text-sm font-medium text-foreground">{session!.displayName}</div>
         <Button
@@ -161,7 +174,21 @@ export function MobileNav() {
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { session } = useSession();
   const location = useLocation();
-  const roleLabel = location.pathname.startsWith('/management') ? 'Team leader' : session?.role === 'TL' ? 'Team lead (caller view)' : 'Sales caller';
+  const roleLabel = location.pathname.startsWith('/regional')
+    ? 'Regional manager'
+    : location.pathname.startsWith('/manager')
+    ? 'Manager'
+    : location.pathname.startsWith('/national')
+    ? 'National manager'
+    : location.pathname.startsWith('/ceo')
+    ? 'Chief Executive Officer'
+    : location.pathname.startsWith('/cfo')
+    ? 'Chief Financial Officer'
+    : location.pathname.startsWith('/management')
+    ? 'Team leader'
+    : session?.role === 'TL'
+    ? 'Team lead (caller view)'
+    : (session?.role && ROLE_TITLES[session.role]) || 'Sales caller';
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-background">
       <div className="border-b border-border bg-secondary px-4 py-1 text-center text-[11px] font-medium uppercase tracking-widest text-accent">
