@@ -618,10 +618,10 @@
     "semantic_hash": "f8527f09f4098f98c94585a34d8c8157"
   },
   "apps/web/src/pages/NationalManagerPages.tsx": {
-    "mtime": 1792317198.9954891,
-    "seen": 1792318811.3745308,
-    "ast_hash": "62667878dfc25208359232a03c088c17",
-    "semantic_hash": "62667878dfc25208359232a03c088c17"
+    "mtime": 1792326272.0773237,
+    "seen": 1792326825.958015,
+    "ast_hash": "e0bad123ded6ab97a822cf9b3c0387bb",
+    "semantic_hash": "e0bad123ded6ab97a822cf9b3c0387bb"
   },
   "database/migrations/0011_national_workflows.sql": {
     "mtime": 1791185562.9140098,
@@ -1338,10 +1338,10 @@
     "semantic_hash": "2caa9e2afebdcd469e5f96546766bb7c"
   },
   "apps/api/test/real_estate.api.test.ts": {
-    "mtime": 1792321281.0403912,
-    "seen": 1792321501.2059338,
-    "ast_hash": "af940972e8af2c35446c64e3dd517fa0",
-    "semantic_hash": "af940972e8af2c35446c64e3dd517fa0"
+    "mtime": 1792326429.480953,
+    "seen": 1792326825.9469483,
+    "ast_hash": "62d124a1319705ac732056a05ec72f0d",
+    "semantic_hash": "62d124a1319705ac732056a05ec72f0d"
   },
   "apps/web/e2e/real-estate-browser.spec.ts": {
     "mtime": 1792317198.9602122,
@@ -1486,5 +1486,29 @@
     "seen": 1792321501.2091165,
     "ast_hash": "3a2ca0de16e21263da4acaf7c83ec857",
     "semantic_hash": "3a2ca0de16e21263da4acaf7c83ec857"
+  },
+  "apps/web/e2e/wealth-national-manager.spec.ts": {
+    "mtime": 1792323168.0232882,
+    "seen": 1792323511.882445,
+    "ast_hash": "1390f5247a7695984292546b310623ee",
+    "semantic_hash": "1390f5247a7695984292546b310623ee"
+  },
+  "apps/web/e2e/banking-national-manager.spec.ts": {
+    "mtime": 1792324073.4365833,
+    "seen": 1792324371.2779922,
+    "ast_hash": "c3119f83aaf2b25f8ea4e968f7bafe83",
+    "semantic_hash": "c3119f83aaf2b25f8ea4e968f7bafe83"
+  },
+  "apps/web/e2e/markets-national-manager.spec.ts": {
+    "mtime": 1792325593.0981574,
+    "seen": 1792325768.4574258,
+    "ast_hash": "1c0822a358a1c26af612872fadfc6ec6",
+    "semantic_hash": "1c0822a358a1c26af612872fadfc6ec6"
+  },
+  "apps/web/e2e/real-estate-national-manager.spec.ts": {
+    "mtime": 1792326552.2833242,
+    "seen": 1792326825.9505637,
+    "ast_hash": "f5218c50b8c74d79af2cbbd3ef7d1c8e",
+    "semantic_hash": "f5218c50b8c74d79af2cbbd3ef7d1c8e"
   }
 }

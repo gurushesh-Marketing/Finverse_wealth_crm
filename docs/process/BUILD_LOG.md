@@ -2311,7 +2311,7 @@ ode --import tsx --test apps/api/test/banking.api.test.ts: **6/6 test suites pas
   2. **Multi-Vertical Dynamic Supervisor Verification**:
      - Verified ManagerPages.tsx across ManagerLeadersPage and ManagerReviewsPage correctly initializes with dynamic useEffect synchronization, cleanly defaulting selectedTlId to supervised Markets TL Meera Nair (EMP-005).
      - Demo Access Panel accordion for Markets expanded cleanly, populating authenticated session with
-ole = 'MG', erticalGrants = ['markets'], and 	eamGrants = ['TEAM-MARKETS-ALPHA', 'TEAM-MARKETS-BETA'].
+ole = 'MG', verticalGrants = ['markets'], and teamGrants = ['TEAM-MARKETS-ALPHA', 'TEAM-MARKETS-BETA'].
   3. **Action-by-Action Markets Manager Grounding (MG-01..MG-13)**:
      - **MG-01 (Manager overview & TL performance interventions — P135/P136)**: /manager/overview with period & comparison selectors, 4 executive cards (Wins/Target numerator/denominator, Target Pace %, Overdue SLA, Backlog), TL hierarchy breakdown table with Low Sample Size badge, 'In this view' metric banner, and 'Assign Action' drawer logging interventions into management_actions.
      - **MG-02 & MG-10 (TL operating scorecard & Source quality remediation — P137/P138, P153/P154)**: /manager/leaders with dynamic multi-vertical TL selector defaulting to supervised Markets TL Meera Nair (EMP-005), TL operating scorecard (MG-02) displaying roster, conversion rate, task adherence, supervised associates, active actions; and Source Quality Cohort (MG-10) with intake defect analysis and remediation drawer (
@@ -2339,12 +2339,12 @@ ode --import tsx --test apps/api/test/markets.api.test.ts: **5/5 test suites pas
 - **Date**: 2026-10-18
 - **Completed Objectives**:
   1. **Real Estate Advisory Manager Wave Audit & Action Deck Grounding**:
-     - Audited Real Estate Manager role wave (**MG-01 through MG-13**) with persona Vikramaditya Singhania (ikramaditya@finverse.demo / demo1234, EMP-028), supervising TEAM-REALESTATE-ALPHA (TL Neha Gupta EMP-027, Caller Sameer Kulkarni EMP-026) and TEAM-REALESTATE-BETA (TL Pooja Reddy EMP-032, Caller Kunal Rao EMP-031).
+     - Audited Real Estate Manager role wave (**MG-01 through MG-13**) with persona Vikramaditya Singhania (vikramaditya@finverse.demo / demo1234, EMP-028), supervising TEAM-REALESTATE-ALPHA (TL Neha Gupta EMP-027, Caller Sameer Kulkarni EMP-026) and TEAM-REALESTATE-BETA (TL Pooja Reddy EMP-032, Caller Kunal Rao EMP-031).
      - Grounded in authentic Action Deck PDF pages P135 through P160: verified scope, metrics, single solid primary button rule, 3-card guidance rails, and real estate luxury mandate supervisory controls.
   2. **Multi-Vertical Dynamic Supervisor Verification**:
      - Verified ManagerPages.tsx across ManagerLeadersPage and ManagerReviewsPage correctly initializes with dynamic useEffect synchronization, cleanly defaulting selectedTlId to supervised Real Estate TL Neha Gupta (EMP-027).
      - Demo Access Panel accordion for Real Estate Advisory expanded cleanly, populating authenticated session with
-ole = 'MG', erticalGrants = ['real_estate'], and 	eamGrants = ['TEAM-REALESTATE-ALPHA', 'TEAM-REALESTATE-BETA'].
+ole = 'MG', verticalGrants = ['real_estate'], and teamGrants = ['TEAM-REALESTATE-ALPHA', 'TEAM-REALESTATE-BETA'].
   3. **Action-by-Action Real Estate Manager Grounding (MG-01..MG-13)**:
      - **MG-01 (Manager overview & TL performance interventions — P135/P136)**: /manager/overview with period & comparison selectors, 4 executive cards (Wins/Target numerator/denominator, Target Pace %, Overdue SLA, Backlog), TL hierarchy breakdown table with Low Sample Size badge, 'In this view' metric banner, and 'Assign Action' drawer logging interventions into management_actions.
      - **MG-02 & MG-10 (TL operating scorecard & Source quality remediation — P137/P138, P153/P154)**: /manager/leaders with dynamic multi-vertical TL selector defaulting to supervised Real Estate TL Neha Gupta (EMP-027), TL operating scorecard (MG-02) displaying roster, conversion rate, task adherence, supervised associates, active actions; and Source Quality Cohort (MG-10) with intake defect analysis and remediation drawer (
@@ -2497,3 +2497,131 @@ ode --import tsx --test apps/api/test/real_estate.api.test.ts: **5/5 test suites
      - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
      - Code Graph (graphify extract . --code-only): Refreshed and up to date.
   6. **Completion Gate**: **Real Estate Advisory Regional Manager Wave Verified and Closed**. Regional Manager wave complete across all 4 verticals. Stopped strictly at the Real Estate RM gate without advancing to National Manager. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 076 — Role Waves: Wealth National Manager NM-01..NM-11 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Wealth National Manager Wave Audit & Action Deck Grounding**:
+     - Audited Wealth National Manager role wave (**NM-01 through NM-11**) with persona Vikram Malhotra (vikram@finverse.demo / demo1234, EMP-009), supervising Wealth · All Regions (Regional Manager Kavita Rao EMP-008, REGION-SOUTH, supervising Wealth Alpha, Beta, and Gamma).
+     - Grounded in authentic Action Deck PDF pages P181 through P202: verified national vertical scope, metrics, single solid primary button rule (#113F3D), 3-card guidance rails, national target cascade, unit economics & capacity, pipeline rule proposals, macro forecast adjustments, cross-region transfers, cross-vertical referrals, executive escalations, RM reviews, and executive board pack.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel accordion for Wealth expanded cleanly, populating authenticated session with role = 'NM', verticalGrants = ['wealth'], teamGrants = ['TEAM-WEALTH-ALPHA', 'TEAM-WEALTH-BETA', 'TEAM-WEALTH-GAMMA'], regionGrants = ['REGION-SOUTH', 'REGION-WEST'].
+  3. **Action-by-Action Wealth National Manager Grounding (NM-01..NM-11)**:
+     - **NM-01 (Inspect national vertical performance — Deck P181/P182)**: /national/overview with period selector, 4 executive cards (Vertical Attainment: 0 / 500 wins, Unallocated Target: 250 wins, Active Pipeline: 9 leads, Governance & Risks: 1 escalations), regional division breakdown table (South vs West), and + National directive drawer logging operational directives into national_management_actions.
+     - **NM-02 (Compare regions and open an RM scorecard — Deck P183/P184)**: /national/regions with cohort comparisons, Target Wins, conversion rates, and RM scorecards.
+     - **NM-03 (Allocate the national target to regions — Deck P185/P186)**: /national/plan allocating CEO target across regions, over-allocation guard (allocated sum cannot exceed CEO target), Save Draft & Publish to RMs cascading branch targets.
+     - **NM-04 (Review product and source economics — Deck P187/P188)**: /national/economics analyzing blended CAC, AUM velocity, product margins, and acquisition channel efficiency.
+     - **NM-05 (Propose pipeline or product rule changes — Deck P189/P190)**: /national/rules proposing pipeline SLAs and gate modifications with version tracking and executive review workflow.
+     - **NM-06 (Submit the national forecast — Deck P191/P192)**: /national/forecast rolling up regional bottom-up forecasts, applying national macro adjustment, and freezing/submitting to CEO & CFO.
+     - **NM-07 (Approve a cross-region work transfer — Deck P193/P194)**: /national/transfers evaluating cross-region prospect transfers between South and West with atomic lead ownership updates and audit logs.
+     - **NM-08 (Accept or decline a cross-vertical referral — Deck P195/P196)**: /national/referrals accepting/declining inbound cross-vertical referrals (Banking/Real Estate -> Wealth) with automatic intake queue routing.
+     - **NM-09 (Escalate a national commercial or finance issue — Deck P197/P198)**: /national/escalations routing dual-executive escalations to CEO / CFO / BOTH with deadline tracking and resolution capture.
+     - **NM-10 (Run an RM performance review — Deck P199/P200)**: /national/reviews conducting periodic RM performance reviews for Kavita Rao (EMP-008), recording strengths, blockers, commitments, and directives.
+     - **NM-11 (Prepare the national executive pack — Deck P201/P202)**: /national/reports previewing executive board pack, binary %PDF streaming export, and automated delivery schedules.
+  4. **Executed Verification Evidence**:
+     - apps/api/test/national.api.test.ts: **Passed (13/13 tests pass 100% green in 2.41s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/wealth-national-manager.spec.ts: **24/24 tests passed (100% green in 28.9s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **30 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/wealth_national_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 1.46s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Wealth National Manager Wave Verified and Closed**. Stopped strictly at the Wealth NM gate without advancing to Banking NM or CEO/CFO. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 077 — Role Waves: Commercial Banking National Manager NM-01..NM-11 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Commercial Banking National Manager Wave Audit & Action Deck Grounding**:
+     - Audited Commercial Banking National Manager role wave (**NM-01 through NM-11**) with persona Suresh Nair (suresh@finverse.demo / demo1234, EMP-020), supervising Banking · National Scope (West + North Zones), including Regional Manager Arjun Mehta (EMP-019, REGION-BANKING-WEST), Regional Manager (REGION-BANKING-NORTH), and operational teams TEAM-BANKING-ALPHA (TL Priya Sharma EMP-018, Caller Vikramaditya Joshi EMP-017) and TEAM-BANKING-BETA (TL Rahul Verma EMP-030, Caller Ananya Iyer EMP-025).
+     - Grounded in authentic Action Deck PDF pages P181 through P202: verified national banking scope, metrics, single solid primary button rule (#113F3D), 3-card guidance rails, national target cascade, commercial economics & capacity, pipeline rule proposals, macro forecast adjustments, cross-region transfers, cross-vertical referrals, executive escalations, RM reviews, and executive board pack.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel accordion for Commercial Banking expanded cleanly, populating authenticated session with role = 'NM', verticalGrants = ['banking'], teamGrants = ['TEAM-BANKING-ALPHA', 'TEAM-BANKING-BETA'], regionGrants = ['REGION-BANKING-WEST', 'REGION-BANKING-NORTH'].
+  3. **Action-by-Action Commercial Banking National Manager Grounding (NM-01..NM-11)**:
+     - **NM-01 (Inspect national vertical performance — Deck P181/P182)**: /national/overview with period selector, 4 executive cards (Vertical Attainment: 0 / 300 wins, Unallocated Target: 150 wins, Active Pipeline: 2 leads, Governance & Risks: 1 escalations), regional division breakdown table (Commercial Banking West Zone vs Commercial Banking North Zone), and + National directive drawer logging operational directives into national_management_actions.
+     - **NM-02 (Compare regions and open an RM scorecard — Deck P183/P184)**: /national/regions with division benchmarking cards comparing West Zone (Arjun Mehta) and North Zone on Target Wins, conversion rates, and RM scorecards.
+     - **NM-03 (Allocate the national target to regions — Deck P185/P186)**: /national/plan allocating approved CEO target (300 wins) across commercial banking regions, strict over-allocation guard (sum cannot exceed CEO target), Save Draft & Publish to RMs cascading branch targets.
+     - **NM-04 (Review product and source economics — Deck P187/P188)**: /national/economics analyzing commercial lending economics, blended CAC, loan disbursement velocity, product margins across Working Capital, Term Loans, and Trade Finance, and unit caller capacity.
+     - **NM-05 (Propose pipeline or product rule changes — Deck P189/P190)**: /national/rules proposing commercial turnaround fast-track SLA and borrower documentation gate modifications with version tracking and executive review workflow.
+     - **NM-06 (Submit the national forecast — Deck P191/P192)**: /national/forecast rolling up regional bottom-up forecasts, applying national macro adjustments with documented economic assumptions, and freezing/submitting to CEO & CFO.
+     - **NM-07 (Approve a cross-region work transfer — Deck P193/P194)**: /national/transfers dynamically defaulting to Commercial Banking West Zone -> Commercial Banking North Zone, authentic twin cards (`SUBMITTED EVIDENCE` vs `YOUR AUTHORITY`), evaluating commercial borrower work transfer with atomic lead ownership updates and audit logs.
+     - **NM-08 (Accept or decline a cross-vertical referral — Deck P195/P196)**: /national/referrals accepting/declining inbound cross-vertical referrals (Wealth -> Banking) with authentic twin cards (`INBOUND REFERRAL PAYLOAD` vs `RECEIVING AUTHORITY & QUEUE`), creating live commercial borrower in TEAM-BANKING-ALPHA with 2h intake task.
+     - **NM-09 (Escalate a national commercial or finance issue — Deck P197/P198)**: /national/escalations routing dual-executive escalations to CEO / CFO / BOTH with deadline tracking and resolution capture.
+     - **NM-10 (Run an RM performance review — Deck P199/P200)**: /national/reviews dynamically selecting supervised Regional Manager Arjun Mehta (EMP-019 — Commercial Banking West Zone), authentic twin cards (`PERFORMANCE EVIDENCE & HISTORY` vs `MEETING RECORD & COMMITMENTS`), recording strengths, blockers, commitments, and directives.
+     - **NM-11 (Prepare the national executive pack — Deck P201/P202)**: /national/reports previewing executive board pack, binary %PDF streaming export, and automated delivery schedules.
+  4. **Executed Verification Evidence**:
+     - apps/api/test/banking.api.test.ts (National Manager Suite): **Passed (100% green in 2.38s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/banking-national-manager.spec.ts: **24/24 tests passed (100% green in 25.8s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **32 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/banking_national_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 975ms)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Commercial Banking National Manager Wave Verified and Closed**. Stopped strictly at the Banking NM gate without advancing to Markets NM, Real Estate NM, or CEO/CFO. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 078 — Role Waves: Markets & Securities National Manager NM-01..NM-11 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Markets & Securities National Manager Wave Audit & Action Deck Grounding**:
+     - Audited Markets & Securities National Manager role wave (**NM-01 through NM-11**) with persona Sanjay Singhania (sanjay@finverse.demo / demo1234, EMP-025), supervising Markets · National Scope (West + North Zones), including Regional Manager Rajesh Bansal (EMP-024, REGION-MARKETS-WEST), Regional Manager (REGION-MARKETS-NORTH), and operational teams TEAM-MARKETS-ALPHA (TL Meera Nair EMP-005, Caller Kabir Joshi EMP-021) and TEAM-MARKETS-BETA (TL Tarun Sen EMP-023).
+     - Grounded in authentic Action Deck PDF pages P181 through P202: verified national markets scope, metrics, single solid primary button rule (#113F3D), 3-card guidance rails, national target cascade, trading and Demat economics & capacity, pipeline rule proposals, macro forecast adjustments, cross-region transfers, cross-vertical referrals, executive escalations, RM reviews, and executive board pack.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel accordion for Markets / Trading expanded cleanly, populating authenticated session with role = 'NM', verticalGrants = ['markets'], teamGrants = ['TEAM-MARKETS-ALPHA', 'TEAM-MARKETS-BETA'], regionGrants = ['REGION-MARKETS-WEST', 'REGION-MARKETS-NORTH'].
+  3. **Action-by-Action Markets & Securities National Manager Grounding (NM-01..NM-11)**:
+     - **NM-01 (Inspect national vertical performance — Deck P181/P182)**: /national/overview with period selector, 4 executive cards (Vertical Attainment: 0 / 400 wins, Unallocated Target: 200 wins, Active Pipeline: leads count, Governance & Risks: 1 escalation), regional division breakdown table (Markets & Securities West Zone vs Markets & Securities North Zone), and + National directive drawer logging operational directives into national_management_actions.
+     - **NM-02 (Compare regions and open an RM scorecard — Deck P183/P184)**: /national/regions with division benchmarking cards comparing West Zone (Rajesh Bansal) and North Zone on Target Wins, conversion rates, and RM scorecards.
+     - **NM-03 (Allocate the national target to regions — Deck P185/P186)**: /national/plan allocating approved CEO target (400 wins) across markets regions, strict over-allocation guard (sum cannot exceed CEO target), Save Draft & Publish to RMs cascading branch targets.
+     - **NM-04 (Review product and source economics — Deck P187/P188)**: /national/economics analyzing brokerage and Demat economics, blended CAC across digital outreach and trading apps, product margins across Equity Delivery, Intraday, and F&O Derivatives, and unit caller capacity.
+     - **NM-05 (Propose pipeline or product rule changes — Deck P189/P190)**: /national/rules proposing Instant SEBI CKYC Verification & Demat Account Activation SLA modifications with version tracking and executive review workflow.
+     - **NM-06 (Submit the national forecast — Deck P191/P192)**: /national/forecast rolling up regional bottom-up forecasts, applying national macro adjustments with documented economic assumptions, and freezing/submitting to CEO & CFO.
+     - **NM-07 (Approve a cross-region work transfer — Deck P193/P194)**: /national/transfers dynamically defaulting to Markets West Zone -> Markets North Zone, authentic twin cards (`SUBMITTED EVIDENCE` vs `YOUR AUTHORITY`), evaluating trading account onboarding work transfer with atomic lead ownership updates and audit logs.
+     - **NM-08 (Accept or decline a cross-vertical referral — Deck P195/P196)**: /national/referrals accepting/declining inbound cross-vertical referrals (Wealth -> Markets, e.g. Aditya Singhania) with authentic twin cards (`INBOUND REFERRAL PAYLOAD` vs `RECEIVING AUTHORITY & QUEUE`), creating live trading account lead in TEAM-MARKETS-ALPHA with 2h intake task.
+     - **NM-09 (Escalate a national commercial or finance issue — Deck P197/P198)**: /national/escalations routing dual-executive escalations (e.g. Intraday Margin Leverage & Peak Margin Policy Adjustment to CFO) with deadline tracking and resolution capture.
+     - **NM-10 (Run an RM performance review — Deck P199/P200)**: /national/reviews dynamically selecting supervised Regional Manager Rajesh Bansal (EMP-024 — Markets West Zone), authentic twin cards (`PERFORMANCE EVIDENCE & HISTORY` vs `MEETING RECORD & COMMITMENTS`), recording strengths, blockers, commitments, and directives.
+     - **NM-11 (Prepare the national executive pack — Deck P201/P202)**: /national/reports previewing executive board pack, binary %PDF streaming export, and automated delivery schedules.
+  4. **Executed Verification Evidence**:
+     - apps/api/test/markets.api.test.ts (National Manager Suite): **Passed (100% green in 2.34s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/markets-national-manager.spec.ts: **24/24 tests passed (100% green in 26.3s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **32 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/markets_national_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 960ms)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Markets & Securities National Manager Wave Verified and Closed**. Stopped strictly at the Markets NM gate without advancing to Real Estate NM or CEO/CFO. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 079 — Role Waves: Real Estate Advisory National Manager NM-01..NM-11 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Real Estate Advisory National Manager Wave Audit & Action Deck Grounding**:
+     - Audited Real Estate Advisory National Manager role wave (**NM-01 through NM-11**) with persona Aditya Singhania (aditya@finverse.demo / demo1234, EMP-030), supervising Real Estate · National Scope (West + North Zones), including Regional Manager Siddharth Malhotra (EMP-029, REGION-REALESTATE-WEST), Regional Manager (REGION-REALESTATE-NORTH), and operational teams TEAM-REALESTATE-ALPHA (TL Neha Gupta EMP-025, Caller Sameer Kulkarni EMP-026) and TEAM-REALESTATE-BETA (TL Rahul Verma EMP-027).
+     - Grounded in authentic Action Deck PDF pages P181 through P202: verified national real estate scope, metrics, single solid primary button rule (#113F3D), 3-card guidance rails, national target cascade (250 approved wins), luxury residential and commercial leasing economics & capacity, pipeline rule proposals (RERA title due diligence SLA), macro forecast adjustments, cross-region transfers, cross-vertical referrals, executive escalations, RM reviews, and executive board pack.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel accordion for Real Estate Advisory expanded cleanly, populating authenticated session with role = 'NM', verticalGrants = ['real_estate'], teamGrants = ['TEAM-REALESTATE-ALPHA', 'TEAM-REALESTATE-BETA'], regionGrants = ['REGION-REALESTATE-WEST', 'REGION-REALESTATE-NORTH'].
+  3. **Action-by-Action Real Estate Advisory National Manager Grounding (NM-01..NM-11)**:
+     - **NM-01 (Inspect national vertical performance — Deck P181/P182)**: /national/overview with period selector, 4 executive cards (Vertical Attainment: 0 / 250 wins, Unallocated Target: 100 wins, Active Pipeline: leads count, Governance & Risks: 1 escalation), regional division breakdown table (Real Estate West Zone vs Real Estate North Zone), and + National directive drawer logging operational directives into national_management_actions.
+     - **NM-02 (Compare regions and open an RM scorecard — Deck P183/P184)**: /national/regions with division benchmarking cards comparing West Zone (Siddharth Malhotra) and North Zone on Target Wins, conversion rates, and RM scorecards.
+     - **NM-03 (Allocate the national target to regions — Deck P185/P186)**: /national/plan allocating approved CEO target (250 wins) across real estate regions, strict over-allocation guard (sum cannot exceed CEO target), Save Draft & Publish to RMs cascading branch targets.
+     - **NM-04 (Review product and source economics — Deck P187/P188)**: /national/economics analyzing advisory fees and brokerage commissions, blended CAC across digital outreach and channel partners, product margins across Luxury Residential, Commercial Leasing, and REITs, and unit caller capacity.
+     - **NM-05 (Propose pipeline or product rule changes — Deck P189/P190)**: /national/rules proposing RERA Title Due Diligence & 72-Hour Inspection SLA modifications with version tracking and executive review workflow.
+     - **NM-06 (Submit the national forecast — Deck P191/P192)**: /national/forecast rolling up regional bottom-up forecasts, applying national macro adjustments with documented economic assumptions, and freezing/submitting to CEO & CFO.
+     - **NM-07 (Approve a cross-region work transfer — Deck P193/P194)**: /national/transfers dynamically defaulting to Real Estate West Zone -> Real Estate North Zone, authentic twin cards (`SUBMITTED EVIDENCE` vs `YOUR AUTHORITY`), evaluating luxury mandate work transfer with atomic lead ownership updates and audit logs.
+     - **NM-08 (Accept or decline a cross-vertical referral — Deck P195/P196)**: /national/referrals accepting/declining inbound cross-vertical referrals (Wealth -> Real Estate, e.g. Ananya Deshmukh) with authentic twin cards (`INBOUND REFERRAL PAYLOAD` vs `RECEIVING AUTHORITY & QUEUE`), creating live real estate advisory mandate in TEAM-REALESTATE-ALPHA with 2h intake task.
+     - **NM-09 (Escalate a national commercial or finance issue — Deck P197/P198)**: /national/escalations routing dual-executive escalations (e.g. Heritage Zone Commercial Leasing Clearance to CEO) with deadline tracking and resolution capture.
+     - **NM-10 (Run an RM performance review — Deck P199/P200)**: /national/reviews dynamically selecting supervised Regional Manager Siddharth Malhotra (EMP-029 — Real Estate West Zone), authentic twin cards (`PERFORMANCE EVIDENCE & HISTORY` vs `MEETING RECORD & COMMITMENTS`), recording strengths, blockers, commitments, and directives.
+     - **NM-11 (Prepare the national executive pack — Deck P201/P202)**: /national/reports previewing executive board pack, binary %PDF streaming export, and automated delivery schedules.
+  4. **Executed Verification Evidence**:
+     - apps/api/test/real_estate.api.test.ts (Suite 5: Real Estate National Manager Suite): **Passed (100% green in 2.45s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/real-estate-national-manager.spec.ts: **24/24 tests passed (100% green in 29.5s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **32 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/real_estate_national_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 1.65s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Real Estate Advisory National Manager Wave Verified and Closed**. Stopped strictly at the Real Estate NM gate without advancing to CEO or CFO. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.

@@ -67,6 +67,48 @@ function useVerticalInfo() {
       : isRealEstate
       ? ['Luxury Residential Mandate', 'Commercial Office Space']
       : ['V1 Wealth Portfolio'],
+    defaultRmId: isBanking
+      ? 'EMP-019'
+      : isMarkets
+      ? 'EMP-024'
+      : isRealEstate
+      ? 'EMP-029'
+      : 'EMP-008',
+    defaultRmName: isBanking
+      ? 'Arjun Mehta (EMP-019 — Commercial Banking West Zone)'
+      : isMarkets
+      ? 'Rajesh Bansal (EMP-024 — Markets West Zone)'
+      : isRealEstate
+      ? 'Siddharth Malhotra (EMP-029 — Real Estate West Zone)'
+      : 'Kavita Rao (EMP-008 — South & West Divisions)',
+    defaultSourceRegionId: isBanking
+      ? 'REGION-BANKING-WEST'
+      : isMarkets
+      ? 'REGION-MARKETS-WEST'
+      : isRealEstate
+      ? 'REGION-REALESTATE-WEST'
+      : 'REGION-SOUTH',
+    defaultDestRegionId: isBanking
+      ? 'REGION-BANKING-NORTH'
+      : isMarkets
+      ? 'REGION-MARKETS-NORTH'
+      : isRealEstate
+      ? 'REGION-REALESTATE-NORTH'
+      : 'REGION-WEST',
+    defaultSourceRegionName: isBanking
+      ? 'Commercial Banking West Zone'
+      : isMarkets
+      ? 'Markets West Zone'
+      : isRealEstate
+      ? 'Real Estate West Zone'
+      : 'South Region',
+    defaultDestRegionName: isBanking
+      ? 'Commercial Banking North Zone'
+      : isMarkets
+      ? 'Markets North Zone'
+      : isRealEstate
+      ? 'Real Estate North Zone'
+      : 'West Region',
   };
 }
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
@@ -1434,22 +1476,59 @@ export function NationalTransfersPage() {
   const loadTransfers = useCallback(() => nationalApi.listTransfers(), []);
   const [transfers, load, { loading, initialLoading, error, clearError }] = useLoad<any[]>(loadTransfers);
 
+  const {
+    verticalScopeLabel,
+    defaultSourceRegionId,
+    defaultDestRegionId,
+    defaultSourceRegionName,
+    defaultDestRegionName,
+    isBanking,
+    isMarkets,
+    isRealEstate,
+  } = useVerticalInfo();
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
-  const [sourceRegionId, setSourceRegionId] = useState('REGION-SOUTH');
-  const [destinationRegionId, setDestinationRegionId] = useState('REGION-WEST');
-  const [leadIdsText, setLeadIdsText] = useState('FV-1002, FV-1005');
+  const [sourceRegionId, setSourceRegionId] = useState(defaultSourceRegionId);
+  const [destinationRegionId, setDestinationRegionId] = useState(defaultDestRegionId);
+  const [leadIdsText, setLeadIdsText] = useState(
+    isBanking
+      ? 'LEAD-BNK-1002, LEAD-BNK-1005'
+      : isMarkets
+      ? 'FV-3001, FV-3002'
+      : isRealEstate
+      ? 'FV-4001, FV-4002'
+      : 'FV-1002, FV-1005'
+  );
   const [reason, setReason] = useState('');
   const [handoffPlan, setHandoffPlan] = useState('');
   const s = useSubmitAction();
 
   const defaultTransfer = {
     id: 'CRT-DEMO-01',
-    source_region_name: 'South Region',
-    dest_region_name: 'West Region',
-    lead_ids: ['FV-1002', 'FV-1005', 'FV-1009'],
-    reason: 'Balance HNW prospect queues to cover Bangalore & Mumbai pipeline parity.',
-    handoff_plan: 'Transfer to West intake queue with 24h SLA. Receiving TL conducts assignment audit.',
+    source_region_name: defaultSourceRegionName,
+    dest_region_name: defaultDestRegionName,
+    lead_ids: isBanking
+      ? ['LEAD-BNK-1002', 'LEAD-BNK-1005']
+      : isMarkets
+      ? ['FV-3001', 'FV-3002']
+      : isRealEstate
+      ? ['FV-4001', 'FV-4002']
+      : ['FV-1002', 'FV-1005', 'FV-1009'],
+    reason: isBanking
+      ? 'Balance commercial lending underwriting queues to maintain 48h sanction SLA.'
+      : isMarkets
+      ? 'Balance algorithmic Demat account onboarding queues between West and North trading desks.'
+      : isRealEstate
+      ? 'Balance high-ticket luxury residential and commercial mandate queues between West and North zones.'
+      : 'Balance HNW prospect queues to cover Bangalore & Mumbai pipeline parity.',
+    handoff_plan: isBanking
+      ? 'Transfer to North intake queue with 24h SLA. Receiving underwriting TL conducts diligence.'
+      : isMarkets
+      ? 'Transfer to North trading desk intake queue with 4h SLA. Receiving TL conducts CKYC verification.'
+      : isRealEstate
+      ? 'Transfer to North advisory intake queue with 24h SLA. Receiving TL conducts RERA title check.'
+      : 'Transfer to West intake queue with 24h SLA. Receiving TL conducts assignment audit.',
     status: 'pending',
   };
   const selectedTransfer = transfers?.find((t) => t.id === selectedTransferId) || transfers?.[0] || defaultTransfer;
@@ -1484,8 +1563,6 @@ export function NationalTransfersPage() {
       load();
     }, `Transfer request ${decision}.`);
   };
-
-  const { verticalScopeLabel } = useVerticalInfo();
 
   return (
     <div className="space-y-6">
@@ -2178,9 +2255,11 @@ export function NationalReviewsPage() {
   const loadReviews = useCallback(() => nationalApi.listReviews(), []);
   const [reviews, load, { loading, initialLoading, error, clearError }] = useLoad<any[]>(loadReviews);
 
+  const { verticalScopeLabel, defaultRmId, defaultRmName, isBanking, isMarkets, isRealEstate } = useVerticalInfo();
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
-  const [rmEmployeeId] = useState('EMP-008');
+  const [rmEmployeeId] = useState(defaultRmId);
   const [rating, setRating] = useState<'exceeding' | 'achieving' | 'needs_improvement' | 'critical'>('achieving');
   const [strengths, setStrengths] = useState('');
   const [blockers, setBlockers] = useState('');
@@ -2189,11 +2268,23 @@ export function NationalReviewsPage() {
 
   const defaultReview = {
     id: 'RMR-DEMO-01',
-    rm_name: 'Kavita Rao (EMP-008)',
+    rm_name: defaultRmName,
     period_label: 'September 2026',
     performance_rating: 'achieving',
-    strengths: 'Strong team governance, quota attainment pace (104%), and tight SLA adherence across South teams.',
-    blockers: 'West division onboarding capacity ramping up slower than quarterly target.',
+    strengths: isBanking
+      ? 'Strong corporate client acquisition, facility turnaround SLA (94%), and tight credit governance.'
+      : isMarkets
+      ? 'High Demat activation velocity, 98% CKYC first-pass adherence, and proactive risk management.'
+      : isRealEstate
+      ? 'Exceptional high-value mandate closures, 95% RERA title verification adherence, and strong West Zone developer relations.'
+      : 'Strong team governance, quota attainment pace (104%), and tight SLA adherence across South teams.',
+    blockers: isBanking
+      ? 'North zone working capital credit appraisal capacity ramping up slower than quarterly target.'
+      : isMarkets
+      ? 'Algorithmic co-location desk bandwidth in North zone requiring infrastructure expansion.'
+      : isRealEstate
+      ? 'North zone luxury mandate acquisition ramping up slower than quarterly target.'
+      : 'West division onboarding capacity ramping up slower than quarterly target.',
     next_review_date: '2026-12-15',
   };
   const selectedReview = reviews?.find((r) => r.id === selectedReviewId) || reviews?.[0] || defaultReview;
@@ -2210,8 +2301,20 @@ export function NationalReviewsPage() {
         performanceRating: rating,
         strengths: strengths.trim(),
         blockers: blockers.trim(),
-        growthCommitments: ['Activate West Region capacity', 'Achieve 85% PMS turnaround SLA'],
-        coverageCommitments: ['Full South coverage'],
+        growthCommitments: isMarkets
+          ? ['Scale quantitative algorithmic desk', 'Maintain 95% 4h Demat activation SLA']
+          : isBanking
+          ? ['Scale corporate working capital credit appraisal', 'Achieve 90% facility turnaround SLA']
+          : isRealEstate
+          ? ['Scale North Zone commercial leasing desk', 'Achieve 72h RERA title verification SLA']
+          : ['Activate West Region capacity', 'Achieve 85% PMS turnaround SLA'],
+        coverageCommitments: isMarkets
+          ? ['Full Markets West Zone desk coverage']
+          : isBanking
+          ? ['Full West & North commercial coverage']
+          : isRealEstate
+          ? ['Full West & North real estate advisory coverage']
+          : ['Full South coverage'],
         nextReviewDate,
       });
       setDrawerOpen(false);
@@ -2221,8 +2324,6 @@ export function NationalReviewsPage() {
       load();
     }, 'Regional Manager review recorded.');
   };
-
-  const { verticalScopeLabel } = useVerticalInfo();
 
   return (
     <div className="space-y-6">
@@ -2415,7 +2516,7 @@ export function NationalReviewsPage() {
       <Panel open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Conduct Regional Manager Review">
         <div className="space-y-4 p-4">
           <FormField label="Regional Manager">
-            <Input value="Kavita Rao (EMP-008 — South &amp; West Divisions)" readOnly />
+            <Input value={defaultRmName} readOnly />
           </FormField>
 
           <FormField label="Performance Rating">

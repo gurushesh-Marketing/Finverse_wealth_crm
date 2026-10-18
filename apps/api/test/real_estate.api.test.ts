@@ -735,52 +735,327 @@ test('Real Estate Regional Manager RM-01..10: Real Estate regional governance, s
   console.log('PASS Real Estate Regional Manager RM-01..10: Real Estate regional governance verified');
 });
 
-test('Real Estate National Manager NM-01..11: Real Estate national strategy', async () => {
-  // 1. Authenticate as Aditya Singhania (EMP-030, NM, Real Estate)
+test('Real Estate National Manager NM-01..11: Real Estate national overview, division benchmarking, target cascade, product economics, pipeline rules, forecast rollup, cross-region transfers, cross-vertical referral intake, executive escalations, RM reviews, and board pack', async () => {
+  // 1. Role-Gate Security Check: Non-NM callers/managers/RMs are strictly forbidden from NM workspace
+  const sameerCookie = await loginAs('sameer@finverse.demo');       // SC
+  const vikramadityaCookie = await loginAs('vikramaditya@finverse.demo'); // MG
+  const siddharthCookie = await loginAs('siddharth.m@finverse.demo'); // RM
+
+  const scDenied = await fetch(`${base}/api/national/overview`, { headers: { Cookie: sameerCookie } });
+  assert.equal(scDenied.status, 403, 'Frontline SC must receive 403 on national endpoints');
+
+  const mgDenied = await fetch(`${base}/api/national/overview`, { headers: { Cookie: vikramadityaCookie } });
+  assert.equal(mgDenied.status, 403, 'Manager must receive 403 on national endpoints');
+
+  const rmDenied = await fetch(`${base}/api/national/overview`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(rmDenied.status, 403, 'Regional Manager must receive 403 on national endpoints');
+
+  // Authenticate as Real Estate National Manager Aditya Singhania (EMP-030)
   const adityaCookie = await loginAs('aditya@finverse.demo');
-  const meRes = await fetch(`${base}/api/auth/me`, { headers: { Cookie: adityaCookie } });
-  assert.equal(meRes.status, 200);
-  const me = (await meRes.json()) as any;
-  assert.equal(me.session.role, 'NM');
-  assert.ok(me.session.verticalGrants.includes('real_estate'));
+  assert.ok(adityaCookie, 'Aditya Singhania must log in successfully with valid session');
 
-  // NM-01: National overview
-  const ovRes = await fetch(`${base}/api/national/overview?period=month-to-date`, {
-    headers: { Cookie: adityaCookie },
-  });
-  assert.equal(ovRes.status, 200);
-  const ov = (await ovRes.json()) as any;
-  assert.equal(ov.data.scope.vertical, 'real_estate');
+  // 2. Scope inspection: Returns real_estate vertical scope, regions, teams, and headcounts
+  const scopeRes = await fetch(`${base}/api/national/scope`, { headers: { Cookie: adityaCookie } });
+  assert.equal(scopeRes.status, 200);
+  const scopeData = (await scopeRes.json()) as any;
+  assert.equal(scopeData.data.vertical, 'real_estate');
+  assert.ok(scopeData.data.regions.some((r: any) => r.id === 'REGION-REALESTATE-WEST'));
+  assert.ok(scopeData.data.regions.some((r: any) => r.id === 'REGION-REALESTATE-NORTH'));
+  assert.ok(scopeData.data.headcounts.rms >= 1);
+  assert.ok(scopeData.data.headcounts.totalFte >= 1);
 
-  // NM-04: Real Estate economics
-  const econRes = await fetch(`${base}/api/national/economics?period=month-to-date`, {
-    headers: { Cookie: adityaCookie },
+  // NM-01: National Overview & Directive Issuance
+  const overviewRes = await fetch(`${base}/api/national/overview?period=month-to-date`, { headers: { Cookie: adityaCookie } });
+  assert.equal(overviewRes.status, 200);
+  const overviewData = (await overviewRes.json()) as any;
+  assert.equal(overviewData.data.scope.vertical, 'real_estate');
+  assert.ok(typeof overviewData.data.kpis.approvedCeoTarget === 'number');
+  assert.ok(Array.isArray(overviewData.data.regionalPerformance));
+
+  // Create national directive to RM (Siddharth Malhotra)
+  const actionRes = await fetch(`${base}/api/national/actions`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceAction: 'NM-01',
+      kind: 'regional-directive',
+      subjectRmEmployeeId: 'EMP-029',
+      ownerEmployeeId: 'EMP-030',
+      regionId: 'REGION-REALESTATE-WEST',
+      metricKey: 'sale-agreement',
+      periodLabel: 'October',
+      title: 'Accelerate Luxury Penthouse Title & Token Sanction SLA',
+      detail: 'Expedite architectural survey panel and RERA carpet area certification for high-value South Mumbai mandates.',
+      dueAt: new Date(Date.now() + 86400000 * 3).toISOString(),
+    }),
   });
+  assert.equal(actionRes.status, 201);
+  const actionData = (await actionRes.json()) as any;
+  const actionId = actionData.data.id;
+  assert.ok(actionId);
+
+  // List and complete action
+  const listActionsRes = await fetch(`${base}/api/national/actions?status=open`, { headers: { Cookie: adityaCookie } });
+  assert.equal(listActionsRes.status, 200);
+  const listActionsData = (await listActionsRes.json()) as any;
+  assert.ok(listActionsData.data.some((a: any) => a.id === actionId));
+
+  const completeActRes = await fetch(`${base}/api/national/actions/${actionId}/complete`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(completeActRes.status, 200);
+
+  // NM-02: Regional Scorecards & Benchmark Comparisons
+  const compRes = await fetch(`${base}/api/national/comparisons?period=September`, { headers: { Cookie: adityaCookie } });
+  assert.equal(compRes.status, 200);
+  const compData = (await compRes.json()) as any;
+  assert.ok(compData.data.regions.length >= 2, 'Must compare at least West and North Real Estate zones');
+  const westComp = compData.data.regions.find((r: any) => r.regionId === 'REGION-REALESTATE-WEST');
+  assert.ok(westComp);
+  assert.equal(westComp.regionalManager?.id, 'EMP-029');
+
+  // NM-03: National Plan & Target Cascade
+  const targetRes = await fetch(`${base}/api/national/target?period=October`, { headers: { Cookie: adityaCookie } });
+  assert.equal(targetRes.status, 200);
+  const targetData = (await targetRes.json()) as any;
+  assert.equal(targetData.data.approvedCeoTarget, 200);
+
+  // Over-allocation guard (400 validation failed)
+  const overAllocRes = await fetch(`${base}/api/national/target/allocate`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'October',
+      approvedCeoTarget: 200,
+      regionalAllocations: [
+        { regionId: 'REGION-REALESTATE-WEST', targetWins: 150, rmEmployeeId: 'EMP-029' },
+        { regionId: 'REGION-REALESTATE-NORTH', targetWins: 100, rmEmployeeId: 'EMP-029' },
+      ],
+      publish: true,
+    }),
+  });
+  assert.equal(overAllocRes.status, 400, 'Over-allocating beyond approved CEO target (250 > 200) must be rejected');
+
+  // Valid cascade to regions
+  const validAllocRes = await fetch(`${base}/api/national/target/allocate`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'October',
+      approvedCeoTarget: 200,
+      regionalAllocations: [
+        { regionId: 'REGION-REALESTATE-WEST', targetWins: 120, rmEmployeeId: 'EMP-029' },
+        { regionId: 'REGION-REALESTATE-NORTH', targetWins: 80, rmEmployeeId: 'EMP-029' },
+      ],
+      publish: true,
+    }),
+  });
+  assert.equal(validAllocRes.status, 200);
+
+  // Cross-check cascaded regional target in DB
+  const { rows: rtRows } = await db.query(
+    `SELECT approved_nm_target, status FROM regional_targets WHERE region_id = 'REGION-REALESTATE-WEST' AND period_label = 'October'`
+  );
+  assert.equal(Number(rtRows[0].approved_nm_target), 120);
+  assert.equal(rtRows[0].status, 'published');
+
+  // NM-04: National Economics & Unit Capacity Analysis
+  const econRes = await fetch(`${base}/api/national/economics?period=month-to-date`, { headers: { Cookie: adityaCookie } });
   assert.equal(econRes.status, 200);
   const econData = (await econRes.json()) as any;
   assert.ok(econData.data.economics.productEconomics.some((p: any) => p.product.includes('Residential') || p.product.includes('Commercial') || p.product.includes('Real Estate')));
+  assert.ok(econData.data.economics.unitCapacityGapFte >= 0);
 
-  // NM-08: Cross-vertical referral intake
-  const refRes = await fetch(`${base}/api/national/referrals/REF-RE-001/decide`, {
+  // NM-05: Product & Pipeline Rule Proposals
+  const rulesListRes = await fetch(`${base}/api/national/product-rules`, { headers: { Cookie: adityaCookie } });
+  assert.equal(rulesListRes.status, 200);
+  const rulesListData = (await rulesListRes.json()) as any;
+  assert.ok(rulesListData.data.some((r: any) => r.id === 'PRP-RE-001'));
+
+  const createRuleRes = await fetch(`${base}/api/national/product-rules`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: adityaCookie },
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ruleName: 'Architectural Heritage Zoning & Title Verification Fast-Track SLA',
+      currentVersion: '1.0',
+      proposedVersion: '1.3',
+      reason: 'Empower West Zone branch managers to engage pre-approved municipal survey panels for Grade-A commercial mandates',
+      effectiveDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
+      affectedProducts: ['Luxury Residential Mandate', 'Commercial Office Space'],
+      previewImpact: 'Reduces mandate title validation lag from 21 days to 7 days',
+    }),
+  });
+  assert.equal(createRuleRes.status, 201);
+
+  // NM-06: Consolidated National Forecast Rollup
+  const rollupRes = await fetch(`${base}/api/national/forecast/rollup?period=October`, { headers: { Cookie: adityaCookie } });
+  assert.equal(rollupRes.status, 200);
+  const rollupData = (await rollupRes.json()) as any;
+
+  const submitForecastRes = await fetch(`${base}/api/national/forecast/submit`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'October',
+      bottomUpRevenue: rollupData.data.bottomUpSum || 40000000,
+      nationalAdjustment: 5000000,
+      currency: 'INR',
+      acceptedRegionalForecastIds: rollupData.data.regionalForecasts ? rollupData.data.regionalForecasts.map((rf: any) => rf.id) : [],
+      topNationalRisks: [
+        'BMC architectural zoning bottlenecks on high-value mandates',
+      ],
+      nationalAssumptions: 'Anticipated festive season luxury apartment sales momentum across Mumbai and Pune corridor.',
+      submitToExecutives: true,
+    }),
+  });
+  assert.equal(submitForecastRes.status, 200);
+
+  // NM-07: Cross-Region Work Transfers
+  const transfersRes = await fetch(`${base}/api/national/transfers`, { headers: { Cookie: adityaCookie } });
+  assert.equal(transfersRes.status, 200);
+
+  const createTransferRes = await fetch(`${base}/api/national/transfers`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceRegionId: 'REGION-REALESTATE-WEST',
+      destinationRegionId: 'REGION-REALESTATE-NORTH',
+      leadIds: ['FV-4001'],
+      reason: 'Client corporate headquarters relocation from Mumbai BKC to Gurgaon CyberCity.',
+      handoffPlan: 'Transfer mandate to North zone advisory desk with 24h client contact protocol.',
+    }),
+  });
+  assert.equal(createTransferRes.status, 201);
+  const createTransferData = (await createTransferRes.json()) as any;
+  const transferId = createTransferData.data.id;
+
+  const decideTransferRes = await fetch(`${base}/api/national/transfers/${transferId}/decide`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      decision: 'approved',
+      resolutionNotes: 'Transfer approved. Workload rebalanced to North advisory desk.',
+    }),
+  });
+  assert.equal(decideTransferRes.status, 200);
+
+  // NM-08: Cross-Vertical Inbound Referral Intake
+  const referralsRes = await fetch(`${base}/api/national/referrals`, { headers: { Cookie: adityaCookie } });
+  assert.equal(referralsRes.status, 200);
+  const referralsData = (await referralsRes.json()) as any;
+  assert.ok(referralsData.data.some((r: any) => r.id === 'REF-RE-001'));
+
+  const decideRefRes = await fetch(`${base}/api/national/referrals/REF-RE-001/decide`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       decision: 'accepted',
       targetTeamId: 'TEAM-REALESTATE-ALPHA',
       targetOwnerEmployeeId: 'EMP-026',
     }),
   });
-  assert.equal(refRes.status, 200);
+  assert.equal(decideRefRes.status, 200);
 
-  // NM-11: Board Pack binary PDF generation
-  const packRes = await fetch(`${base}/api/national/reports/export-pdf`, {
+  // NM-09: National Strategic Escalations
+  const escListRes = await fetch(`${base}/api/national/escalations`, { headers: { Cookie: adityaCookie } });
+  assert.equal(escListRes.status, 200);
+  const escListData = (await escListRes.json()) as any;
+  assert.ok(escListData.data.some((e: any) => e.id === 'NESC-RE-001'));
+
+  const createEscRes = await fetch(`${base}/api/national/escalations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: adityaCookie },
-    body: JSON.stringify({ period: 'October 2026', sections: ['executive_summary', 'kpis', 'regions', 'targets', 'forecasts', 'escalations'] }),
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      category: 'governance_risk',
+      targetExecutive: 'BOTH',
+      title: 'Bandra Redevelopment Mandate Legal Clearance Dispute',
+      detail: 'Joint venture agreement dispute on INR 45 Cr Bandra redevelopment mandate; requires CEO arbitration and CFO legal retainer approval.',
+      decisionDeadline: new Date(Date.now() + 86400000 * 7).toISOString(),
+    }),
   });
-  assert.equal(packRes.status, 200);
-  const packData = (await packRes.json()) as any;
-  assert.ok(packData.data.downloadUrl);
+  assert.equal(createEscRes.status, 201);
+  const createEscData = (await createEscRes.json()) as any;
+  const escId = createEscData.data.id;
+
+  const resolveEscRes = await fetch(`${base}/api/national/escalations/${escId}/resolve`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      executiveDecision: 'Retained senior real estate counsel and approved escrow indemnification protocol.',
+    }),
+  });
+  assert.equal(resolveEscRes.status, 200);
+
+  // NM-10: Regional Manager Performance Review
+  const saveRmRevRes = await fetch(`${base}/api/national/reviews`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rmEmployeeId: 'EMP-029',
+      periodLabel: 'Q3-2026',
+      performanceRating: 'exceeding',
+      strengths: 'Exceptional high-ticket luxury mandate closures, 95% RERA title verification adherence, and strong West Zone developer relations.',
+      blockers: 'North zone luxury mandate acquisition ramping up slower than quarterly target.',
+      growthCommitments: ['Scale North Zone commercial leasing desk', 'Achieve 72h RERA title verification SLA'],
+      coverageCommitments: ['Full West & North real estate advisory coverage'],
+      nextReviewDate: '2026-12-15',
+    }),
+  });
+  assert.equal(saveRmRevRes.status, 201);
+
+  const getRmRevRes = await fetch(`${base}/api/national/reviews?rmEmployeeId=EMP-029`, { headers: { Cookie: adityaCookie } });
+  assert.equal(getRmRevRes.status, 200);
+  const getRmRevData = (await getRmRevRes.json()) as any;
+  assert.ok(getRmRevData.data.some((r: any) => r.period_label === 'Q3-2026'));
+
+  // NM-11: National Executive Reports & Schedules
+  const prevReportRes = await fetch(`${base}/api/national/reports/preview?period=October+2026`, { headers: { Cookie: adityaCookie } });
+  assert.equal(prevReportRes.status, 200);
+  const prevReportData = (await prevReportRes.json()) as any;
+  assert.equal(prevReportData.data.scope.vertical, 'real_estate');
+
+  // Export PDF pack
+  const expPdfRes = await fetch(`${base}/api/national/reports/export-pdf`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'October 2026',
+      sections: ['regional-rollup', 'attainment', 'pipeline-health', 'risks'],
+    }),
+  });
+  assert.equal(expPdfRes.status, 200);
+  const expPdfData = (await expPdfRes.json()) as any;
+  assert.ok(expPdfData.data.downloadUrl);
+
+  // Download PDF binary stream & verify header
+  const dlRes = await fetch(`${base}${expPdfData.data.downloadUrl}`, { headers: { Cookie: adityaCookie } });
+  assert.equal(dlRes.status, 200);
+  assert.equal(dlRes.headers.get('content-type'), 'application/pdf');
+  const pdfBytes = Buffer.from(await dlRes.arrayBuffer());
+  assert.ok(pdfBytes.length > 1000);
+  assert.equal(pdfBytes.subarray(0, 4).toString(), '%PDF', 'Board pack must be a valid binary PDF');
+
+  // Save report schedule
+  const saveSchedRes = await fetch(`${base}/api/national/reports/schedules`, {
+    method: 'POST',
+    headers: { Cookie: adityaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Real Estate Advisory National Strategy & Pipeline Cadence',
+      periodType: 'monthly',
+      cadence: '1st business day, 08:30 IST',
+      recipients: ['aditya@finverse.demo', 'siddharth.m@finverse.demo', 'ceo@finverse.demo', 'cfo@finverse.demo'],
+      sections: ['attainment', 'regional-scorecards', 'economics'],
+      status: 'active',
+    }),
+  });
+  assert.equal(saveSchedRes.status, 200);
+
+  // Cross-Vertical Isolation: Suresh (Banking NM) cannot read Real Estate lead records
+  const bankingNmCookie = await loginAs('suresh@finverse.demo');
+  const reLeadDenied = await fetch(`${base}/api/leads/FV-4001`, { headers: { Cookie: bankingNmCookie } });
+  assert.equal(reLeadDenied.status, 404, 'Banking NM must receive 404 on Real Estate lead');
 
   console.log('PASS Real Estate National Manager NM-01..11: Real Estate national strategy verified');
 });
