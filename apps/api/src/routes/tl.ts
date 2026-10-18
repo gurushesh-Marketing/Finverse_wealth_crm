@@ -8,6 +8,7 @@ import {
   forecastSchema,
   mentorshipSchema,
   oneToOneSchema,
+  outcomeDecisionSchema,
   overdueActionSchema,
   qualityReviewSchema,
   rebalanceSchema,
@@ -22,6 +23,7 @@ import { ZodError } from 'zod';
 import type { Scope } from '../repo/users';
 import { requireSession, type AuthedRequest } from '../middleware/session';
 import * as tl from '../repo/tl';
+import * as pipeline from '../repo/pipeline';
 
 function sendError(res: Response, err: unknown): void {
   if (err instanceof ZodError) {
@@ -118,6 +120,13 @@ export function tlRouter(): Router {
 
   // TL-07/08 decision queues (+ duplicate dispositions; decides go through /requests/:id/decision)
   router.get('/decisions', wrap(async (req, res) => res.json(await tl.listDecisions(scopeOf(req)))));
+  const handleTlDecision = wrap(async (req, res) => {
+    tl.assertTl(scopeOf(req));
+    const input = outcomeDecisionSchema.parse(req.body);
+    res.json(await pipeline.decideRequest(scopeOf(req), String(req.params.id), input.decision, input.reason, input.evidence));
+  });
+  router.post('/requests/:id/decision', handleTlDecision);
+  router.post('/requests/:id/decide', handleTlDecision);
   router.post('/duplicates/:id/disposition', wrap(async (req, res) => {
     const decision = String((req.body ?? {}).decision) === 'route-merge' ? 'route-merge' : 'confirm-separate';
     res.json(await tl.duplicateDisposition(scopeOf(req), String(req.params.id), decision));

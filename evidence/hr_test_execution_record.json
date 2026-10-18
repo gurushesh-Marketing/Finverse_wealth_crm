@@ -1,0 +1,40 @@
+{
+  "role": "HR",
+  "workspace": "Human Resources",
+  "actions_covered": [
+    "HR-01",
+    "HR-02",
+    "HR-03",
+    "HR-04",
+    "HR-05",
+    "HR-06",
+    "HR-07"
+  ],
+  "command": "node --import tsx --test apps/api/test/hr.api.test.ts",
+  "exit_code": 0,
+  "timestamp": "2026-10-12T18:07:53.264335+00:00",
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "duration_ms": 12248.3933,
+    "all_passed": true
+  },
+  "fingerprints": {
+    "api_src": "9f55b5781ccb5a75cf400d44b0b648088e094953692888dff8a5ab2c3bb49a0c",
+    "web_src": "25f63b5ab989b1cb4de6e6bf4d080401c14d3c37d49be39d45787b3bfc4e51b8",
+    "migrations": "8c228aaa09f7cf6a6526722977d0be62020134c5b807fceec9c22e42653685af",
+    "contracts": "6e8066437285c5e35196568a0590a1adae0cc246e165365084de438558e09b2a",
+    "test_file": "40714a6fe0a132474d189faa04ffbdf11e83ca3329775f37416d33f68411926e"
+  },
+  "passed_actions": [
+    "HR-01",
+    "HR-02",
+    "HR-03",
+    "HR-04",
+    "HR-05",
+    "HR-06",
+    "HR-07"
+  ]
+}

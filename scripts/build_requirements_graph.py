@@ -51,6 +51,8 @@ sources = {
     'rec_national': 'evidence/national_test_execution_record.json',
     'rec_ceo': 'evidence/ceo_test_execution_record.json',
     'rec_cfo': 'evidence/cfo_test_execution_record.json',
+    'rec_superadmin': 'evidence/superadmin_test_execution_record.json',
+    'rec_hr': 'evidence/hr_test_execution_record.json',
 }
 
 current_hashes = {}
@@ -476,6 +478,8 @@ test_fingerprints = {
     'national_api': file_sha256('apps/api/test/national.api.test.ts'),
     'ceo_api': file_sha256('apps/api/test/ceo.api.test.ts'),
     'cfo_api': file_sha256('apps/api/test/cfo.api.test.ts'),
+    'superadmin_api': file_sha256('apps/api/test/superadmin.api.test.ts'),
+    'hr_api': file_sha256('apps/api/test/hr.api.test.ts'),
     'lifecycle_api': file_sha256('apps/api/test/vertical_lifecycle.api.test.ts'),
     'playwright_branding': file_sha256('apps/web/e2e/branding.spec.ts')
 }
@@ -650,6 +654,74 @@ if cfo_record_file.exists():
             print(f"Evidence Freshness Check: CFO execution record is STALE or FAILED (fps_match={fps_match_cfo}, is_pass={is_pass_cfo}).")
     except Exception as e:
         print(f"Evidence Freshness Check: Error validating CFO execution record: {e}")
+
+# Load execution record for Super Administrator suite dynamically
+superadmin_record_file = ROOT_DIR / "evidence" / "superadmin_test_execution_record.json"
+sa_evidence_valid = False
+sa_run_date = None
+sa_run_result = None
+sa_test_results = None
+sa_exec_command = None
+sa_fingerprints = None
+
+if superadmin_record_file.exists():
+    try:
+        from scripts.record_superadmin_test_execution import get_live_fingerprints as get_sa_live_fps
+        rec_data_sa = json.loads(superadmin_record_file.read_text(encoding='utf-8'))
+        live_fps_sa = get_sa_live_fps()
+        recorded_fps_sa = rec_data_sa.get('fingerprints', {})
+
+        fps_match_sa = all(live_fps_sa.get(k) == recorded_fps_sa.get(k) for k in live_fps_sa)
+        is_pass_sa = rec_data_sa.get('overall_status') == 'PASS' and rec_data_sa.get('exit_code') == 0
+        runner_res_sa = rec_data_sa.get('test_runner_results', {})
+        runner_ok_sa = runner_res_sa.get('pass', 0) > 0 and runner_res_sa.get('fail', 0) == 0
+
+        if fps_match_sa and is_pass_sa and runner_ok_sa:
+            sa_evidence_valid = True
+            sa_run_date = rec_data_sa.get('timestamp')
+            sa_run_result = 'PASS'
+            sa_test_results = runner_res_sa
+            sa_exec_command = rec_data_sa.get('command')
+            sa_fingerprints = recorded_fps_sa
+            print(f"Evidence Freshness Check: Superadmin execution record is FRESH and VERIFIED ({runner_res_sa.get('pass')}/{runner_res_sa.get('total')} passed).")
+        else:
+            print(f"Evidence Freshness Check: Superadmin execution record is STALE or FAILED (fps_match={fps_match_sa}, is_pass={is_pass_sa}).")
+    except Exception as e:
+        print(f"Evidence Freshness Check: Error validating Superadmin execution record: {e}")
+
+# Load execution record for Human Resources suite dynamically
+hr_record_file = ROOT_DIR / "evidence" / "hr_test_execution_record.json"
+hr_evidence_valid = False
+hr_run_date = None
+hr_run_result = None
+hr_test_results = None
+hr_exec_command = None
+hr_fingerprints = None
+
+if hr_record_file.exists():
+    try:
+        from scripts.record_hr_test_execution import get_live_fingerprints as get_hr_live_fps
+        rec_data_hr = json.loads(hr_record_file.read_text(encoding='utf-8'))
+        live_fps_hr = get_hr_live_fps()
+        recorded_fps_hr = rec_data_hr.get('fingerprints', {})
+
+        fps_match_hr = all(live_fps_hr.get(k) == recorded_fps_hr.get(k) for k in live_fps_hr)
+        is_pass_hr = rec_data_hr.get('exit_code') == 0 and rec_data_hr.get('summary', {}).get('all_passed', False)
+        runner_res_hr = rec_data_hr.get('summary', {})
+        runner_ok_hr = runner_res_hr.get('passed', 0) > 0 and runner_res_hr.get('failed', 0) == 0
+
+        if fps_match_hr and is_pass_hr and runner_ok_hr:
+            hr_evidence_valid = True
+            hr_run_date = rec_data_hr.get('timestamp')
+            hr_run_result = 'PASS'
+            hr_test_results = runner_res_hr
+            hr_exec_command = rec_data_hr.get('command')
+            hr_fingerprints = recorded_fps_hr
+            print(f"Evidence Freshness Check: HR execution record is FRESH and VERIFIED ({runner_res_hr.get('passed')}/{runner_res_hr.get('total')} passed).")
+        else:
+            print(f"Evidence Freshness Check: HR execution record is STALE or FAILED (fps_match={fps_match_hr}, is_pass={is_pass_hr}).")
+    except Exception as e:
+        print(f"Evidence Freshness Check: Error validating HR execution record: {e}")
 
 evidence_definitions = [
     (
@@ -851,13 +923,59 @@ evidence_definitions = [
         }
     ),
     (
+        "evidence_SuperadminApi",
+        "Verification Evidence: Dedicated Super Administrator Governance API Suite (apps/api/test/superadmin.api.test.ts)",
+        "apps/api/test/superadmin.api.test.ts",
+        f"{sa_test_results.get('pass', 0)}/{sa_test_results.get('total', 0)} Tests Passed" if sa_evidence_valid else "Execution Stale/Unverified",
+        {
+            'suite_type': 'dedicated_api',
+            'scope': 'SA-01..SA-11',
+            'content_fingerprint': test_fingerprints.get('superadmin_api'),
+            'test_assertion_present': True,
+            'historical_run_reported': True,
+            'historical_run_date': '2026-10-11',
+            'historical_run_result': 'PASS',
+            'execution_run_date': sa_run_date if sa_evidence_valid else None,
+            'execution_run_result': sa_run_result if sa_evidence_valid else 'STALE',
+            'execution_command': sa_exec_command if sa_evidence_valid else None,
+            'test_runner_results': sa_test_results if sa_evidence_valid else None,
+            'composite_fingerprints': sa_fingerprints if sa_evidence_valid else None,
+            'applies_to_current_revision': sa_evidence_valid,
+            'current_revision_verified': sa_evidence_valid,
+            'freshness_status': 'FRESH' if sa_evidence_valid else 'STALE'
+        }
+    ),
+    (
+        "evidence_HrApi",
+        "Verification Evidence: Dedicated Human Resources Workspace API Suite (apps/api/test/hr.api.test.ts)",
+        "apps/api/test/hr.api.test.ts",
+        f"{hr_test_results.get('passed', 0)}/{hr_test_results.get('total', 0)} Tests Passed" if hr_evidence_valid else "Execution Stale/Unverified",
+        {
+            'suite_type': 'dedicated_api',
+            'scope': 'HR-01..HR-07',
+            'content_fingerprint': test_fingerprints.get('hr_api'),
+            'test_assertion_present': True,
+            'historical_run_reported': True,
+            'historical_run_date': '2026-10-12',
+            'historical_run_result': 'PASS',
+            'execution_run_date': hr_run_date if hr_evidence_valid else None,
+            'execution_run_result': hr_run_result if hr_evidence_valid else 'STALE',
+            'execution_command': hr_exec_command if hr_evidence_valid else None,
+            'test_runner_results': hr_test_results if hr_evidence_valid else None,
+            'composite_fingerprints': hr_fingerprints if hr_evidence_valid else None,
+            'applies_to_current_revision': hr_evidence_valid,
+            'current_revision_verified': hr_evidence_valid,
+            'freshness_status': 'FRESH' if hr_evidence_valid else 'STALE'
+        }
+    ),
+    (
         "evidence_StatusUnimplemented",
         "Verification Status: Unimplemented Workspaces (Schema & Contracts Specified Only)",
         "docs/process/COVERAGE_MATRIX.md",
         "Phase 5",
         {
             'suite_type': 'status_marker',
-            'scope': 'DE-01..DE-07, HR-01..HR-07, SA-01..SA-11',
+            'scope': 'DE-01..DE-07',
             'test_assertion_present': False,
             'historical_run_reported': False,
             'historical_run_result': 'NONE',
@@ -967,6 +1085,32 @@ cfo_component_map = {
     'CFO-19': 'CfoPoliciesPage in CfoPages.tsx (handlers: loadPolicies, handleProposePolicy; routes: GET /api/cfo/policies, POST /api/cfo/policies/propose)',
 }
 
+# Accurate Super Administrator Component & Handler Mapping
+superadmin_component_map = {
+    'SA-01': 'SuperadminEmployeesPage in SuperadminPages.tsx (handlers: handleCreateAccount; routes: POST /api/superadmin/accounts/provision, POST /api/auth/activate)',
+    'SA-02': 'SuperadminScopesPage in SuperadminPages.tsx (handler: handleGrantScope; route: POST /api/superadmin/scopes/grant)',
+    'SA-03': 'SuperadminScopesPage in SuperadminPages.tsx (handler: handleAdditionalScope; route: POST /api/superadmin/scopes/additional-grant)',
+    'SA-04': 'SuperadminOrganisationPage in SuperadminPages.tsx (handler: handleRestructure; route: POST /api/superadmin/hierarchy/restructure)',
+    'SA-05': 'SuperadminLifecyclePage in SuperadminPages.tsx (handler: handleActivateTransfer; route: POST /api/superadmin/lifecycle/transfers/activate)',
+    'SA-06': 'SuperadminLifecyclePage in SuperadminPages.tsx (handler: handleOffboard; route: POST /api/superadmin/lifecycle/offboard)',
+    'SA-07': 'SuperadminEmployeesPage in SuperadminPages.tsx (handlers: handleResetAccess; routes: POST /api/superadmin/accounts/recovery-reset, POST /api/auth/reset-password)',
+    'SA-08': 'SuperadminConfigurationPage in SuperadminPages.tsx (handler: handlePublish; route: POST /api/superadmin/configuration/publish)',
+    'SA-09': 'SuperadminAuditPage in SuperadminPages.tsx (handler: handleActOnIncident; route: POST /api/superadmin/incidents/actions)',
+    'SA-10': 'SuperadminHealthPage in SuperadminPages.tsx (handler: handleRetryJob; route: POST /api/superadmin/jobs/retry)',
+    'SA-11': 'SuperadminScopesPage in SuperadminPages.tsx (handler: handleDecideDelegation; route: POST /api/superadmin/delegations/decide)',
+}
+
+# Accurate Human Resources Component & Handler Mapping
+hr_component_map = {
+    'HR-01': 'HrJoinersPage in HrPages.tsx (handler: handleSubmit; routes: POST /api/hr/accounts/request, GET /api/hr/requests)',
+    'HR-02': 'HrMoversPage in HrPages.tsx (handler: handleTransferSubmit; routes: POST /api/hr/transfers/request, GET /api/hr/requests)',
+    'HR-03': 'HrMoversPage in HrPages.tsx (handler: handlePromotionSubmit; routes: POST /api/hr/promotions/request, GET /api/hr/requests)',
+    'HR-04': 'HrLeaversPage in HrPages.tsx (handler: handleSubmit; routes: POST /api/hr/exits/coordinate, GET /api/hr/requests)',
+    'HR-05': 'HrAvailabilityPage in HrPages.tsx (handler: handleSubmit; routes: GET /api/hr/leaves, POST /api/hr/leaves)',
+    'HR-06': 'HrTrainingPage in HrPages.tsx (handler: handleUpdate; routes: GET /api/hr/milestones, POST /api/hr/milestones/update)',
+    'HR-07': 'HrReportsPage in HrPages.tsx (handlers: handleGenerate, handleCreateSchedule; routes: GET /api/hr/reports, POST /api/hr/reports/generate, GET /api/hr/reports/schedules, POST /api/hr/reports/schedules, GET /api/hr/reports/download/:file)',
+}
+
 # 7. Actions, Steps, Fields, Validations, Systems, Reports, Exceptions
 for act in cat:
     aid = act['id']
@@ -983,7 +1127,7 @@ for act in cat:
     # Establish source coverage attributes
     screen_page_str = f"P{sp:03d}"
     screen_rendered = screen_page_str in screen_render_nodes
-    implementation_present = role in ['SC', 'TL', 'MG', 'RM', 'NM', 'CEO', 'CFO']
+    implementation_present = role in ['SC', 'TL', 'MG', 'RM', 'NM', 'CEO', 'CFO', 'SA', 'HR']
 
     # Truthful Verification Status:
     # Genuine current revision verification requires physical test suite execution with matching content fingerprint
@@ -1042,6 +1186,28 @@ for act in cat:
         content_fingerprint = test_fingerprints['cfo_api'] if cfo_evidence_valid else None
         execution_run_date = cfo_run_date if cfo_evidence_valid else None
         execution_run_result = cfo_run_result if cfo_evidence_valid else None
+    elif role == 'SA':
+        test_assertion_present = True
+        historical_run_reported = True
+        historical_run_result = 'PASS'
+        applies_to_current_revision = sa_evidence_valid
+        current_revision_verified = sa_evidence_valid
+        verification_status = 'CURRENT_REVISION_VERIFIED' if sa_evidence_valid else 'HISTORICAL_PASS_UNVERIFIED_IN_CURRENT_REVISION'
+        evidence_suite = 'apps/api/test/superadmin.api.test.ts' if sa_evidence_valid else None
+        content_fingerprint = test_fingerprints.get('superadmin_api') if sa_evidence_valid else None
+        execution_run_date = sa_run_date if sa_evidence_valid else None
+        execution_run_result = sa_run_result if sa_evidence_valid else None
+    elif role == 'HR':
+        test_assertion_present = True
+        historical_run_reported = True
+        historical_run_result = 'PASS'
+        applies_to_current_revision = hr_evidence_valid
+        current_revision_verified = hr_evidence_valid
+        verification_status = 'CURRENT_REVISION_VERIFIED' if hr_evidence_valid else 'HISTORICAL_PASS_UNVERIFIED_IN_CURRENT_REVISION'
+        evidence_suite = 'apps/api/test/hr.api.test.ts' if hr_evidence_valid else None
+        content_fingerprint = test_fingerprints.get('hr_api') if hr_evidence_valid else None
+        execution_run_date = hr_run_date if hr_evidence_valid else None
+        execution_run_result = hr_run_result if hr_evidence_valid else None
     elif role in ['SC', 'TL']:
         test_assertion_present = True
         historical_run_reported = True
@@ -1125,6 +1291,10 @@ for act in cat:
         act_extra['component_reference'] = ceo_component_map[aid]
     elif aid in cfo_component_map:
         act_extra['component_reference'] = cfo_component_map[aid]
+    elif aid in superadmin_component_map:
+        act_extra['component_reference'] = superadmin_component_map[aid]
+    elif aid in hr_component_map:
+        act_extra['component_reference'] = hr_component_map[aid]
 
     act_node_id = f"action_{aid}"
     add_node(act_node_id, f"{aid} {title}", sources['deck_pdf'], loc_str, act_extra)
@@ -1145,6 +1315,10 @@ for act in cat:
         add_edge(act_node_id, "evidence_CeoApi", "verified_by_suite", "EXTRACTED", "Verified by dedicated CEO API test suite on current revision")
     elif role == 'CFO':
         add_edge(act_node_id, "evidence_CfoApi", "verified_by_suite", "EXTRACTED", "Verified by dedicated CFO API test suite on current revision")
+    elif role == 'SA':
+        add_edge(act_node_id, "evidence_SuperadminApi", "verified_by_suite", "EXTRACTED", "Verified by dedicated Super Administrator API test suite on current revision")
+    elif role == 'HR':
+        add_edge(act_node_id, "evidence_HrApi", "verified_by_suite", "EXTRACTED", "Verified by dedicated Human Resources API test suite on current revision")
 
     # Reconcile Vertical Applicability accurately
     if role in ['SC', 'TL', 'MG', 'RM', 'NM']:
@@ -1177,7 +1351,7 @@ for act in cat:
 
     if aid in lifecycle_exercised_actions:
         add_edge(act_node_id, "evidence_VerticalLifecycleApi", "has_lifecycle_journey_assertions", "EXTRACTED", "integration_evidence")
-    elif implementation_present and role not in ['SC', 'TL', 'MG', 'RM', 'NM', 'CEO', 'CFO']:
+    elif implementation_present and role not in ['SC', 'TL', 'MG', 'RM', 'NM', 'CEO', 'CFO', 'SA']:
         add_edge(act_node_id, "evidence_StatusUnverified", "unverified_by_test_assertions", "EXTRACTED", "testing_gap")
     elif not implementation_present:
         add_edge(act_node_id, "evidence_StatusUnimplemented", "unimplemented_workspace", "EXTRACTED", "phase5_backlog")

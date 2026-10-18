@@ -21,6 +21,7 @@ async function main(): Promise<void> {
       ['TEAM-WEALTH-ALPHA', 'Wealth Alpha', 'wealth'],
       ['TEAM-WEALTH-BETA', 'Wealth Beta', 'wealth'],
       ['TEAM-BANKING-ALPHA', 'Banking Alpha', 'banking'],
+      ['TEAM-BANKING-BETA', 'Banking Beta', 'banking'],
       ['TEAM-WEALTH-GAMMA', 'Wealth Gamma', 'wealth'],
     ];
     for (const [id, name, vertical] of teams) {
@@ -44,6 +45,11 @@ async function main(): Promise<void> {
       ['EMP-009', 'vikram@finverse.demo', 'Vikram Malhotra'],
       ['EMP-010', 'rajiv@finverse.demo', 'Rajiv Mehta'],
       ['EMP-011', 'ananya@finverse.demo', 'Ananya Roy'],
+      ['EMP-016', 'rohan@finverse.demo', 'Rohan Sen'],
+      ['EMP-017', 'kunal@finverse.demo', 'Kunal Shah'],
+      ['EMP-018', 'priyas@finverse.demo', 'Priya Sen'],
+      ['EMP-019', 'arjun@finverse.demo', 'Arjun Mehta'],
+      ['EMP-020', 'suresh@finverse.demo', 'Suresh Nair'],
     ];
     for (const [id, email, displayName] of employees) {
       await pool.query(
@@ -60,6 +66,7 @@ async function main(): Promise<void> {
       ['ASG-WEALTH-003A', 'EMP-003', 'TL', 'wealth', 'TEAM-WEALTH-ALPHA'],
       ['ASG-WEALTH-003B', 'EMP-003', 'TL', 'wealth', 'TEAM-WEALTH-BETA'],
       ['ASG-BANK-001', 'EMP-004', 'SC', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-TL-001', 'EMP-016', 'TL', 'banking', 'TEAM-BANKING-ALPHA'],
       ['ASG-WEALTH-005', 'EMP-005', 'TL', 'wealth', 'TEAM-WEALTH-GAMMA'],
       ['ASG-WEALTH-006', 'EMP-006', 'SC', 'wealth', 'TEAM-WEALTH-GAMMA'],
       ['ASG-WEALTH-MG-A', 'EMP-007', 'MG', 'wealth', 'TEAM-WEALTH-ALPHA'],
@@ -75,6 +82,13 @@ async function main(): Promise<void> {
       ['ASG-EXEC-CEO-B', 'EMP-010', 'CEO', 'banking', 'TEAM-BANKING-ALPHA'],
       ['ASG-EXEC-CFO-W', 'EMP-011', 'CFO', 'wealth', 'TEAM-WEALTH-ALPHA'],
       ['ASG-EXEC-CFO-B', 'EMP-011', 'CFO', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-MG-A', 'EMP-017', 'MG', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-MG-B', 'EMP-017', 'MG', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-BANK-TL-002', 'EMP-018', 'TL', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-BANK-RM-A', 'EMP-019', 'RM', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-RM-B', 'EMP-019', 'RM', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-BANK-NM-A', 'EMP-020', 'NM', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-NM-B', 'EMP-020', 'NM', 'banking', 'TEAM-BANKING-BETA'],
     ];
     for (const [id, empId, role, vertical, teamId] of assignments) {
       await pool.query(

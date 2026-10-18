@@ -6,11 +6,11 @@ async function loginAsManager(page: Page) {
   await page.getByLabel('Password', { exact: true }).fill('demo1234');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL(/\/manager\/overview/);
-  await expect(page.getByRole('heading', { name: 'Manager overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Investigate performance across team leaders' })).toBeVisible();
 }
 
 const MANAGER_ROUTES = [
-  { path: '/manager/overview', heading: 'Manager overview', indicator: 'Team Leader Contribution & Backlog' },
+  { path: '/manager/overview', heading: 'Investigate performance across team leaders', indicator: 'Team Leader Contribution & Backlog' },
   { path: '/manager/leaders', heading: 'Team leaders & source quality', indicator: 'TL Operating Profile' },
   { path: '/manager/capacity', heading: 'Capacity, transfers & promotions', indicator: 'Request Cross-Team Transfer' },
   { path: '/manager/targets', heading: 'Target distribution to TLs', indicator: 'Parent Target Reconciliation' },

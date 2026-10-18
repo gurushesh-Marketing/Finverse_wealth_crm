@@ -124,8 +124,13 @@ before(async () => {
 
 after(async () => {
   await cleanupTestData();
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   if (db) await db.end();
-  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  const { pool: apiPool } = await import('../src/repo/db');
+  await apiPool.end();
 });
 
 // ─── Tests ───

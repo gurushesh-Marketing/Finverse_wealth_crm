@@ -18,6 +18,30 @@ import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
 import { requireLeadForRead, requireLeadForWrite, attributionFor, type ScopedLead } from '../wealth/scope';
 import { LOSS_REASONS, STAGE_RULE_VERSION, WEALTH_STAGE_TRANSITIONS, ENQUIRY_SOURCES, canTransition, WEALTH_PRODUCTS } from '../wealth/rules';
+import {
+  BANKING_STAGE_TRANSITIONS,
+  BANKING_PRODUCTS,
+  BANKING_SOURCES,
+  BANKING_STAGE_RULE_VERSION,
+  BANKING_LOSS_REASONS,
+  canBankingTransition,
+} from '../banking/rules';
+import {
+  MARKETS_STAGE_TRANSITIONS,
+  MARKETS_PRODUCTS,
+  MARKETS_SOURCES,
+  MARKETS_STAGE_RULE_VERSION,
+  MARKETS_LOSS_REASONS,
+  canMarketsTransition,
+} from '../markets/rules';
+import {
+  REAL_ESTATE_STAGE_TRANSITIONS,
+  REAL_ESTATE_PRODUCTS,
+  REAL_ESTATE_SOURCES,
+  REAL_ESTATE_STAGE_RULE_VERSION,
+  REAL_ESTATE_LOSS_REASONS,
+  canRealEstateTransition,
+} from '../real-estate/rules';
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -31,11 +55,13 @@ async function ownedLeadStrict(scope: Scope, leadId: string): Promise<ScopedLead
   return requireLeadForWrite(scope, leadId);
 }
 
-async function assertWealthAssignment(scope: Scope): Promise<void> {
+async function assertCallerAssignment(scope: Scope): Promise<string> {
   const { rows } = await pool.query(`SELECT vertical FROM teams WHERE id = $1`, [scope.teams[0] ?? '']);
-  if (rows[0]?.vertical !== 'wealth' || !scope.verticals.includes('wealth')) {
-    throw forbidden('Self-sourced enquiries require a wealth assignment.');
+  const teamVertical = rows[0]?.vertical || scope.verticals[0] || 'wealth';
+  if (!scope.verticals.includes(teamVertical)) {
+    throw forbidden('Self-sourced enquiries require an active assignment in the target vertical.');
   }
+  return teamVertical;
 }
 
 export async function correctProspect(scope: Scope, leadId: string, input: ProspectCorrectionInput) {
@@ -139,13 +165,27 @@ export async function listAudit(scope: Scope, leadId: string): Promise<AuditEntr
 }
 
 export async function createEnquiry(scope: Scope, input: EnquiryInput): Promise<Enquiry> {
-  await assertWealthAssignment(scope);
-  if (!(WEALTH_PRODUCTS as readonly string[]).includes(input.product)) {
+  const teamVertical = await assertCallerAssignment(scope);
+  const permittedProducts = teamVertical === 'banking'
+    ? (BANKING_PRODUCTS as readonly string[])
+    : teamVertical === 'markets'
+    ? (MARKETS_PRODUCTS as readonly string[])
+    : teamVertical === 'real_estate'
+    ? (REAL_ESTATE_PRODUCTS as readonly string[])
+    : (WEALTH_PRODUCTS as readonly string[]);
+  if (!permittedProducts.includes(input.product)) {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
-      fieldErrors: { product: ['Choose a product within V1.'] },
+      fieldErrors: { product: [`Choose a product within ${teamVertical === 'banking' ? 'Banking' : teamVertical === 'markets' ? 'Markets' : teamVertical === 'real_estate' ? 'Real Estate' : 'V1'}.`] },
     });
   }
-  if (!(ENQUIRY_SOURCES as readonly string[]).includes(input.source)) {
+  const permittedSources = teamVertical === 'banking'
+    ? (BANKING_SOURCES as readonly string[])
+    : teamVertical === 'markets'
+    ? (MARKETS_SOURCES as readonly string[])
+    : teamVertical === 'real_estate'
+    ? (REAL_ESTATE_SOURCES as readonly string[])
+    : (ENQUIRY_SOURCES as readonly string[]);
+  if (!permittedSources.includes(input.source)) {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
       fieldErrors: { source: ['Choose an approved source.'] },
     });
@@ -172,7 +212,7 @@ export async function createEnquiry(scope: Scope, input: EnquiryInput): Promise<
 }
 
 export async function publishEnquiry(scope: Scope, enquiryId: string) {
-  await assertWealthAssignment(scope);
+  const teamVertical = await assertCallerAssignment(scope);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -189,8 +229,8 @@ export async function publishEnquiry(scope: Scope, enquiryId: string) {
     const leadId = `FV-5${Math.floor(100000 + Math.random() * 900000)}`;
     await client.query(
       `INSERT INTO leads (id, vertical, display_name, email, phone, preferred_language, product, source, stage, owner_employee_id, team_id)
-       VALUES ($1, 'wealth', $2, $3, $4, 'English', $5, $6, 'new', NULL, $7)`,
-      [leadId, enq.display_name, enq.email, enq.phone, enq.product, enq.source, scope.teams[0] ?? null]
+       VALUES ($1, $2, $3, $4, $5, 'English', $6, $7, 'new', NULL, $8)`,
+      [leadId, teamVertical, enq.display_name, enq.email, enq.phone, enq.product, enq.source, scope.teams[0] ?? null]
     );
     await client.query(`UPDATE enquiries SET status = 'published', published_lead_id = $2 WHERE id = $1`, [enquiryId, leadId]);
     await client.query(
@@ -225,47 +265,89 @@ export async function listEnquiries(scope: Scope): Promise<Enquiry[]> {
 }
 
 export async function saveQualification(scope: Scope, leadId: string, input: QualificationInput) {
-  await ownedLeadStrict(scope, leadId);
-  if (!(WEALTH_PRODUCTS as readonly string[]).includes(input.product)) {
+  const lead = await ownedLeadStrict(scope, leadId);
+  const isBanking = lead.vertical === 'banking';
+  const isMarkets = lead.vertical === 'markets';
+  const isRealEstate = lead.vertical === 'real_estate';
+  const permitted = isBanking
+    ? (BANKING_PRODUCTS as readonly string[])
+    : isMarkets
+    ? (MARKETS_PRODUCTS as readonly string[])
+    : isRealEstate
+    ? (REAL_ESTATE_PRODUCTS as readonly string[])
+    : (WEALTH_PRODUCTS as readonly string[]);
+  if (!permitted.includes(input.product)) {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
       fieldErrors: { product: ['Product mismatch: request an approved referral instead.'] },
     });
   }
+  const checklistVer = isBanking
+    ? BANKING_STAGE_RULE_VERSION
+    : isMarkets
+    ? MARKETS_STAGE_RULE_VERSION
+    : isRealEstate
+    ? REAL_ESTATE_STAGE_RULE_VERSION
+    : 'wealth-fit-v1';
   const qualId = id('QUAL');
   await pool.query(
     `INSERT INTO qualifications (id, lead_id, actor_employee_id, need, product, expected_value, currency, time_horizon, checklist, checklist_version, next_step)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'wealth-fit-v1', $10)`,
-    [qualId, leadId, scope.employeeId, input.need, input.product, input.expectedValue ?? null, input.currency ?? null, input.timeHorizon, JSON.stringify(input.checklist), input.nextStep]
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [qualId, leadId, scope.employeeId, input.need, input.product, input.expectedValue ?? null, input.currency ?? null, input.timeHorizon, JSON.stringify(input.checklist), checklistVer, input.nextStep]
   );
   await pool.query(
     `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
      VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), leadId, scope.employeeId, `Qualification saved (checklist wealth-fit-v1). Need: ${input.need}. Estimate (not verified revenue): ${input.expectedValue ?? 'n/a'} ${input.currency ?? ''}`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
+    [id('EVT'), leadId, scope.employeeId, `Qualification saved (checklist ${checklistVer}). Need: ${input.need}. Estimate (not verified revenue): ${input.expectedValue ?? 'n/a'} ${input.currency ?? ''}`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
   );
   return { id: qualId, recommendedNextStep: input.nextStep };
 }
 
 export async function moveStage(scope: Scope, leadId: string, input: StageChangeInput) {
   const lead = await ownedLeadStrict(scope, leadId);
+  const isBanking = lead.vertical === 'banking';
+  const isMarkets = lead.vertical === 'markets';
+  const isRealEstate = lead.vertical === 'real_estate';
   const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id);
-  if (input.toStage === 'converted' || input.toStage === 'lost') {
-    throw new HttpError(422, 'VALIDATION_FAILED', 'Converted follows approval rules and Lost uses the loss form.', {
+  if (input.toStage === 'converted' || input.toStage === 'lost' || input.toStage === 'disbursal' || input.toStage === 'active-funded') {
+    throw new HttpError(422, 'VALIDATION_FAILED', 'Converted/Disbursal/Active-funded follows approval rules and Lost uses the loss form.', {
       fieldErrors: { toStage: ['Use Submit conversion (SC-20) or Mark lost (SC-21) for this transition.'] },
     });
   }
-  if (!canTransition(lead.stage, input.toStage)) {
-    const allowed = (WEALTH_STAGE_TRANSITIONS[lead.stage] ?? []).join(', ') || 'none';
+  const validTransition = isBanking
+    ? canBankingTransition(lead.stage, input.toStage)
+    : isMarkets
+    ? canMarketsTransition(lead.stage, input.toStage)
+    : isRealEstate
+    ? canRealEstateTransition(lead.stage, input.toStage)
+    : canTransition(lead.stage, input.toStage);
+  if (!validTransition) {
+    const allowed = (
+      isBanking
+        ? (BANKING_STAGE_TRANSITIONS[lead.stage] ?? [])
+        : isMarkets
+        ? (MARKETS_STAGE_TRANSITIONS[lead.stage] ?? [])
+        : isRealEstate
+        ? (REAL_ESTATE_STAGE_TRANSITIONS[lead.stage] ?? [])
+        : (WEALTH_STAGE_TRANSITIONS[lead.stage] ?? [])
+    ).join(', ') || 'none';
     throw new HttpError(422, 'VALIDATION_FAILED', `The record changed or ${lead.stage} -> ${input.toStage} is not an allowed transition.`, {
       fieldErrors: { toStage: [`Allowed from ${lead.stage}: ${allowed}.`] },
     });
   }
+  const ruleVer = isBanking
+    ? BANKING_STAGE_RULE_VERSION
+    : isMarkets
+    ? MARKETS_STAGE_RULE_VERSION
+    : isRealEstate
+    ? REAL_ESTATE_STAGE_RULE_VERSION
+    : STAGE_RULE_VERSION;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query(
       `INSERT INTO stage_events (id, lead_id, actor_employee_id, from_stage, to_stage, reason, rule_version)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id('STG'), leadId, scope.employeeId, lead.stage, input.toStage, input.reason, STAGE_RULE_VERSION]
+      [id('STG'), leadId, scope.employeeId, lead.stage, input.toStage, input.reason, ruleVer]
     );
     await client.query(
       `UPDATE leads SET stage = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
@@ -333,9 +415,19 @@ function proposalView(r: any): ProposalRecord {
 
 export async function requestConversion(scope: Scope, leadId: string, input: ConversionInput) {
   const lead = await ownedLeadStrict(scope, leadId);
-  if (lead.stage !== 'qualified') {
-    throw new HttpError(422, 'VALIDATION_FAILED', 'Complete the required product milestones first.', {
-      fieldErrors: { winMilestone: ['Conversion requires the Qualified stage.'] },
+  const isBanking = lead.vertical === 'banking';
+  const isMarkets = lead.vertical === 'markets';
+  const isRealEstate = lead.vertical === 'real_estate';
+  const preWonStageValid = isBanking
+    ? (lead.stage === 'sanction' || lead.stage === 'qualified')
+    : isMarkets
+    ? (lead.stage === 'demat-opened' || lead.stage === 'qualified')
+    : isRealEstate
+    ? (lead.stage === 'booking' || lead.stage === 'site-visit' || lead.stage === 'registration' || lead.stage === 'qualified')
+    : (lead.stage === 'qualified');
+  if (!preWonStageValid) {
+    throw new HttpError(422, 'VALIDATION_FAILED', 'Complete the required credit / product milestones first.', {
+      fieldErrors: { winMilestone: [`Conversion requires the ${isBanking ? 'Sanction' : isMarkets ? 'Demat & Trading Opened' : isRealEstate ? 'Booking / Registration' : 'Qualified'} stage.`] },
     });
   }
   const pending = await pool.query(
@@ -362,12 +454,22 @@ export async function requestConversion(scope: Scope, leadId: string, input: Con
 
 export async function markLost(scope: Scope, leadId: string, input: LossInput) {
   const lead = await ownedLeadStrict(scope, leadId);
-  if (lead.stage === 'converted') {
+  if (lead.stage === 'converted' || lead.stage === 'disbursal' || lead.stage === 'active-funded') {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Converted records cannot be changed to Lost by the caller.', {
       fieldErrors: { reason: ['Use a cancellation/refund request to protect financial history.'] },
     });
   }
-  if (!(LOSS_REASONS as readonly string[]).includes(input.reason)) {
+  const isBanking = lead.vertical === 'banking';
+  const isMarkets = lead.vertical === 'markets';
+  const isRealEstate = lead.vertical === 'real_estate';
+  const validReasons = isBanking
+    ? [...(LOSS_REASONS as readonly string[]), ...(BANKING_LOSS_REASONS as readonly string[])]
+    : isMarkets
+    ? [...(LOSS_REASONS as readonly string[]), ...(MARKETS_LOSS_REASONS as readonly string[])]
+    : isRealEstate
+    ? [...(LOSS_REASONS as readonly string[]), ...(REAL_ESTATE_LOSS_REASONS as readonly string[])]
+    : (LOSS_REASONS as readonly string[]);
+  if (!validReasons.includes(input.reason)) {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
       fieldErrors: { reason: ['Loss requires an allowed reason.'] },
     });
@@ -427,7 +529,7 @@ async function createRequest(scope: Scope, leadId: string, type: string, payload
      VALUES ($1, $2, $3, $4, $5, 'pending')`,
     [reqId, leadId, scope.employeeId, type, JSON.stringify(payload)]
   );
-  return { requestId: reqId, status: 'pending' as const };
+  return { id: reqId, requestId: reqId, status: 'pending' as const };
 }
 
 export const requestReopen = (scope: Scope, leadId: string, input: ReopenInput) =>
@@ -560,15 +662,31 @@ export async function decideRequest(
 
     if (resolvedStatus === 'approved' && req.type === 'reopen') {
       const payload = (req.payload ?? {}) as Record<string, unknown>;
-      const toStage = String(payload.requestedNextStage ?? 'contacted');
-      const { rows: stageRows } = await client.query(`SELECT stage FROM leads WHERE id = $1`, [req.lead_id]);
+      const { rows: stageRows } = await client.query(`SELECT stage, vertical FROM leads WHERE id = $1`, [req.lead_id]);
       const currentStage = String(stageRows[0]?.stage ?? '');
-      const targetOk = !['converted', 'lost'].includes(toStage);
-      const reopenAllowed = currentStage === 'lost' ? targetOk : canTransition(currentStage, toStage);
+      const leadVertical = String(stageRows[0]?.vertical ?? 'wealth');
+      const defaultNextStage = leadVertical === 'banking'
+        ? 'eligibility'
+        : leadVertical === 'markets'
+        ? 'kyc'
+        : leadVertical === 'real_estate'
+        ? 'requirement'
+        : 'contacted';
+      const toStage = String(payload.requestedNextStage ?? defaultNextStage);
+      const targetOk = !['converted', 'lost', 'disbursal', 'active-funded'].includes(toStage);
+      const reopenAllowed = currentStage === 'lost'
+        ? targetOk
+        : (leadVertical === 'banking'
+            ? canBankingTransition(currentStage, toStage)
+            : leadVertical === 'markets'
+            ? canMarketsTransition(currentStage, toStage)
+            : leadVertical === 'real_estate'
+            ? canRealEstateTransition(currentStage, toStage)
+            : canTransition(currentStage, toStage));
       if (!reopenAllowed) {
         await client.query('ROLLBACK');
         throw new HttpError(422, 'VALIDATION_FAILED', 'Requested reopen stage is not an allowed transition.', {
-          fieldErrors: { requestedNextStage: [`Allowed from ${currentStage}: ${(WEALTH_STAGE_TRANSITIONS[currentStage] ?? []).join(', ') || 'none (use reopen)'}.`] },
+          fieldErrors: { requestedNextStage: [`Stage ${toStage} is not an allowed transition from ${currentStage}.`] },
         });
       }
       await client.query(
@@ -587,20 +705,33 @@ export async function decideRequest(
       );
     }
     if (resolvedStatus === 'approved' && req.type === 'conversion') {
-      const { rows: stageRows } = await client.query(`SELECT stage FROM leads WHERE id = $1 FOR UPDATE`, [req.lead_id]);
+      const { rows: stageRows } = await client.query(`SELECT stage, vertical FROM leads WHERE id = $1 FOR UPDATE`, [req.lead_id]);
       const currentStage = String(stageRows[0]?.stage ?? '');
-      if (currentStage !== 'qualified') {
+      const leadVertical = String(stageRows[0]?.vertical ?? 'wealth');
+      const expectedPreWonStage = leadVertical === 'banking'
+        ? 'sanction'
+        : leadVertical === 'markets'
+        ? 'demat-opened'
+        : leadVertical === 'real_estate'
+        ? 'booking'
+        : 'qualified';
+      const targetWonStage = leadVertical === 'banking'
+        ? 'disbursal'
+        : leadVertical === 'markets'
+        ? 'active-funded'
+        : 'converted';
+      if (currentStage !== expectedPreWonStage && currentStage !== 'qualified' && !(leadVertical === 'real_estate' && (currentStage === 'site-visit' || currentStage === 'booking' || currentStage === 'registration'))) {
         await client.query('ROLLBACK');
         throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'Lead state changed since submission (now ' + currentStage + ') — resubmit a new conversion version.');
       }
       await client.query(
-        `UPDATE leads SET stage = 'converted', updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-        [req.lead_id]
+        `UPDATE leads SET stage = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
+        [req.lead_id, targetWonStage]
       );
       await client.query(
         `INSERT INTO stage_events (id, lead_id, actor_employee_id, from_stage, to_stage, reason, rule_version)
-         VALUES ($1, $2, $3, $4, 'converted', 'conversion approved', $5)`,
-        [id('STG'), req.lead_id, scope.employeeId, currentStage, STAGE_RULE_VERSION]
+         VALUES ($1, $2, $3, $4, $5, 'conversion approved', $6)`,
+        [id('STG'), req.lead_id, scope.employeeId, currentStage, targetWonStage, STAGE_RULE_VERSION]
       );
     }
     if (resolvedStatus === 'approved' && req.type === 'correction') {

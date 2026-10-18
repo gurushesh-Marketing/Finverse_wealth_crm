@@ -67,7 +67,7 @@ export function createRegionalRouter(): Router {
   // Role gate: only RM can access regional manager endpoints
   router.use((req: AuthedRequest, res, next) => {
     if (req.auth?.session.role !== 'RM') {
-      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Wealth Regional Manager role required.' } });
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Regional Manager role required.' } });
       return;
     }
     next();

@@ -7,6 +7,8 @@ the only allowed write footprint is run artifacts (`playwright-report/`,
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read the task packet, then these skills once and follow them:
 
 - `.agents/skills/finverse-qa-execution/SKILL.md`

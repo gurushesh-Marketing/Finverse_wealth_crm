@@ -199,6 +199,7 @@ export async function getLead(scope: Scope, leadId: string): Promise<LeadDetail>
     nextActionAt: row.min_due ? row.min_due.toISOString() : null,
     dueStatus: dueStatusFrom(row.min_due),
     recordVersion: row.record_version,
+    vertical: row.vertical,
     createdAt: row.created_at.toISOString(),
     tasks: taskRows.map(toTask),
     timeline: eventRows.map(toEvent),
@@ -215,7 +216,7 @@ export async function myDay(scope: Scope): Promise<MyDayResponse> {
     upcoming: string;
   }>(
     `SELECT
-      (SELECT count(*) FROM leads l WHERE l.owner_employee_id = $1 AND ${scopeWhere} AND l.stage NOT IN ('converted', 'lost')) AS active_leads,
+      (SELECT count(*) FROM leads l WHERE l.owner_employee_id = $1 AND ${scopeWhere} AND l.stage NOT IN ('converted', 'lost', 'disbursal', 'active-funded')) AS active_leads,
       (SELECT count(*) FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
         WHERE t.owner_employee_id = $1 AND t.status = 'open' AND ${scopeWhere} AND t.due_at < now()) AS overdue,
       (SELECT count(*) FROM lead_tasks t JOIN leads l ON l.id = t.lead_id

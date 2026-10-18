@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { wealthApi, type TaskView } from '../lib/wealth-api';
 import { api } from '../lib/api';
 import type { LeadSummary } from '@finverse/contracts';
@@ -14,6 +14,8 @@ import { label } from '../lib/labels';
 import { ManualActivityForm, InboundForm, fmt, useSubmit } from '../components/leads/RecordForms';
 
 export function TasksAreaPage() {
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/banking') ? '/banking' : location.pathname.startsWith('/markets') ? '/markets' : location.pathname.startsWith('/real-estate') ? '/real-estate' : '/wealth';
   const [tasks, setTasks] = useState<TaskView[] | null>(null);
   const s = useSubmit();
   const load = () => void wealthApi.tasks().then((r) => setTasks(r.tasks)).catch(() => setTasks([]));
@@ -46,7 +48,7 @@ export function TasksAreaPage() {
                   <li key={t.id} className="flex flex-wrap items-center gap-2 py-2">
                     <span className="text-xs text-muted-foreground">{fmt(t.dueAt)}</span>
                     {t.originalDueAt ? <span className="text-xs text-muted-foreground line-through">{fmt(t.originalDueAt)}</span> : null}
-                    <Link to={`/wealth/prospects/${t.leadId}`} className="text-sm font-medium text-primary hover:underline">{t.leadId}</Link>
+                    <Link to={`${basePath}/prospects/${t.leadId}`} className="text-sm font-medium text-primary hover:underline">{t.leadId}</Link>
                     <span className="text-sm">{label(t.action)}</span>
                     <span className="text-sm text-muted-foreground">{t.purpose}</span>
                     <Badge tone={t.status === 'open' ? 'open' : 'completed'}>{label(t.status)}</Badge>
@@ -145,14 +147,25 @@ export function ConversationsAreaPage() {
 }
 
 export function PipelineAreaPage() {
+  const location = useLocation();
+  const isBanking = location.pathname.startsWith('/banking');
+  const isMarkets = location.pathname.startsWith('/markets');
+  const isRealEstate = location.pathname.startsWith('/real-estate') || location.pathname.startsWith('/real_estate');
+  const basePath = isBanking ? '/banking' : isMarkets ? '/markets' : isRealEstate ? '/real-estate' : '/wealth';
   const [leads, setLeads] = useState<LeadSummary[]>([]);
   useEffect(() => {
     void api.leads({}).then((r) => setLeads(r.leads)).catch(() => undefined);
   }, []);
-  const stages = ['new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'converted', 'lost'];
+  const stages = isBanking
+    ? ['new', 'eligibility', 'documents', 'sanction', 'disbursal', 'lost']
+    : isMarkets
+    ? ['new', 'kyc', 'risk-profile', 'demat-opened', 'active-funded', 'lost']
+    : isRealEstate
+    ? ['new', 'requirement', 'site-visit', 'booking', 'registration', 'lost']
+    : ['new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'converted', 'lost'];
   return (
     <div>
-      <PageHeader title="My pipeline" subtitle="Stage board · SC-15–22 live on each record" />
+      <PageHeader title={isBanking ? "Commercial Banking pipeline" : isMarkets ? "Trading pipeline" : isRealEstate ? "Property pipeline" : "My pipeline"} subtitle="Stage board · SC-15–22 live on each record" />
       <div className="mb-3 text-xs text-muted-foreground">Open a record to run transition forms, qualification, proposals, conversion, loss and reopen requests.</div>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {stages.map((stage) => {
@@ -160,11 +173,11 @@ export function PipelineAreaPage() {
           return (
             <Card key={stage}>
               <CardContent>
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{stage} ({rows.length})</h2>
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label(stage)} ({rows.length})</h2>
                 <ul className="space-y-1" role="list">
                   {rows.map((l) => (
                     <li key={l.id} className="rounded-md border border-border px-2 py-1">
-                      <Link to={`/wealth/prospects/${l.id}`} className="text-sm font-medium text-primary hover:underline">{l.displayName}</Link>
+                      <Link to={`${basePath}/prospects/${l.id}`} className="text-sm font-medium text-primary hover:underline">{l.displayName}</Link>
                       <div className="font-mono text-[11px] text-muted-foreground">{l.id} · {l.product}</div>
                     </li>
                   ))}
@@ -180,6 +193,8 @@ export function PipelineAreaPage() {
 }
 
 export function DocumentsAreaPage() {
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/banking') ? '/banking' : location.pathname.startsWith('/markets') ? '/markets' : location.pathname.startsWith('/real-estate') ? '/real-estate' : '/wealth';
   const [leads, setLeads] = useState<LeadSummary[]>([]);
   const [leadId, setLeadId] = useState('');
   useEffect(() => {
@@ -200,7 +215,7 @@ export function DocumentsAreaPage() {
         <Card>
           <CardContent>
             <p className="mb-2 text-sm text-muted-foreground">Document request and evidence management live on the record:</p>
-            <Link to={`/wealth/prospects/${leadId}`} className="text-sm font-medium text-primary hover:underline">Open {leadId} → Documents tab</Link>
+            <Link to={`${basePath}/prospects/${leadId}`} className="text-sm font-medium text-primary hover:underline">Open {leadId} → Documents tab</Link>
           </CardContent>
         </Card>
       ) : null}

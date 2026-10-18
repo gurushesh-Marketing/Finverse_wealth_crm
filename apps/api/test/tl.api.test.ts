@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Pool } from 'pg';
 import { createApp } from '../src/app';
 import { assertTestDatabaseGuard, env } from '../src/config';
+import { pool as apiPool } from '../src/repo/db';
 
 let server: Server;
 let BASE: string;
@@ -23,8 +24,12 @@ before(async () => {
 });
 
 after(async () => {
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   if (pool) await pool.end();
-  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  await apiPool.end();
 });
 
 interface Session { cookie: string; body: any }

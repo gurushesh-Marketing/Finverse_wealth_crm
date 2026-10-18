@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-design-lead.md` and `designer.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the brand references (`docs/brand/` brand guidelines, logo PDF).
 - Applicable installed skills: `.agents/skills/design-taste-frontend/SKILL.md` (read with dashboard scope limits; marketing page rules do not apply to CRM dashboards).
 - Absent skills: none.

@@ -28,7 +28,7 @@ function id(prefix: string): string {
 
 export function assertRm(scope: Scope): void {
   if (scope.role !== 'RM') {
-    throw forbidden('Wealth Regional Manager workspace only.');
+    throw forbidden('Regional Manager workspace only.');
   }
 }
 
@@ -47,8 +47,8 @@ export async function getRegionalScope(scope: Scope) {
     [scope.teams]
   );
 
-  const regionId = teamRows[0]?.region_id || 'REGION-SOUTH';
-  const regionName = teamRows[0]?.region_name || 'South Region';
+  const regionId = teamRows[0]?.region_id || (scope.verticals.includes('banking') ? 'REGION-BANKING-WEST' : scope.verticals.includes('markets') ? 'REGION-MARKETS-WEST' : scope.verticals.includes('real_estate') ? 'REGION-REALESTATE-WEST' : 'REGION-SOUTH');
+  const regionName = teamRows[0]?.region_name || (scope.verticals.includes('banking') ? 'Commercial Banking West Zone' : scope.verticals.includes('markets') ? 'Markets & Securities West Zone' : scope.verticals.includes('real_estate') ? 'Real Estate Advisory West Zone' : 'South Region');
 
   // Managers in scope: employees with MG assignment on in-scope teams
   const { rows: managerRows } = await pool.query(
@@ -115,11 +115,11 @@ export async function getRegionalOverview(scope: Scope, period: RmPeriod = 'mont
   const parentTarget = targetRows[0] ? Number(targetRows[0].approved_nm_target) : 250;
   const unallocatedRemainder = targetRows[0] ? Number(targetRows[0].unallocated_remainder) : 0;
 
-  // Actual wins (leads converted in in-scope teams)
+  // Actual wins (leads converted/disbursed in in-scope teams)
   const { rows: winRows } = await pool.query(
     `SELECT count(*)::int AS count
        FROM leads
-      WHERE team_id = ANY($1) AND stage = 'converted'`,
+      WHERE team_id = ANY($1) AND stage IN ('converted', 'disbursal', 'active-funded', 'registration')`,
     [scope.teams]
   );
   const achievedWins = winRows[0]?.count ?? 0;
@@ -139,7 +139,7 @@ export async function getRegionalOverview(scope: Scope, period: RmPeriod = 'mont
 
       const { rows: mgrWins } = await pool.query(
         `SELECT count(*)::int AS wins,
-                count(*) FILTER (WHERE stage IN ('new', 'not-contacted', 'contacted', 'follow-up', 'qualified'))::int AS open_leads
+                count(*) FILTER (WHERE stage IN ('new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'eligibility', 'documents', 'sanction', 'kyc', 'risk-profile', 'demat-opened', 'requirement', 'site-visit', 'booking'))::int AS open_leads
            FROM leads
           WHERE team_id = ANY($1)`,
         [mgr.team_ids]
@@ -175,7 +175,7 @@ export async function getRegionalOverview(scope: Scope, period: RmPeriod = 'mont
   const { rows: sourceRows } = await pool.query(
     `SELECT source,
             count(*)::int AS total_leads,
-            count(*) FILTER (WHERE stage = 'converted')::int AS converted_leads
+            count(*) FILTER (WHERE stage IN ('converted', 'disbursal', 'active-funded'))::int AS converted_leads
        FROM leads
       WHERE team_id = ANY($1)
       GROUP BY source
@@ -193,8 +193,8 @@ export async function getRegionalOverview(scope: Scope, period: RmPeriod = 'mont
   const { rows: backlogRows } = await pool.query(
     `SELECT count(*) FILTER (WHERE stage IN ('new', 'not-contacted'))::int AS uncontacted,
             count(*) FILTER (WHERE stage = 'follow-up')::int AS in_follow_up,
-            count(*) FILTER (WHERE created_at < now() - interval '48 hours' AND stage NOT IN ('converted', 'lost'))::int AS older_than_48h,
-            count(*) FILTER (WHERE created_at < now() - interval '7 days' AND stage NOT IN ('converted', 'lost'))::int AS older_than_7d
+            count(*) FILTER (WHERE created_at < now() - interval '48 hours' AND stage NOT IN ('converted', 'disbursal', 'active-funded', 'lost'))::int AS older_than_48h,
+            count(*) FILTER (WHERE created_at < now() - interval '7 days' AND stage NOT IN ('converted', 'disbursal', 'active-funded', 'lost'))::int AS older_than_7d
        FROM leads
       WHERE team_id = ANY($1)`,
     [scope.teams]
@@ -219,7 +219,7 @@ export async function getRegionalOverview(scope: Scope, period: RmPeriod = 'mont
     region: {
       id: regionalScope.regionId,
       name: regionalScope.regionName,
-      vertical: 'wealth',
+      vertical: regionalScope.teams[0]?.vertical || (scope.verticals[0] ?? 'wealth'),
       teamsCount: regionalScope.teams.length,
       managersCount: regionalScope.managers.length,
       tlsCount: regionalScope.tlsCount,
@@ -338,8 +338,8 @@ export async function getManagerScorecard(scope: Scope, managerId: string, perio
   const target = targetRows[0] ? Number(targetRows[0].approved_parent_target) : 100;
 
   const { rows: leadMetrics } = await pool.query(
-    `SELECT count(*) FILTER (WHERE stage = 'converted')::int AS wins,
-            count(*) FILTER (WHERE stage IN ('new', 'not-contacted', 'contacted', 'follow-up', 'qualified'))::int AS open_pipeline,
+    `SELECT count(*) FILTER (WHERE stage IN ('converted', 'disbursal'))::int AS wins,
+            count(*) FILTER (WHERE stage IN ('new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'eligibility', 'documents', 'sanction'))::int AS open_pipeline,
             count(*)::int AS total_leads
        FROM leads
       WHERE team_id = ANY($1)`,
@@ -419,7 +419,9 @@ export async function getTerritoryCoverage(scope: Scope) {
 
   return {
     regionName: regionalScope.regionName,
-    subRegions: ['Karnataka South Hub', 'Tamil Nadu Metro Zone', 'Kerala Coastal Belt'],
+    subRegions: regionalScope.teams[0]?.vertical === 'banking'
+      ? ['Mumbai Commercial Hub', 'Gujarat Industrial Zone', 'Pune SME Belt']
+      : ['Karnataka South Hub', 'Tamil Nadu Metro Zone', 'Kerala Coastal Belt'],
     languageQueues: ['English', 'Hindi', 'Kannada', 'Tamil', 'Telugu'],
     teamStats: teamStats.map((t) => ({
       teamId: t.id,
@@ -742,7 +744,7 @@ export async function getRegionalCapacity(scope: Scope) {
   const { rows: teamCapacities } = await pool.query(
     `SELECT t.id, t.name,
             count(DISTINCT a.employee_id)::int AS active_callers,
-            count(l.id) FILTER (WHERE l.stage IN ('new', 'not-contacted', 'contacted', 'follow-up', 'qualified'))::int AS open_leads
+            count(l.id) FILTER (WHERE l.stage IN ('new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'eligibility', 'documents', 'sanction'))::int AS open_leads
        FROM teams t
   LEFT JOIN assignments a ON a.team_id = t.id AND a.role = 'SC' AND (a.effective_to IS NULL OR a.effective_to > now())
   LEFT JOIN leads l ON l.team_id = t.id
@@ -971,7 +973,7 @@ export async function resolveRegionalEscalation(scope: Scope, input: ResolveRegi
   assertRm(scope);
 
   // If this was an escalated commercial exception from MG-09
-  if (input.escalationId.startsWith('CE-')) {
+  if (input.escalationId.startsWith('CE-') || input.escalationId.startsWith('EXC-')) {
     const { rows: ceRows } = await pool.query(
       `UPDATE commercial_exceptions
           SET status = $1, decision_notes = $2, decided_at = now()
@@ -1116,7 +1118,15 @@ export async function generateRegionalReportPdf(scope: Scope, input: GenerateReg
 
     // Header & Brand Palette (#113F3D)
     doc.rect(40, 40, 515, 60).fill('#113F3D');
-    doc.fillColor('#FFFFFF').fontSize(18).text('FINVERSE WEALTH MANAGEMENT', 55, 52);
+    const brandTitle =
+      preview.scope.vertical === 'banking'
+        ? 'FINVERSE COMMERCIAL BANKING'
+        : preview.scope.vertical === 'markets'
+        ? 'FINVERSE MARKETS & SECURITIES'
+        : preview.scope.vertical === 'real-estate' || preview.scope.vertical === 'real_estate'
+        ? 'FINVERSE REAL ESTATE ADVISORY'
+        : 'FINVERSE WEALTH MANAGEMENT';
+    doc.fillColor('#FFFFFF').fontSize(18).text(brandTitle, 55, 52);
     doc.fontSize(12).fillColor('#DCEEEA').text('Regional Executive Performance & Governance Pack', 55, 75);
 
     doc.moveDown(4);

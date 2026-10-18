@@ -6,6 +6,8 @@ commands.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read the task packet (change set, files, risk focus), then these skills once:
 
 - `.agents/skills/security-review/SKILL.md` — validation, sessions, secrets,

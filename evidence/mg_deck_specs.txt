@@ -1,0 +1,423 @@
+=== SCREEN P135 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+135
+
+
+=== CONTRACT P136 ===
+MG / MANAGER OVERVIEW
+MG-01 Investigate performance across team leaders
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+136
+USER ACTION
+01
+Inspect target pace, ageing and backlog by TL.
+02
+Open a TL contribution and drill into permitted evidence.
+03
+Assign an intervention owner inside the Manager workspace.
+BEFORE IT CAN PROCEED
+No access to sibling Managers or other verticals. Team percentages must be recomputed from
+eligible totals.
+SYSTEM COMMIT
+Load descendant facts and current workload separately; preserve drill-down filters.
+REPORTING CONSEQUENCE
+Show numerator, denominator, cutoffs and data gaps for fair comparisons.
+IF IT CANNOT COMPLETE
+A low sample-size team displays its sample size; do not automatically rank it as best or worst.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P137 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+137
+
+
+=== CONTRACT P138 ===
+MG / TEAM LEADERS
+MG-02 Inspect a TL operating scorecard
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+138
+USER ACTION
+01
+Open the TL record from the authorised roster.
+02
+Review allocation, approvals, forecasts and coaching
+commitments.
+03
+Create a management action with an accountable owner.
+BEFORE IT CAN PROCEED
+View only permitted employee and sales fields. The TL personal interface is never opened or
+impersonated.
+SYSTEM COMMIT
+Join authorised TL assignments with team facts and review records.
+REPORTING CONSEQUENCE
+Keep team performance separate from any independently granted personal selling activity.
+IF IT CANNOT COMPLETE
+Historical teams moved outside scope expose only approved historical summaries.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P139 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+139
+
+
+=== CONTRACT P140 ===
+MG / CAPACITY & TRANSFERS
+MG-03 Approve a cross-team lead transfer
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+140
+USER ACTION
+01
+Inspect source and destination eligibility plus task impact.
+02
+Approve exact records or return for correction.
+03
+Review transfer completion and unresolved rows.
+BEFORE IT CAN PROCEED
+Both teams must be within the Manager scope. Do not change role assignments as part of a lead
+transfer.
+SYSTEM COMMIT
+Apply ownership/task changes atomically per record and notify both TLs.
+REPORTING CONSEQUENCE
+Preserve old activity attribution and flag transferred backlog for the new owners.
+IF IT CANNOT COMPLETE
+Out-of-scope destination routes to RM. A conflict at commit returns a record-specific failure.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P141 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+141
+
+
+=== CONTRACT P142 ===
+MG / CAPACITY & TRANSFERS
+MG-04 Build a capacity recovery plan
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+142
+USER ACTION
+01
+Compare due work with eligible available capacity.
+02
+Model permitted reallocation and required additional staff.
+03
+Approve the operational plan and assign deadlines.
+BEFORE IT CAN PROCEED
+Capacity uses approved availability, training and workload caps, not raw headcount.
+SYSTEM COMMIT
+Record plan version and tasks. Only confirmed assignments change live ownership.
+REPORTING CONSEQUENCE
+Measure queue age, utilisation and recovery milestones without resetting SLA clocks.
+IF IT CANNOT COMPLETE
+Hiring/role changes become HR/Admin requests. A scenario is clearly labelled until enacted.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P143 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+143
+
+
+=== CONTRACT P144 ===
+MG / TARGETS
+MG-05 Allocate Manager targets to TLs
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+144
+USER ACTION
+01
+Open the approved Manager target.
+02
+Allocate by TL and review total reconciliation.
+03
+Publish within authority or submit a target exception to RM.
+BEFORE IT CAN PROCEED
+Use the same metric, currency and period as the parent. Changes to locked targets require a new
+approved version.
+SYSTEM COMMIT
+Store parent-child allocations and notify affected TLs.
+REPORTING CONSEQUENCE
+Attainment and historical comparisons refer to the applicable version.
+IF IT CANNOT COMPLETE
+Unallocated remainder is visible and never silently distributed.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P145 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+145
+
+
+=== CONTRACT P146 ===
+MG / PIPELINE & FORECAST
+MG-06 Challenge and approve TL forecasts
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+146
+USER ACTION
+01
+Inspect changes since the prior submission.
+02
+Open supporting opportunities and challenge unsupported
+claims.
+03
+Accept a version or return specific corrections.
+BEFORE IT CAN PROCEED
+Forecast must use the approved expected-revenue basis. Returned forecasts stay separate from
+accepted totals.
+SYSTEM COMMIT
+Append review decision and consolidate accepted versions only.
+REPORTING CONSEQUENCE
+Measure forecast accuracy against the same period and basis after outcomes mature.
+IF IT CANNOT COMPLETE
+Late submissions remain flagged; no silent substitution with zero or the previous month.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P147 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+147
+
+
+=== CONTRACT P148 ===
+MG / PIPELINE & FORECAST
+MG-07 Submit the Manager forecast to RM
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+148
+USER ACTION
+01
+Review accepted team submissions and remaining gaps.
+02
+Add an explicit management adjustment with evidence if
+allowed.
+03
+Submit the versioned Manager forecast to RM.
+BEFORE IT CAN PROCEED
+Show bottom-up total and management adjustment separately. Prevent duplicate opportunities
+across teams.
+SYSTEM COMMIT
+Freeze submission, evidence set and assumptions; notify RM.
+REPORTING CONSEQUENCE
+Track forecast changes and eventual accuracy with the original version retained.
+IF IT CANNOT COMPLETE
+An unapproved override cannot enter the official forecast.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P149 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+149
+
+
+=== CONTRACT P150 ===
+MG / EXCEPTIONS
+MG-08 Resolve a repeated SLA failure
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+150
+USER ACTION
+01
+Review breach history and the TL recovery attempt.
+02
+Assign corrective actions, capacity changes or coaching.
+03
+Close only after evidence confirms recovery.
+BEFORE IT CAN PROCEED
+Closing the escalation does not erase the underlying breach. Contact suppression still applies.
+SYSTEM COMMIT
+Store decision, accountable TL, due dates and escalation to RM if unresolved.
+REPORTING CONSEQUENCE
+Show repeat rate, recovery time and overdue action counts.
+IF IT CANNOT COMPLETE
+If the cause is source quality or an outage, label it and route to the accountable service owner.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P151 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+151
+
+
+=== CONTRACT P152 ===
+MG / EXCEPTIONS
+MG-09 Approve a delegated commercial exception
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+152
+USER ACTION
+01
+Compare requested terms with approved product terms.
+02
+Approve within an explicit limit or escalate to authorised
+owner.
+03
+Return a versioned decision to the proposal workflow.
+BEFORE IT CAN PROCEED
+Unset limits mean no approval authority. Product eligibility and mandatory terms remain enforced.
+SYSTEM COMMIT
+Write approval to the exact proposal version and invalidate it if material terms change.
+REPORTING CONSEQUENCE
+Track exception volume and downstream verified commercial effect.
+IF IT CANNOT COMPLETE
+Finance or policy exceptions go to the relevant owner; Manager title does not authorise them
+automatically.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P153 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+153
+
+
+=== CONTRACT P154 ===
+MG / TEAM LEADERS
+MG-10 Review source quality and request remediation
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+154
+USER ACTION
+01
+Compare sources using consistent cohorts and observation
+windows.
+02
+Inspect authorised examples and data-quality reasons.
+03
+Create a source correction or routing-change request.
+BEFORE IT CAN PROCEED
+Sample sizes and source costs must be visible. Do not infer ROI without approved cost data.
+SYSTEM COMMIT
+Link source-quality issue to intake batches and campaign provenance.
+REPORTING CONSEQUENCE
+Separate invalid intake, failed contact and commercial losses.
+IF IT CANNOT COMPLETE
+Changes to source routing follow configuration approval; reports alone do not change allocation
+rules.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P155 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+155
+
+
+=== CONTRACT P156 ===
+MG / REVIEWS
+MG-11 Run a TL performance review
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+156
+USER ACTION
+01
+Prepare the snapshot and invite the TL reflection.
+02
+Record strengths, blockers, commitments and support
+needed.
+03
+Complete the review and monitor acknowledgement and
+actions.
+BEFORE IT CAN PROCEED
+Use only scoped evidence. Record disagreement and avoid replacing the historical report with
+current hierarchy totals.
+SYSTEM COMMIT
+Version review and distribute visible commitments to authorised participants.
+REPORTING CONSEQUENCE
+Track review cadence and action completion alongside operating results.
+IF IT CANNOT COMPLETE
+An unresolved metric dispute remains open and linked to the signed meeting version.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P157 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+157
+
+
+=== CONTRACT P158 ===
+MG / CAPACITY & TRANSFERS
+MG-12 Request employee transfers or promotions
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+158
+USER ACTION
+01
+Review role readiness and scope impact.
+02
+Submit the lifecycle request to HR and the required business
+approver.
+03
+Track Super Admin activation without editing the account
+yourself.
+BEFORE IT CAN PROCEED
+Request must preserve permanent identity and specify effective time, new reporting path and
+workload treatment.
+SYSTEM COMMIT
+Create a lifecycle workflow and block activation until required approvals/handoff checks are
+complete.
+REPORTING CONSEQUENCE
+Past performance remains attached to the old assignment. Future facts use the new assignment.
+IF IT CANNOT COMPLETE
+A rejected promotion does not modify permissions or expose the TL interface.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================
+
+=== SCREEN P159 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+159
+
+
+=== CONTRACT P160 ===
+MG / REPORTS & HELP
+MG-13 Publish the Manager meeting pack
+Manager / Assigned team leads / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+160
+USER ACTION
+01
+Select period, scope and approved snapshot.
+02
+Preview summary reconciliation and TL appendix.
+03
+Generate and distribute through the protected report centre.
+BEFORE IT CAN PROCEED
+Six period options share the same metric definitions. Appendices cannot widen scope.
+SYSTEM COMMIT
+Create audited PDF export and optional permission-checked recurring schedule.
+REPORTING CONSEQUENCE
+Include forecast version, target version, cutoff, exclusions and open action owners.
+IF IT CANNOT COMPLETE
+Missing provider data is flagged in the pack rather than portrayed as employee
+underperformance.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+==================================================

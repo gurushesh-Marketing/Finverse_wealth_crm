@@ -137,8 +137,13 @@ after(async () => {
   } catch {
     /* ignore cleanup errors */
   }
-  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   if (db) await db.end();
+  const { pool: apiPool } = await import('../src/repo/db');
+  await apiPool.end();
 });
 
 test('Security: Non-RM roles are forbidden from regional manager workspace', async () => {

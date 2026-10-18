@@ -81,9 +81,19 @@ export function Sidebar() {
       <div className="border-t border-sidebar-border px-4 py-3">
         <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Your scope</div>
         <div className="mt-1 text-xs text-muted-foreground">
-          Wealth · {ROLE_TITLES[session!.role] || session!.role} · {session!.employeeId}
+          {session!.role === 'SA' || session!.role === 'HR'
+            ? 'Company function · Explicit function grant'
+            : `${session!.verticalGrants.includes('real_estate') || session!.verticalGrants.includes('real-estate') ? 'Real Estate' : session!.verticalGrants.includes('markets') ? 'Markets' : session!.verticalGrants.includes('banking') ? 'Banking' : 'Wealth'} · ${ROLE_TITLES[session!.role] || session!.role} · ${session!.employeeId}`}
         </div>
-        <div className="mt-2 text-sm font-medium text-foreground">{session!.displayName}</div>
+        <div className="mt-2 text-sm font-medium text-foreground">
+          {session!.displayName}
+          {session!.role === 'SA' && (
+            <span className="block text-[11px] text-muted-foreground font-normal">Super Admin · {session!.employeeId}</span>
+          )}
+          {session!.role === 'HR' && (
+            <span className="block text-[11px] text-muted-foreground font-normal">People user · {session!.employeeId}</span>
+          )}
+        </div>
         <Button
           variant="ghost"
           size="sm"

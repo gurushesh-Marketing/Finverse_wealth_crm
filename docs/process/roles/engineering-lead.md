@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-engineering-lead.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and relevant architecture files.
 - Applicable installed skills: `.agents/skills/ponytail/SKILL.md` (laziest/simplest solution that works), `.agents/skills/diagnosing-bugs/SKILL.md` (defect root-cause analysis).
 - Absent skills: `codebase-design`, `domain-modeling`, `ponytail-review` (apply core role discipline; do not install skill packs).

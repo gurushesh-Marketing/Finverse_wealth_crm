@@ -30,7 +30,7 @@ function id(prefix: string): string {
 
 export function assertMg(scope: Scope): void {
   if (scope.role !== 'MG') {
-    throw forbidden('Wealth Manager workspace only.');
+    throw forbidden('Manager workspace only.');
   }
 }
 
@@ -102,9 +102,9 @@ export async function getManagerOverview(scope: Scope, period: MgPeriod = 'month
       // Leads under this TL's assigned teams
       const { rows: leadStats } = await pool.query(
         `SELECT count(*)::int AS total_leads,
-                count(*) FILTER (WHERE l.stage = 'converted')::int AS wins,
-                count(*) FILTER (WHERE l.stage NOT IN ('converted', 'lost'))::int AS open_backlog,
-                count(*) FILTER (WHERE l.updated_at < now() - interval '3 days' AND l.stage NOT IN ('converted', 'lost'))::int AS ageing_leads
+                count(*) FILTER (WHERE l.stage IN ('converted', 'disbursal'))::int AS wins,
+                count(*) FILTER (WHERE l.stage NOT IN ('converted', 'disbursal', 'lost'))::int AS open_backlog,
+                count(*) FILTER (WHERE l.updated_at < now() - interval '3 days' AND l.stage NOT IN ('converted', 'disbursal', 'lost'))::int AS ageing_leads
            FROM leads l
           WHERE l.team_id = ANY($1)`,
         [tl.team_ids]
@@ -185,7 +185,7 @@ export async function getManagerOverview(scope: Scope, period: MgPeriod = 'month
       label: 'Active Backlog',
       value: `${totalBacklog} leads`,
       comparison: `${totalLeads} total in scope`,
-      formula: 'count(leads where stage not in (converted, lost))',
+      formula: 'count(leads where stage not in (converted, disbursal, lost))',
     },
   ];
 
@@ -225,7 +225,7 @@ export async function getTlScorecard(scope: Scope, tlEmployeeId: string, period 
 
   // Scorecard metrics
   const { rows: leadCount } = await pool.query(
-    `SELECT count(*)::int AS total, count(*) FILTER (WHERE stage = 'converted')::int AS converted
+    `SELECT count(*)::int AS total, count(*) FILTER (WHERE stage IN ('converted', 'disbursal'))::int AS converted
        FROM leads WHERE team_id = ANY($1)`,
     [tl.team_ids]
   );
@@ -433,7 +433,7 @@ export async function getCapacityAnalysis(scope: Scope) {
       const availableCount = teamCallers.filter((a) => a.availability === 'available').length;
       const { rows: [leadStats] } = await pool.query(
         `SELECT count(*)::int AS backlog
-           FROM leads WHERE team_id = $1 AND stage NOT IN ('converted', 'lost')`,
+           FROM leads WHERE team_id = $1 AND stage NOT IN ('converted', 'disbursal', 'lost')`,
         [t.id]
       );
       const backlog = leadStats?.backlog ?? 0;
@@ -957,7 +957,7 @@ export async function getSourceQuality(scope: Scope, cohortPeriod = 'September')
             count(*) FILTER (WHERE l.phone IS NULL OR length(l.phone) < 8)::int AS invalid_intake,
             count(*) FILTER (WHERE l.stage = 'not-contacted')::int AS contact_failed,
             count(*) FILTER (WHERE l.stage = 'lost')::int AS commercial_loss,
-            count(*) FILTER (WHERE l.stage = 'converted')::int AS converted
+            count(*) FILTER (WHERE l.stage IN ('converted', 'disbursal'))::int AS converted
        FROM leads l
       WHERE l.team_id = ANY($1)
       GROUP BY l.source

@@ -1,0 +1,424 @@
+[
+  {
+    "id": "SA-01",
+    "role": "SA",
+    "module": "Employees & users",
+    "title": "Create an account and activation invitation",
+    "kind": "form",
+    "fields": [
+      [
+        "Employee",
+        "Verified identity"
+      ],
+      [
+        "Work email",
+        "Unique login"
+      ],
+      [
+        "Employment episode",
+        "Active or scheduled"
+      ],
+      [
+        "Proposed role",
+        "Approved request"
+      ],
+      [
+        "Invitation",
+        "Expiring activation"
+      ]
+    ],
+    "steps": [
+      "Open an approved joiner request and verify identity linkage.",
+      "Create the account and approved initial assignment.",
+      "Send an expiring activation invitation; inspect activation status."
+    ],
+    "validation": "Never reuse a leavers account for a new person. No shared password or self-chosen role at sign-in.",
+    "system": "Create user, employee link, grant and audit. User sets credentials through the approved activation flow.",
+    "report": "Admin metrics track provisioning turnaround and unresolved access requests.",
+    "exception": "Duplicate identity or absent placement blocks activation rather than creating broad default access."
+  },
+  {
+    "id": "SA-02",
+    "role": "SA",
+    "module": "Roles & scopes",
+    "title": "Grant a role with precise organisation scope",
+    "kind": "matrix",
+    "fields": [
+      [
+        "Employee",
+        "Meera"
+      ],
+      [
+        "Role",
+        "Team leader"
+      ],
+      [
+        "Allowed teams",
+        "Alpha and Beta"
+      ],
+      [
+        "Vertical",
+        "V1"
+      ],
+      [
+        "Validity",
+        "Start and optional expiry"
+      ],
+      [
+        "Approver",
+        "Approved request"
+      ]
+    ],
+    "steps": [
+      "Choose the approved role and exact organisation nodes.",
+      "Preview menus, record scope, approvals and export permissions.",
+      "Commit the effective-dated grant and notify the employee."
+    ],
+    "validation": "Role and scope are separate. Additional teams need explicit grants; permission preview must expose unintended unions.",
+    "system": "Version grant, invalidate policy caches and revoke obsolete sessions where required.",
+    "report": "Audit identifies who requested, approved and executed the grant.",
+    "exception": "Conflicting grants or a reporting cycle block publication. Administrative authority is not a routine sales override."
+  },
+  {
+    "id": "SA-03",
+    "role": "SA",
+    "module": "Roles & scopes",
+    "title": "Grant a second team or vertical in the same role",
+    "kind": "matrix",
+    "fields": [
+      [
+        "Employee",
+        "Meera"
+      ],
+      [
+        "Existing scope",
+        "TL / V1 Alpha"
+      ],
+      [
+        "Additional scope",
+        "TL / V2 Gamma"
+      ],
+      [
+        "Start/end",
+        "Approved dates"
+      ],
+      [
+        "View",
+        "Same TL interface"
+      ]
+    ],
+    "steps": [
+      "Inspect the approved additional scope and duration.",
+      "Preview union and per-team filters with duplicated membership checks.",
+      "Activate only the requested team/vertical scope."
+    ],
+    "validation": "No other role menu appears. Cross-vertical TL summaries label each vertical and deduplicate overlapping facts.",
+    "system": "Add a separate scope grant and refresh allowed filters, notifications and exports.",
+    "report": "Team reports remain partitioned; combined views use unique fact IDs.",
+    "exception": "Revoking the added grant removes its data and queued exports immediately while preserving permitted historical reports."
+  },
+  {
+    "id": "SA-04",
+    "role": "SA",
+    "module": "Organisation",
+    "title": "Create or restructure the reporting hierarchy",
+    "kind": "hierarchy",
+    "fields": [
+      [
+        "Vertical",
+        "V1"
+      ],
+      [
+        "Unit",
+        "South / Manager group"
+      ],
+      [
+        "Parent",
+        "Approved organisation node"
+      ],
+      [
+        "Leader",
+        "Eligible assignment"
+      ],
+      [
+        "Effective date",
+        "01 Oct"
+      ]
+    ],
+    "steps": [
+      "Create an approved unit or draft a parent/reporting change.",
+      "Preview descendants, supervisor paths and permission impact.",
+      "Publish the dated structure after required approval."
+    ],
+    "validation": "Block cycles, invalid cross-vertical parents and ambiguous primary performance paths. Executive finance reporting is a separate relationship.",
+    "system": "Version organisation edges and refresh scope indexes without rewriting old attribution snapshots.",
+    "report": "Historical reports retain event-time paths. New facts use the newly effective hierarchy.",
+    "exception": "Unresolved orphan teams or missing accountable owners block activation."
+  },
+  {
+    "id": "SA-05",
+    "role": "SA",
+    "module": "Lifecycle changes",
+    "title": "Activate a transfer or promotion",
+    "kind": "approval",
+    "fields": [
+      [
+        "Request",
+        "MOVE-081"
+      ],
+      [
+        "Effective time",
+        "01 Oct, 09:00"
+      ],
+      [
+        "Old grant",
+        "Close interval"
+      ],
+      [
+        "New grant",
+        "Approved role/scope"
+      ],
+      [
+        "Handoff",
+        "Confirmed"
+      ]
+    ],
+    "steps": [
+      "Review business approvals and the access/workload impact preview.",
+      "Confirm the dated role and handoff plan.",
+      "Activate; verify the employee now lands in the new role interface."
+    ],
+    "validation": "No automatic carryover of old live access. Historical personal summaries remain inside current-role reports.",
+    "system": "Close/open assignment intervals, revoke sessions, clear caches and trigger confirmed handoffs.",
+    "report": "New facts use the new assignment. Prior facts and PDFs retain their historical identity.",
+    "exception": "Failed activation transaction leaves the prior valid state intact and raises an Admin incident."
+  },
+  {
+    "id": "SA-06",
+    "role": "SA",
+    "module": "Lifecycle changes",
+    "title": "Disable access and complete offboarding",
+    "kind": "approval",
+    "fields": [
+      [
+        "Employee",
+        "Employee J"
+      ],
+      [
+        "Reason",
+        "Approved exit"
+      ],
+      [
+        "Effective time",
+        "30 Sep, 18:00"
+      ],
+      [
+        "Sessions",
+        "Revoke all"
+      ],
+      [
+        "Work handoff",
+        "Verified plan"
+      ]
+    ],
+    "steps": [
+      "Review the exit or urgent suspension authority.",
+      "Disable sign-in and revoke active sessions and integration grants.",
+      "Verify report schedules, approvals and work queues have accountable owners."
+    ],
+    "validation": "Account disable is immediate at the effective time. Preserve evidence and history under the approved retention policy.",
+    "system": "Revoke tokens, cancel inaccessible jobs, stop new routing and execute approved handoff tasks.",
+    "report": "Audit disable time, completion and residual-access checks.",
+    "exception": "If reassignment cannot finish immediately, access still ends and work enters a supervised holding queue."
+  },
+  {
+    "id": "SA-07",
+    "role": "SA",
+    "module": "Employees & users",
+    "title": "Reset account access safely",
+    "kind": "form",
+    "fields": [
+      [
+        "User",
+        "Verified employee"
+      ],
+      [
+        "Issue",
+        "Locked account / MFA recovery"
+      ],
+      [
+        "Identity check",
+        "Approved procedure"
+      ],
+      [
+        "Action",
+        "Reset invitation"
+      ],
+      [
+        "Sessions",
+        "Revoke"
+      ]
+    ],
+    "steps": [
+      "Verify the employees identity through the approved recovery process.",
+      "Issue a time-limited recovery action and revoke compromised sessions.",
+      "Review completion without viewing or setting a shared employee password."
+    ],
+    "validation": "Recovery never changes role scope or bypasses inactive employment. Privileged recovery requires stronger verification.",
+    "system": "Log recovery initiator, evidence reference, expiry and session revocation.",
+    "report": "Track failed recovery and repeated lockout incidents separately from sales performance.",
+    "exception": "Unverified requests remain blocked and route to the security owner."
+  },
+  {
+    "id": "SA-08",
+    "role": "SA",
+    "module": "Business configuration",
+    "title": "Publish an approved rule version",
+    "kind": "form",
+    "fields": [
+      [
+        "Configuration",
+        "Stage, SLA, routing or fiscal calendar"
+      ],
+      [
+        "Version",
+        "Approved next version"
+      ],
+      [
+        "Effective date",
+        "Scheduled"
+      ],
+      [
+        "Impact",
+        "Preview"
+      ],
+      [
+        "Approvals",
+        "Business owner"
+      ]
+    ],
+    "steps": [
+      "Load an approved change and validate the schema.",
+      "Preview affected screens, tasks, targets and reports.",
+      "Publish on schedule with a rollback plan for future configuration."
+    ],
+    "validation": "Admin executes approved rules; they do not invent accounting policy or approve their own financial benefit.",
+    "system": "Version configuration, store approval and activate workers with policy-version checks.",
+    "report": "Events retain the rule version used. Report definitions remain traceable across changes.",
+    "exception": "Incompatible or untested changes stay in draft. Migration of active opportunities requires separate approval."
+  },
+  {
+    "id": "SA-09",
+    "role": "SA",
+    "module": "Audit & incidents",
+    "title": "Investigate an access or data-change incident",
+    "kind": "list",
+    "fields": [
+      [
+        "Event type",
+        "Denied access / scope change"
+      ],
+      [
+        "Actor",
+        "Employee or service"
+      ],
+      [
+        "Period",
+        "Time window"
+      ],
+      [
+        "Correlation ID",
+        "Request reference"
+      ],
+      [
+        "Evidence",
+        "Restricted audit"
+      ]
+    ],
+    "steps": [
+      "Filter immutable audit records within incident authority.",
+      "Trace account, request, policy version and before/after changes.",
+      "Create an incident action or revoke access when authorised."
+    ],
+    "validation": "Audit access is restricted and itself logged. Logs must not expose passwords, tokens or unnecessary sensitive content.",
+    "system": "Record investigation and link evidence without altering original audit events.",
+    "report": "Report access anomalies, resolution time and repeated policy failures.",
+    "exception": "Exceptional data inspection requires a named, time-limited grant. No silent impersonation of employee dashboards."
+  },
+  {
+    "id": "SA-10",
+    "role": "SA",
+    "module": "System health",
+    "title": "Recover a failed integration or report job",
+    "kind": "list",
+    "fields": [
+      [
+        "Queue",
+        "Imports / reminders / exports"
+      ],
+      [
+        "Job",
+        "JOB-201"
+      ],
+      [
+        "State",
+        "Failed"
+      ],
+      [
+        "Failure",
+        "Provider unavailable"
+      ],
+      [
+        "Retry",
+        "Same idempotency key"
+      ]
+    ],
+    "steps": [
+      "Inspect permitted job metadata and failure cause.",
+      "Retry a safe failed job or route it to the service owner.",
+      "Verify success and reconcile duplicate-safe results."
+    ],
+    "validation": "Admin job access does not reveal customer payloads without a separate grant. Recheck user scope before replaying exports.",
+    "system": "Use bounded retries, dead-letter handling and unique event keys; log operator action.",
+    "report": "Show failed job age and last successful source watermark.",
+    "exception": "Expired permission or offboarded job owner blocks execution and requires an authorised replacement."
+  },
+  {
+    "id": "SA-11",
+    "role": "SA",
+    "module": "Roles & scopes",
+    "title": "Review expiring access and temporary delegation",
+    "kind": "matrix",
+    "fields": [
+      [
+        "Grant",
+        "Temporary approver / team scope"
+      ],
+      [
+        "Owner",
+        "Named employee"
+      ],
+      [
+        "Expiry",
+        "30 Sep"
+      ],
+      [
+        "Approvals",
+        "Required owner"
+      ],
+      [
+        "Decision",
+        "Expire / renew"
+      ]
+    ],
+    "steps": [
+      "Open upcoming expiries and inspect actual business need.",
+      "Request renewal approval or allow scheduled expiry.",
+      "Verify removal from menus, records, reports and background jobs."
+    ],
+    "validation": "Delegation is role/action/scope/time limited. It cannot exceed the delegators authority or bypass independent approval.",
+    "system": "Expire or renew the explicit grant and invalidate sessions/caches as required.",
+    "report": "Report overdue access reviews and temporary-grant duration.",
+    "exception": "No response means expiry, never indefinite renewal or automatic transfer of authority."
+  }
+]

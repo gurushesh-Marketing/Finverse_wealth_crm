@@ -1,28 +1,35 @@
 const net = require('net');
 const { execSync } = require('child_process');
 
-let wslIp = '127.0.0.1';
-try {
-  wslIp = execSync('wsl -d Ubuntu -e hostname -I', { encoding: 'utf8' }).trim().split(/\s+/)[0];
-} catch (e) {
-  console.error('Failed to get WSL IP:', e.message);
+function getWslIp() {
+  try {
+    const out = execSync('wsl -d Ubuntu -e hostname -I', { encoding: 'utf8', timeout: 3000 });
+    return out.trim().split(/\s+/)[0];
+  } catch (err) {
+    return '172.21.161.117';
+  }
 }
 
-console.log(`[pg-proxy] Forwarding 127.0.0.1:5433 -> ${wslIp}:5433`);
+const targetIp = getWslIp();
+console.log(`[pg-proxy] Target WSL IP: ${targetIp}`);
 
-const server = net.createServer((clientSocket) => {
-  const pgSocket = net.connect(5433, wslIp);
-  clientSocket.pipe(pgSocket);
-  pgSocket.pipe(clientSocket);
+const server = net.createServer((client) => {
+  const upstream = net.connect({ host: targetIp, port: 5433 });
+  client.pipe(upstream);
+  upstream.pipe(client);
 
-  clientSocket.on('error', () => {
-    pgSocket.destroy();
+  client.on('error', (err) => {
+    console.error('[pg-proxy] client socket error:', err.message);
+    upstream.destroy();
   });
-  pgSocket.on('error', () => {
-    clientSocket.destroy();
+  upstream.on('error', (err) => {
+    console.error('[pg-proxy] upstream pg socket error:', err.message);
+    client.destroy();
   });
+  client.on('close', () => upstream.destroy());
+  upstream.on('close', () => client.destroy());
 });
 
-server.listen(5433, '0.0.0.0', () => {
-  console.log('[pg-proxy] Listening on 0.0.0.0:5433');
+server.listen(5433, '127.0.0.1', () => {
+  console.log(`[pg-proxy] Forwarding 127.0.0.1:5433 -> ${targetIp}:5433`);
 });

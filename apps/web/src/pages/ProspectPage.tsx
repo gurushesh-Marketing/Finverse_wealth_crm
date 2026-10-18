@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useLocation } from 'react-router-dom';
 import type { CallRecord, LeadDetail, MessageRecord, ProposalRecord } from '@finverse/contracts';
 import { ApiError, api } from '../lib/api';
 import { wealthApi, type OutcomeRequestView } from '../lib/wealth-api';
@@ -74,8 +74,14 @@ export function ProspectPage() {
     await load();
   };
 
+  const location = useLocation();
+  const isBanking = location.pathname.startsWith('/banking') || lead?.vertical === 'banking';
+  const isMarkets = location.pathname.startsWith('/markets') || lead?.vertical === 'markets';
+  const isRealEstate = location.pathname.startsWith('/real-estate') || location.pathname.startsWith('/real_estate') || lead?.vertical === 'real_estate' || lead?.vertical === 'real-estate';
+  const basePath = isBanking ? '/banking' : isMarkets ? '/markets' : isRealEstate ? '/real-estate' : '/wealth';
+
   const backLink = (
-    <Link to="/wealth/prospects" className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
+    <Link to={`${basePath}/prospects`} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
       ← Back to Lead Inbox
     </Link>
   );
@@ -108,7 +114,7 @@ export function ProspectPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-muted-foreground">
-            <Link to="/wealth/prospects" className="hover:text-primary hover:underline">
+            <Link to={`${basePath}/prospects`} className="hover:text-primary hover:underline">
               ← Sales caller workspace
             </Link>
             <span>/</span>
@@ -118,7 +124,7 @@ export function ProspectPage() {
             Prospect details
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Wealth · assigned permission scope · illustrative records
+            {isBanking ? 'Commercial Banking' : isMarkets ? 'Markets & Securities' : isRealEstate ? 'Real Estate Advisory' : 'Wealth'} · assigned permission scope · illustrative records
           </p>
         </div>
 
@@ -394,7 +400,7 @@ export function ProspectPage() {
       ) : null}
 
       {tab === 'pipeline' ? (
-        <div role="tabpanel"><PipelineTab leadId={lead.id} stage={lead.stage} onSaved={(msg) => void refresh(msg)} /></div>
+        <div role="tabpanel"><PipelineTab leadId={lead.id} stage={lead.stage} vertical={lead.vertical} onSaved={(msg) => void refresh(msg)} /></div>
       ) : null}
 
       {tab === 'requests' ? (
@@ -493,15 +499,89 @@ export function ProspectPage() {
   );
 }
 
-function PipelineTab({ leadId, stage, onSaved }: { leadId: string; stage: string; onSaved: (msg: string) => void }) {
+function PipelineTab({
+  leadId,
+  stage,
+  vertical,
+  onSaved,
+}: {
+  leadId: string;
+  stage: string;
+  vertical?: string;
+  onSaved: (msg: string) => void;
+}) {
   const s = useSubmit();
+  const isBanking = vertical === 'banking';
+  const isMarkets = vertical === 'markets';
+  const isRealEstate = vertical === 'real-estate' || vertical === 'real_estate';
+
+  const defaultProduct = isBanking
+    ? 'Corporate Term Loan'
+    : isMarkets
+    ? 'Equity Delivery & Intraday'
+    : isRealEstate
+    ? 'Luxury Residential Mandate'
+    : 'V1 Wealth Portfolio';
+
+  const stageOptions = isBanking
+    ? ['eligibility', 'documents', 'sanction']
+    : isMarkets
+    ? ['kyc', 'risk-profile', 'demat-opened']
+    : isRealEstate
+    ? ['requirement', 'site-visit', 'booking']
+    : ['not-contacted', 'contacted', 'follow-up', 'qualified'];
+
+  const defaultMoveStage = isBanking ? 'eligibility' : isMarkets ? 'kyc' : isRealEstate ? 'requirement' : 'follow-up';
+
   const [proposals, setProposals] = useState<ProposalRecord[]>([]);
-  const [qual, setQual] = useState({ need: '', product: 'V1 Wealth Portfolio', expectedValue: 0, currency: 'INR', timeHorizon: '30 days', checklist: { riskProfile: false }, nextStep: 'Prepare proposal' });
-  const [move, setMove] = useState({ toStage: 'follow-up', reason: '' });
-  const [proposal, setProposal] = useState({ product: 'V1 Wealth Portfolio', templateVersion: 'tpl-v1', terms: '', validUntil: '2026-10-31', recipient: '' });
-  const [conversion, setConversion] = useState({ winMilestone: '', milestoneDate: '', value: 0, currency: 'INR', evidenceRef: '', credit: 100 });
-  const [loss, setLoss] = useState({ reason: 'Not interested', explanation: '', futureContact: '' });
-  const [reopen, setReopen] = useState({ reason: '', newEvidence: '', requestedNextStage: 'contacted', nextAction: '' });
+  const [qual, setQual] = useState({
+    need: '',
+    product: defaultProduct,
+    expectedValue: 0,
+    currency: 'INR',
+    timeHorizon: '30 days',
+    checklist: { riskProfile: false },
+    nextStep: isBanking
+      ? 'Request credit documents'
+      : isMarkets
+      ? 'Complete SEBI CKYC & risk disclosure'
+      : isRealEstate
+      ? 'Schedule property site visit'
+      : 'Prepare proposal',
+  });
+  const [move, setMove] = useState({ toStage: defaultMoveStage, reason: '' });
+  const [proposal, setProposal] = useState({
+    product: defaultProduct,
+    templateVersion: isBanking ? 'sanction-v1' : isMarkets ? 'demat-tariff-v1' : isRealEstate ? 'allotment-v1' : 'tpl-v1',
+    terms: '',
+    validUntil: '2026-10-31',
+    recipient: '',
+  });
+  const [conversion, setConversion] = useState({
+    winMilestone: isBanking
+      ? 'Sanction approved and initial loan facility disbursed'
+      : isMarkets
+      ? 'Demat account funded and initial trade executed'
+      : isRealEstate
+      ? 'Sale agreement registered and booking milestone cleared'
+      : 'Investment mandate executed',
+    milestoneDate: '',
+    value: 0,
+    currency: 'INR',
+    evidenceRef: '',
+    credit: 100,
+  });
+  const [loss, setLoss] = useState({
+    reason: isBanking ? 'Credit rejected' : isMarkets ? 'KYC rejected / CKYC mismatch' : isRealEstate ? 'Budget mismatch' : 'Not interested',
+    explanation: '',
+    futureContact: '',
+  });
+  const [reopen, setReopen] = useState({
+    reason: '',
+    newEvidence: '',
+    requestedNextStage: isBanking ? 'eligibility' : isMarkets ? 'kyc' : isRealEstate ? 'requirement' : 'contacted',
+    nextAction: '',
+  });
 
   useEffect(() => {
     void wealthApi.proposals(leadId).then((r) => setProposals(r.proposals)).catch(() => undefined);
@@ -518,7 +598,7 @@ function PipelineTab({ leadId, stage, onSaved }: { leadId: string; stage: string
             <Textarea id="q-need" rows={2} value={qual.need} onChange={(e) => setQual({ ...qual, need: e.target.value })} />
           </FormRow>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <FormRow label="Expected value (estimate, not revenue)" htmlFor="q-val">
+            <FormRow label="Expected facility / investment value" htmlFor="q-val">
               <Input id="q-val" type="number" value={qual.expectedValue} onChange={(e) => setQual({ ...qual, expectedValue: Number(e.target.value) })} />
             </FormRow>
             <FormRow label="Time horizon" htmlFor="q-hor">
@@ -530,24 +610,24 @@ function PipelineTab({ leadId, stage, onSaved }: { leadId: string; stage: string
           </div>
           <BusyButton size="sm" busy={s.busy} onClick={() => void s.run(async () => {
             const r = await wealthApi.qualification(leadId, qual);
-            onSaved(`Qualification saved (checklist wealth-fit-v1). Recommended next: ${r.recommendedNextStep}`);
+            onSaved(`Qualification saved (checklist ${isBanking ? 'banking-fit-v1' : isMarkets ? 'markets-fit-v1' : isRealEstate ? 'real-estate-fit-v1' : 'wealth-fit-v1'}). Recommended next: ${r.recommendedNextStep}`);
           })}>Save qualification</BusyButton>
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>Move in pipeline (SC-16) — current: {stage}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Move in pipeline (SC-16) — current: {label(stage)}</CardTitle></CardHeader>
         <CardContent>
           <FormRow label="Requested stage" htmlFor="mv-stage" error={s.errors.toStage?.[0]}>
             <Select id="mv-stage" value={move.toStage} onChange={(e) => setMove({ ...move, toStage: e.target.value })}>
-              {['not-contacted', 'contacted', 'follow-up', 'qualified'].map((x) => <option key={x} value={x}>{x}</option>)}
+              {stageOptions.map((x) => <option key={x} value={x}>{label(x)}</option>)}
             </Select>
           </FormRow>
           <FormRow label="Reason" htmlFor="mv-reason" error={s.errors.reason?.[0]}>
             <Input id="mv-reason" value={move.reason} onChange={(e) => setMove({ ...move, reason: e.target.value })} />
           </FormRow>
           <BusyButton size="sm" busy={s.busy} onClick={() => void s.run(async () => {
-            await wealthApi.moveStage(leadId, { toStage: move.toStage as 'follow-up', reason: move.reason });
-            onSaved(`Stage moved to ${move.toStage}.`);
+            await wealthApi.moveStage(leadId, { toStage: move.toStage as never, reason: move.reason });
+            onSaved(`Stage moved to ${label(move.toStage)}.`);
           })}>Confirm move</BusyButton>
         </CardContent>
       </Card>
@@ -617,6 +697,18 @@ function PipelineTab({ leadId, stage, onSaved }: { leadId: string; stage: string
           </div>
           <div>
             <h4 className="mb-1 text-sm font-semibold">Mark lost (SC-21)</h4>
+            <FormRow label="Loss reason" htmlFor="l-reason" error={s.errors.reason?.[0]}>
+              <Select id="l-reason" value={loss.reason} onChange={(e) => setLoss({ ...loss, reason: e.target.value })}>
+                {(isBanking
+                  ? ['Credit rejected', 'CIBIL / score below threshold', 'Insufficient collateral', 'Pricing / interest rate', 'Customer dropped facility', 'Not interested', 'Duplicate']
+                  : isMarkets
+                  ? ['KYC rejected / CKYC mismatch', 'SEBI risk criteria not met', 'PAN/Aadhaar verification failed', 'Trading terms unacceptable', 'Customer dropped trading account', 'Not interested', 'Duplicate']
+                  : isRealEstate
+                  ? ['Budget mismatch', 'Micro-market preference change', 'Unit / inventory unavailable', 'Financing loan rejected', 'Customer dropped property purchase', 'Not interested', 'Duplicate']
+                  : ['Not interested', 'Price', 'Competitor', 'No response', 'Not eligible', 'Invalid data', 'Duplicate']
+                ).map((r) => <option key={r} value={r}>{r}</option>)}
+              </Select>
+            </FormRow>
             <FormRow label="Explanation" htmlFor="l-exp" error={s.errors.explanation?.[0]}>
               <Input id="l-exp" value={loss.explanation} onChange={(e) => setLoss({ ...loss, explanation: e.target.value })} />
             </FormRow>

@@ -128,5 +128,77 @@ export function authRouter(secureCookies: boolean): Router {
     }
   });
 
+  // SA-01: User-Facing Token Consumption (Account Activation)
+  router.post('/activate', async (req, res, next) => {
+    try {
+      const { token, password } = req.body ?? {};
+      if (!token || typeof token !== 'string') {
+        res.status(422).json(errorBody('VALIDATION_FAILED', 'Activation token is required.'));
+        return;
+      }
+      if (!password || typeof password !== 'string' || password.length < 8) {
+        res.status(422).json(errorBody('VALIDATION_FAILED', 'Password must be at least 8 characters.'));
+        return;
+      }
+      const { consumeActivationToken } = await import('../repo/superadmin');
+      const result = await consumeActivationToken({ token: token.trim(), password });
+      res.status(200).json({ data: result });
+    } catch (err: any) {
+      const msg = err?.message || 'Activation failed';
+      if (
+        msg.startsWith('INVALID_TOKEN') ||
+        msg.startsWith('TOKEN_ALREADY_USED') ||
+        msg.startsWith('TOKEN_EXPIRED') ||
+        msg.startsWith('ACCOUNT_INACTIVE')
+      ) {
+        res.status(422).json(errorBody('VALIDATION_FAILED', msg));
+        return;
+      }
+      next(err);
+    }
+  });
+
+  // SA-07: User-Facing Token Consumption (Password Recovery)
+  router.post('/reset-password', async (req, res, next) => {
+    try {
+      const { token, password } = req.body ?? {};
+      if (!token || typeof token !== 'string') {
+        res.status(422).json(errorBody('VALIDATION_FAILED', 'Recovery token is required.'));
+        return;
+      }
+      if (!password || typeof password !== 'string' || password.length < 8) {
+        res.status(422).json(errorBody('VALIDATION_FAILED', 'Password must be at least 8 characters.'));
+        return;
+      }
+      const { consumeAccountRecovery } = await import('../repo/superadmin');
+      const result = await consumeAccountRecovery({ token: token.trim(), password });
+      res.status(200).json({ data: result });
+    } catch (err: any) {
+      const msg = err?.message || 'Password reset failed';
+      if (
+        msg.startsWith('INVALID_TOKEN') ||
+        msg.startsWith('TOKEN_ALREADY_USED') ||
+        msg.startsWith('TOKEN_EXPIRED') ||
+        msg.startsWith('ACCOUNT_INACTIVE')
+      ) {
+        res.status(422).json(errorBody('VALIDATION_FAILED', msg));
+        return;
+      }
+      next(err);
+    }
+  });
+
+  // Demo Delivery Adapter Outbox Inspector (Local delivery, no external email service)
+  router.get('/local-delivery', async (req, res, next) => {
+    try {
+      const limit = Number(req.query.limit) || 20;
+      const { listLocalDeliveryOutbox } = await import('../repo/superadmin');
+      const data = await listLocalDeliveryOutbox(limit);
+      res.status(200).json({ data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

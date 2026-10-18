@@ -11,7 +11,7 @@ async function loginAsCfo(page: Page) {
 
 const CFO_ROUTES = [
   { path: '/cfo/overview', actionCode: 'CFO-01', indicator: 'Financial Balances & Cash Run-Rate' },
-  { path: '/cfo/recognition', actionCode: 'CFO-02', indicator: 'Revenue Recognition & Sales Handoffs' },
+  { path: '/cfo/recognition', actionCode: 'CFO-02', indicator: 'Revenue Recognition & Dual-Control Approvals' },
   { path: '/cfo/invoices', actionCode: 'CFO-04', indicator: 'Receivable Invoices & Ageing' },
   { path: '/cfo/payments', actionCode: 'CFO-05', indicator: 'Settled Receipts, Invoice Matching & Refunds' },
   { path: '/cfo/incentives', actionCode: 'CFO-12', indicator: 'Sales Commissions & Incentive Governance' },

@@ -64,6 +64,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  activate: (token: string, password: string) =>
+    request<{ data: any }>('/api/auth/activate', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    request<{ data: any }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+  localDelivery: (limit = 20) =>
+    request<{ data: any[] }>(`/api/auth/local-delivery?limit=${limit}`),
 };
 
 export type { WorkspaceSession };

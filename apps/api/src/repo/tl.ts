@@ -83,7 +83,7 @@ async function teamMembers(scope: Scope): Promise<TlMember[]> {
           WHERE l.owner_employee_id = ANY($1)
             AND l.vertical = ANY($2)
             AND l.team_id = ANY($3)
-            AND l.stage NOT IN ('converted', 'lost')
+            AND l.stage NOT IN ('converted', 'lost', 'disbursal', 'active-funded', 'registration')
          UNION ALL
          SELECT t.owner_employee_id, 'task', t.due_at < now()
            FROM lead_tasks t
@@ -139,9 +139,9 @@ export async function overview(scope: Scope, period: TlPeriod, comparison: strin
 
   const { rows: totals } = await pool.query(
     `SELECT
-       COUNT(*) FILTER (WHERE l.stage NOT IN ('converted', 'lost'))::int AS active_leads,
-       COUNT(*) FILTER (WHERE l.stage = 'converted' AND l.updated_at >= $${params.length + 1})::int AS wins,
-       COALESCE(SUM(q.expected_value) FILTER (WHERE l.stage NOT IN ('converted', 'lost')), 0)::float AS pipeline_value
+       COUNT(*) FILTER (WHERE l.stage NOT IN ('converted', 'lost', 'disbursal', 'active-funded', 'registration'))::int AS active_leads,
+       COUNT(*) FILTER (WHERE l.stage IN ('converted', 'disbursal', 'active-funded', 'registration') AND l.updated_at >= $${params.length + 1})::int AS wins,
+       COALESCE(SUM(q.expected_value) FILTER (WHERE l.stage NOT IN ('converted', 'lost', 'disbursal', 'active-funded', 'registration')), 0)::float AS pipeline_value
      FROM leads l
      LEFT JOIN LATERAL (
        SELECT q2.expected_value FROM qualifications q2 WHERE q2.lead_id = l.id
@@ -744,11 +744,14 @@ export async function listDecisions(scope: Scope) {
       ORDER BY en.created_at DESC LIMIT 20`,
     params
   );
+  const requests = rows.map((r: any) => ({
+    id: r.id, type: r.type, leadId: r.lead_id, leadName: r.lead_name,
+    submitterName: r.submitter_name ?? '—', payload: r.payload, createdAt: r.created_at,
+  }));
   return {
-    requests: rows.map((r: any) => ({
-      id: r.id, type: r.type, leadId: r.lead_id, leadName: r.lead_name,
-      submitterName: r.submitter_name ?? '—', payload: r.payload, createdAt: r.created_at,
-    })),
+    requests,
+    conversions: requests.filter((r) => r.type === 'conversion'),
+    reopens: requests.filter((r) => r.type === 'reopen'),
     duplicates: dups.map((d: any) => ({
       enquiryId: d.id, displayName: d.display_name, phone: d.phone,
       duplicateOf: d.duplicate_of, originalName: d.original_name ?? '—',
@@ -1218,7 +1221,7 @@ export async function completeOneToOne(scope: Scope, reviewId: string, input: {
       throw notFound();
     }
     const { rows: leads } = await client.query(
-      `SELECT id FROM leads WHERE owner_employee_id = $1 AND team_id = ANY($2) AND stage NOT IN ('converted', 'lost') ORDER BY created_at LIMIT 1`,
+      `SELECT id FROM leads WHERE owner_employee_id = $1 AND team_id = ANY($2) AND stage NOT IN ('converted', 'lost', 'disbursal', 'active-funded', 'registration') ORDER BY created_at LIMIT 1`,
       [review.employee_id, scope.teams]
     );
     await client.query(
@@ -1404,7 +1407,7 @@ export async function createTeamPack(scope: Scope, input: { teamIds: string[]; p
   const params: unknown[] = [teamIds];
   const { rows: totals } = await pool.query(
     `SELECT COUNT(*)::int AS active_leads,
-            COUNT(*) FILTER (WHERE stage = 'converted')::int AS wins,
+            COUNT(*) FILTER (WHERE stage IN ('converted', 'disbursal', 'active-funded', 'registration'))::int AS wins,
             COUNT(*) FILTER (WHERE stage = 'lost')::int AS losses
        FROM leads WHERE team_id = ANY($1) AND vertical = ANY($2)`,
     [teamIds, scope.verticals]

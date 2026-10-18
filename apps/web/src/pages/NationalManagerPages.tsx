@@ -1,5 +1,74 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useSession } from '../lib/session';
 import { nationalApi } from '../lib/national-api';
+
+function useVerticalInfo() {
+  const { session } = useSession();
+  const isBanking = session?.verticalGrants?.includes('banking') ?? false;
+  const isMarkets = session?.verticalGrants?.includes('markets') ?? false;
+  const isRealEstate = (session?.verticalGrants?.includes('real-estate') || session?.verticalGrants?.includes('real_estate')) ?? false;
+  return {
+    isBanking,
+    isMarkets,
+    isRealEstate,
+    verticalName: isBanking
+      ? 'Commercial Banking'
+      : isMarkets
+      ? 'Markets & Securities'
+      : isRealEstate
+      ? 'Real Estate Advisory'
+      : 'Wealth',
+    verticalScopeLabel: isBanking
+      ? 'Banking'
+      : isMarkets
+      ? 'Markets'
+      : isRealEstate
+      ? 'Real Estate'
+      : 'Wealth',
+    defaultTeamId: isBanking
+      ? 'TEAM-BANKING-ALPHA'
+      : isMarkets
+      ? 'TEAM-MARKETS-ALPHA'
+      : isRealEstate
+      ? 'TEAM-REALESTATE-ALPHA'
+      : 'TEAM-WEALTH-ALPHA',
+    defaultTeamName: isBanking
+      ? 'Banking Alpha'
+      : isMarkets
+      ? 'Markets Alpha'
+      : isRealEstate
+      ? 'Real Estate Alpha'
+      : 'Wealth Alpha',
+    defaultOwnerId: isBanking
+      ? 'EMP-004'
+      : isMarkets
+      ? 'EMP-021'
+      : isRealEstate
+      ? 'EMP-026'
+      : 'EMP-001',
+    defaultOwnerName: isBanking
+      ? 'Dev Kapoor (EMP-004)'
+      : isMarkets
+      ? 'Kabir Joshi (EMP-021)'
+      : isRealEstate
+      ? 'Sameer Kulkarni (EMP-026)'
+      : 'Asha Rao (EMP-001)',
+    defaultProduct: isBanking
+      ? 'V1 Commercial Term Loan'
+      : isMarkets
+      ? 'Equity Delivery & Intraday'
+      : isRealEstate
+      ? 'Luxury Residential Mandate'
+      : 'V1 Wealth Portfolio',
+    affectedProducts: isBanking
+      ? ['V1 Commercial Term Loan', 'V1 Current Account']
+      : isMarkets
+      ? ['Equity Delivery & Intraday', 'F&O Derivatives']
+      : isRealEstate
+      ? ['Luxury Residential Mandate', 'Commercial Office Space']
+      : ['V1 Wealth Portfolio'],
+  };
+}
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -222,11 +291,13 @@ export function NationalOverviewPage() {
     }, 'Directive marked completed.');
   };
 
+  const { verticalScopeLabel, verticalName } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Inspect national vertical performance"
-        subtitle="NM-01 / VERTICAL OVERVIEW · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-01 / VERTICAL OVERVIEW · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onChange={(e) => setPeriod(e.target.value as NmPeriod)} className="w-40 text-xs">
@@ -279,11 +350,11 @@ export function NationalOverviewPage() {
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 rounded-md border border-border/40 bg-muted/20 p-3 text-xs">
                 <div>
                   <p className="text-muted-foreground text-[11px]">Region</p>
-                  <p className="font-semibold text-foreground">All (South &amp; West)</p>
+                  <p className="font-semibold text-foreground">All Regions</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Vertical</p>
-                  <p className="font-semibold text-foreground">Wealth</p>
+                  <p className="font-semibold text-foreground">{verticalName}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Period</p>
@@ -508,11 +579,13 @@ export function NationalRegionsPage() {
   const loadComparisons = useCallback(() => nationalApi.getComparisons(period), [period]);
   const [data, load, { loading, initialLoading, error, clearError }] = useLoad(loadComparisons);
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Compare regions and open an RM scorecard"
-        subtitle="NM-02 / REGIONS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-02 / REGIONS · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onChange={(e) => setPeriod(e.target.value)} className="w-36 text-xs">
@@ -681,11 +754,13 @@ export function NationalPlanPage() {
     }, publish ? 'National plan published and distributed to Regional Managers.' : 'National draft plan saved.');
   };
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Allocate the national target to regions"
-        subtitle="NM-03 / NATIONAL PLAN · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-03 / NATIONAL PLAN · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -825,13 +900,14 @@ export function NationalEconomicsPage() {
   const loadEconomics = useCallback(() => nationalApi.getEconomics(period), [period]);
   const [data, load, { loading, initialLoading, error, clearError }] = useLoad(loadEconomics);
 
+  const { verticalScopeLabel } = useVerticalInfo();
   const economics = data?.economics;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Review product and source economics"
-        subtitle="NM-04 / PRODUCT & SOURCES · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-04 / PRODUCT & SOURCES · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -993,7 +1069,7 @@ export function NationalProductRulesPage() {
         proposedVersion,
         reason: reason.trim(),
         effectiveDate,
-        affectedProducts: ['V1 Wealth Portfolio'],
+        affectedProducts,
         previewImpact: previewImpact.trim(),
       });
       setDrawerOpen(false);
@@ -1004,11 +1080,13 @@ export function NationalProductRulesPage() {
     }, 'Rule modification proposal submitted for executive review.');
   };
 
+  const { verticalScopeLabel, affectedProducts } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Propose pipeline or product rule changes"
-        subtitle="NM-05 / PRODUCT & SOURCES · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-05 / PRODUCT & SOURCES · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -1198,11 +1276,13 @@ export function NationalForecastPage() {
     }, submitToExecs ? 'National forecast frozen and submitted to CEO & CFO.' : 'Forecast draft saved.');
   };
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Submit the national forecast"
-        subtitle="NM-06 / PIPELINE & FORECAST · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-06 / PIPELINE & FORECAST · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onChange={(e) => setPeriod(e.target.value)} className="w-36 text-xs">
@@ -1405,11 +1485,13 @@ export function NationalTransfersPage() {
     }, `Transfer request ${decision}.`);
   };
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Approve a cross-region work transfer"
-        subtitle="NM-07 / EXCEPTIONS & REFERRALS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-07 / EXCEPTIONS & REFERRALS · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -1648,22 +1730,24 @@ export function NationalReferralsPage() {
 
   const selectedReferral = referrals?.find((r) => r.id === selectedReferralId) || referrals?.[0] || null;
 
+  const { verticalScopeLabel, defaultTeamId, defaultTeamName, defaultOwnerId, defaultOwnerName } = useVerticalInfo();
+
   const handleDecision = async (referralId: string, decision: 'accepted' | 'declined') => {
     await s.run(async () => {
       await nationalApi.decideReferral(referralId, {
         decision,
-        targetTeamId: 'TEAM-WEALTH-ALPHA',
-        targetOwnerEmployeeId: 'EMP-001',
+        targetTeamId: defaultTeamId,
+        targetOwnerEmployeeId: defaultOwnerId,
       });
       load();
-    }, `Referral ${decision === 'accepted' ? 'accepted and added to Wealth intake queue' : 'declined'}.`);
+    }, `Referral ${decision === 'accepted' ? `accepted and added to ${verticalScopeLabel} intake queue` : 'declined'}.`);
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Accept or decline a cross-vertical referral"
-        subtitle="NM-08 / EXCEPTIONS & REFERRALS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-08 / EXCEPTIONS & REFERRALS · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -1709,11 +1793,11 @@ export function NationalReferralsPage() {
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Sources</p>
-                  <p className="font-semibold text-foreground">Banking &amp; Real Estate</p>
+                  <p className="font-semibold text-foreground">Other Verticals</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Receiving Authority</p>
-                  <p className="font-semibold text-foreground">Wealth NM</p>
+                  <p className="font-semibold text-foreground">{verticalScopeLabel} NM</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Isolation</p>
@@ -1759,16 +1843,16 @@ export function NationalReferralsPage() {
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">RECEIVING AUTHORITY &amp; QUEUE</p>
                     <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                      Acceptance creates an authentic Wealth lead in Wealth Alpha intake queue with an immediate 2-hour voice outreach task. Provenance is maintained without granting the sending vertical access to Wealth customer records.
+                      Acceptance creates an authentic {verticalScopeLabel} lead in {defaultTeamName} intake queue with an immediate 2-hour voice outreach task. Provenance is maintained without granting the sending vertical access to customer records.
                     </p>
                     <div className="mt-4 space-y-2 border-t border-border/30 pt-3 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Target Team:</span>
-                        <strong className="text-foreground">Wealth Alpha</strong>
+                        <strong className="text-foreground">{defaultTeamName}</strong>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Assigned Caller:</span>
-                        <strong className="text-foreground">Asha Rao (EMP-001)</strong>
+                        <strong className="text-foreground">{defaultOwnerName}</strong>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Status:</span>
@@ -1786,7 +1870,7 @@ export function NationalReferralsPage() {
                           Decline
                         </Button>
                         <Button size="sm" onClick={() => handleDecision(selectedReferral.id, 'accepted')} disabled={s.busy} className="bg-[#113F3D] text-white hover:bg-[#113F3D]/90">
-                          Accept into Wealth
+                          Accept into {verticalScopeLabel}
                         </Button>
                       </>
                     ) : (
@@ -1910,11 +1994,13 @@ export function NationalEscalationsPage() {
     }, 'Executive escalation marked resolved.');
   };
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Escalate a national commercial or finance issue"
-        subtitle="NM-09 / EXCEPTIONS & REFERRALS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-09 / EXCEPTIONS & REFERRALS · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -2136,11 +2222,13 @@ export function NationalReviewsPage() {
     }, 'Regional Manager review recorded.');
   };
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Run an RM performance review"
-        subtitle="NM-10 / REVIEWS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-10 / REVIEWS · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -2408,11 +2496,13 @@ export function NationalReportsPage() {
     }, 'Executive report schedule registered.');
   };
 
+  const { verticalScopeLabel } = useVerticalInfo();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Prepare the national executive pack"
-        subtitle="NM-11 / REPORTS & HELP · Wealth · assigned permission scope · illustrative records"
+        subtitle={`NM-11 / REPORTS & HELP · ${verticalScopeLabel} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => { loadPrev(); loadSched(); }} disabled={prevLoading || schedLoading}>

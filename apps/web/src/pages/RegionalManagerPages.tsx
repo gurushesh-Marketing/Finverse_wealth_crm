@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useSession } from '../lib/session';
 import { regionalApi } from '../lib/regional-api';
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -180,6 +181,7 @@ function DeckBottomBar({
 
 // ─── RM-01: Region Overview ───
 export function RegionalOverviewPage() {
+  const { session } = useSession();
   const [period, setPeriod] = useState<RmPeriod>('month-to-date');
   const loadOverview = useCallback(() => regionalApi.overview(period), [period]);
   const [data, load, { loading, initialLoading, error, clearError }] = useLoad(loadOverview);
@@ -202,7 +204,7 @@ export function RegionalOverviewPage() {
         sourceAction: 'RM-01',
         kind,
         subjectManagerEmployeeId: selectedManagerId,
-        ownerEmployeeId: 'EMP-008',
+        ownerEmployeeId: session?.employeeId || 'EMP-008',
         title: title.trim(),
         detail: detail.trim() || undefined,
         dueAt: new Date(dueAt).toISOString(),
@@ -219,7 +221,7 @@ export function RegionalOverviewPage() {
     <div className="space-y-6">
       <PageHeader
         title="Investigate regional gaps"
-        subtitle="RM-01 / REGION OVERVIEW · Wealth · assigned permission scope · illustrative records"
+        subtitle={`RM-01 / REGION OVERVIEW · ${data?.region?.vertical === 'banking' ? 'Commercial Banking' : data?.region?.vertical === 'markets' ? 'Markets & Securities' : (data?.region?.vertical === 'real-estate' || data?.region?.vertical === 'real_estate') ? 'Real Estate Advisory' : 'Wealth'} · assigned permission scope`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onChange={(e) => setPeriod(e.target.value as RmPeriod)} className="w-36 text-xs">
@@ -275,7 +277,7 @@ export function RegionalOverviewPage() {
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Vertical</p>
-                  <p className="font-semibold text-foreground">Wealth</p>
+                  <p className="font-semibold text-foreground capitalize">{data?.region?.vertical || 'Wealth'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Period</p>

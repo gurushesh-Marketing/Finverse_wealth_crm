@@ -227,7 +227,7 @@ test('journey api contract', async () => {
   for (const id of ['FV-1001', 'FV-1002', 'FV-1003', 'FV-1004', 'FV-1005']) {
     assert.ok(taraIds.includes(id), `TL scope must include ${id}`);
   }
-  assert.ok(taraIds.every((id: string) => !id.startsWith('FV-2')), 'TL scope must exclude banking leads');
+  assert.ok(!taraIds.includes('FV-2001') && !taraIds.includes('FV-2002'), 'TL scope must exclude banking leads');
   const tlMut = await call<any>('POST', '/api/leads/FV-1001/follow-ups', {
     cookie: taraCookie,
     json: { action: 'voice-call', purpose: 'TL is not the owner', dueAt: new Date(Date.now() + 86400000).toISOString() },

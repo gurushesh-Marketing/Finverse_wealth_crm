@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-product-manager.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and relevant action records in `docs/product/` (`action_catalogue_v2.json`, `FRONTEND_EXECUTION.md`).
 - Applicable installed skills: `.agents/skills/finverse-reporting-contract/SKILL.md` (when requirements touch KPIs or rollups).
 - Absent skills: `domain-modeling`, `grilling` (apply core role discipline; do not install skill packs).

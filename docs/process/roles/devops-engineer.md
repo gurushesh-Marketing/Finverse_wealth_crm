@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-devops-engineer.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and `docs/process/BUILD_LOG.md`.
 - Applicable installed skills: `.agents/skills/ponytail/SKILL.md` (lean, minimal tooling), `.agents/skills/diagnosing-bugs/SKILL.md` (environment and build troubleshooting).
 - Absent skills: none.

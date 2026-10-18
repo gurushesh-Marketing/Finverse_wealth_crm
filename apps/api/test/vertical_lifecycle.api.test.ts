@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Pool } from 'pg';
 import { createApp } from '../src/app';
 import { assertTestDatabaseGuard, env } from '../src/config';
+import { pool as apiPool } from '../src/repo/db';
 
 let server: Server;
 let BASE: string;
@@ -15,6 +16,9 @@ before(async () => {
   assertTestDatabaseGuard(env.DATABASE_URL);
   pool = new Pool({ connectionString: env.DATABASE_URL });
   await pool.query(`UPDATE reporting_periods SET status = 'open', lock_governed_writes = false WHERE id = 'PER-2026-Q1'`);
+  await pool.query(`DELETE FROM sales_finance_handoffs WHERE id NOT IN ('SFH-001', 'SFH-002')`);
+  await pool.query(`DELETE FROM finance_ledger_entries WHERE id LIKE 'LEDG-%' OR id LIKE 'CN-LEDG-%'`);
+  await pool.query(`DELETE FROM finance_reconciliations WHERE period_id = 'PER-2026-Q1'`);
   server = createApp().listen(0);
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const port = (server.address() as AddressInfo).port;
@@ -23,15 +27,22 @@ before(async () => {
 
 after(async () => {
   if (pool) {
-    await pool.query(`UPDATE reporting_periods SET status = 'open', lock_governed_writes = false WHERE id = 'PER-2026-Q1'`);
-    await pool.query(`DELETE FROM sales_finance_handoffs WHERE id NOT IN ('SFH-001', 'SFH-002')`);
-    await pool.query(`DELETE FROM finance_ledger_entries WHERE id LIKE 'LEDG-%'`);
-    await pool.query(`DELETE FROM finance_reconciliations WHERE period_id = 'PER-2026-Q1'`);
-    await pool.query(`UPDATE incentive_disputes SET status = 'open', resolution_amount = NULL, decision_notes = NULL, resolved_by_employee_id = NULL, resolved_at = NULL WHERE id = 'DISP-001'`);
-    await pool.query(`UPDATE sales_finance_handoffs SET review_status = 'pending_verification' WHERE id = 'SFH-001'`);
-    await pool.end();
+    try {
+      await pool.query(`UPDATE reporting_periods SET status = 'open', lock_governed_writes = false WHERE id = 'PER-2026-Q1'`);
+      await pool.query(`DELETE FROM sales_finance_handoffs WHERE id NOT IN ('SFH-001', 'SFH-002')`);
+      await pool.query(`DELETE FROM finance_ledger_entries WHERE id LIKE 'LEDG-%' OR id LIKE 'CN-LEDG-%'`);
+      await pool.query(`DELETE FROM finance_reconciliations WHERE period_id = 'PER-2026-Q1'`);
+      await pool.query(`UPDATE incentive_disputes SET status = 'open', resolution_amount = NULL, decision_notes = NULL, resolved_by_employee_id = NULL, resolved_at = NULL WHERE id = 'DISP-001'`);
+      await pool.query(`UPDATE sales_finance_handoffs SET review_status = 'pending_verification' WHERE id = 'SFH-001'`);
+    } finally {
+      await pool.end();
+    }
   }
-  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server) {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  await apiPool.end();
 });
 
 interface Session {
@@ -407,6 +418,7 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
   console.log('PASS: CEO-01..CEO-11 Operating picture, vertical comparison, target approval, and board pack PDF verified');
 
   console.log('--- 7. CHIEF FINANCIAL OFFICER (CFO-01..CFO-19) WORKFLOW ---');
+  try {
   // CFO-01 General Ledger Balances
   const glBal = await call('GET', '/cfo/overview?period=PER-2026-Q1', { cookie: ananya.cookie });
   assert.equal(glBal.status, 200);
@@ -523,6 +535,7 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
       certificationNotes: 'All controls certified and audited by CFO',
     },
   });
+  console.log('CERTIFY RESPONSE:', certify.status, certify.body);
   assert.equal(certify.status, 200);
   assert.ok(certify.body.period.certificationHash, 'Audit certification hash generated');
 
@@ -537,6 +550,10 @@ test('Comprehensive Finverse Wealth Vertical Cross-Role Lifecycle Journey', asyn
   assert.ok(cfoPdfDl.body.isPdf, 'CFO binary certified pack PDF returned');
   assert.ok(cfoPdfDl.body.byteLength > 1000, 'CFO PDF size > 1000 bytes');
   console.log('PASS: CFO-01..CFO-19 Overview, Sales handoffs, Revenue recognition, 3-way bridge freeze, Clawback reserve, Period close certification, and Certified PDF pack verified');
+  } catch (err) {
+    console.error('SECTION 7 ERROR:', err);
+    throw err;
+  }
 
 
   console.log('--- 8. AUTHORIZATION & STRICT ROLE ISOLATION VALIDATION ---');

@@ -70,6 +70,37 @@ import {
   CfoReportsPage,
   CfoPoliciesPage,
 } from './pages/CfoPages';
+import {
+  SuperadminOverviewPage,
+  SuperadminEmployeesPage,
+  SuperadminScopesPage,
+  SuperadminOrganisationPage,
+  SuperadminLifecyclePage,
+  SuperadminConfigurationPage,
+  SuperadminAuditPage,
+  SuperadminHealthPage,
+} from './pages/SuperadminPages';
+import {
+  HrOverviewPage,
+  HrJoinersPage,
+  HrMoversPage,
+  HrLeaversPage,
+  HrAvailabilityPage,
+  HrTrainingPage,
+  HrReportsPage,
+  HrRequestsPage,
+} from './pages/HrPages';
+import {
+  EnquiryIntakePage,
+  BatchUploadPage,
+  ValidationCorrectionPage,
+  DuplicateReviewPage,
+  PublishBatchPage,
+  SourceRegisterPage,
+  QualityReportsPage,
+} from './pages/DataEntryPages';
+import { ActivateAccountPage } from './pages/ActivateAccountPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { DeniedPanel, Splash } from './components/ui/states';
 
 function ProtectedLayout() {
@@ -81,6 +112,15 @@ function ProtectedLayout() {
   let routeAllowed = false;
   if (location.pathname === '/') {
     routeAllowed = true;
+  } else if (session.role === 'DE') {
+    // DE stays strictly within the data-entry workspace (/data-entry/*)
+    routeAllowed = location.pathname.startsWith('/data-entry');
+  } else if (session.role === 'HR') {
+    // HR stays strictly within the human resources workspace (/hr/*)
+    routeAllowed = location.pathname.startsWith('/hr');
+  } else if (session.role === 'SA') {
+    // SA stays strictly within the administrative workspace (/superadmin/*)
+    routeAllowed = location.pathname.startsWith('/superadmin');
   } else if (session.role === 'CFO') {
     // CFO stays strictly within the finance workspace (/cfo/*)
     routeAllowed = location.pathname.startsWith('/cfo');
@@ -100,17 +140,26 @@ function ProtectedLayout() {
     // TL stays strictly within the management workspace (/management/*)
     routeAllowed = location.pathname.startsWith('/management');
   } else if (session.role === 'SC') {
-    // SC stays within granted vertical workspaces and is blocked from management/manager/regional/national/ceo/cfo workspaces
+    // SC stays within granted vertical workspaces and is blocked from management/manager/regional/national/ceo/cfo/superadmin/hr/data-entry workspaces
     routeAllowed =
+      !location.pathname.startsWith('/superadmin') &&
+      !location.pathname.startsWith('/hr') &&
+      !location.pathname.startsWith('/data-entry') &&
       !location.pathname.startsWith('/management') &&
       !location.pathname.startsWith('/manager') &&
       !location.pathname.startsWith('/regional') &&
       !location.pathname.startsWith('/national') &&
       !location.pathname.startsWith('/ceo') &&
       !location.pathname.startsWith('/cfo') &&
-      session.verticalGrants.some((v) => location.pathname.startsWith(`/${v}`));
+      session.verticalGrants.some((v) => {
+        const pathPrefix = v === 'real_estate' ? '/real-estate' : `/${v}`;
+        return location.pathname.startsWith(pathPrefix) || location.pathname.startsWith(`/${v}`);
+      });
   } else {
-    routeAllowed = session.verticalGrants.some((v) => location.pathname.startsWith(`/${v}`));
+    routeAllowed = session.verticalGrants.some((v) => {
+      const pathPrefix = v === 'real_estate' ? '/real-estate' : `/${v}`;
+      return location.pathname.startsWith(pathPrefix) || location.pathname.startsWith(`/${v}`);
+    });
   }
 
   return (
@@ -146,6 +195,8 @@ export function App() {
       <SessionProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/activate" element={<ActivateAccountPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<ProtectedLayout />}>
             <Route path="/" element={<Landing />} />
             <Route path="/wealth/dashboard" element={<MyDayPage />} />
@@ -224,8 +275,72 @@ export function App() {
             <Route path="/cfo/reports" element={<CfoReportsPage />} />
             <Route path="/cfo/policies" element={<CfoPoliciesPage />} />
 
+            {/* Super Admin Workspace (SA-01..SA-11) */}
+            <Route path="/superadmin/overview" element={<SuperadminOverviewPage />} />
+            <Route path="/superadmin/employees" element={<SuperadminEmployeesPage />} />
+            <Route path="/superadmin/scopes" element={<SuperadminScopesPage />} />
+            <Route path="/superadmin/organisation" element={<SuperadminOrganisationPage />} />
+            <Route path="/superadmin/lifecycle" element={<SuperadminLifecyclePage />} />
+            <Route path="/superadmin/configuration" element={<SuperadminConfigurationPage />} />
+            <Route path="/superadmin/audit" element={<SuperadminAuditPage />} />
+            <Route path="/superadmin/health" element={<SuperadminHealthPage />} />
+
+            {/* Human Resources Workspace (HR-01..HR-07) */}
+            <Route path="/hr/overview" element={<HrOverviewPage />} />
+            <Route path="/hr/joiners" element={<HrJoinersPage />} />
+            <Route path="/hr/movers" element={<HrMoversPage />} />
+            <Route path="/hr/leavers" element={<HrLeaversPage />} />
+            <Route path="/hr/availability" element={<HrAvailabilityPage />} />
+            <Route path="/hr/training" element={<HrTrainingPage />} />
+            <Route path="/hr/reports" element={<HrReportsPage />} />
+            <Route path="/hr/requests" element={<HrRequestsPage />} />
+
+            {/* Data Entry Workspace (DE-01..DE-07) */}
+            <Route path="/data-entry/intake" element={<EnquiryIntakePage />} />
+            <Route path="/data-entry/batches" element={<BatchUploadPage />} />
+            <Route path="/data-entry/validation" element={<ValidationCorrectionPage />} />
+            <Route path="/data-entry/duplicates" element={<DuplicateReviewPage />} />
+            <Route path="/data-entry/publish" element={<PublishBatchPage />} />
+            <Route path="/data-entry/sources" element={<SourceRegisterPage />} />
+            <Route path="/data-entry/reports" element={<QualityReportsPage />} />
+
+            {/* Commercial Banking Frontline Workspace (Deck P005, P036) */}
+            <Route path="/banking/dashboard" element={<MyDayPage />} />
+            <Route path="/banking/prospects" element={<LeadInboxPage />} />
+            <Route path="/banking/prospects/:id" element={<ProspectPage />} />
+            <Route path="/banking/activities" element={<ConversationsAreaPage />} />
+            <Route path="/banking/tasks" element={<TasksAreaPage />} />
+            <Route path="/banking/deals" element={<PipelineAreaPage />} />
+            <Route path="/banking/documents" element={<DocumentsAreaPage />} />
+            <Route path="/banking/reports" element={<PerformancePage />} />
+            <Route path="/banking/reviews" element={<ReviewsPage />} />
+
+            {/* Markets & Securities Frontline Workspace (Deck P005, P038) */}
+            <Route path="/markets/dashboard" element={<MyDayPage />} />
+            <Route path="/markets/prospects" element={<LeadInboxPage />} />
+            <Route path="/markets/prospects/:id" element={<ProspectPage />} />
+            <Route path="/markets/activities" element={<ConversationsAreaPage />} />
+            <Route path="/markets/tasks" element={<TasksAreaPage />} />
+            <Route path="/markets/deals" element={<PipelineAreaPage />} />
+            <Route path="/markets/documents" element={<DocumentsAreaPage />} />
+            <Route path="/markets/reports" element={<PerformancePage />} />
+            <Route path="/markets/reviews" element={<ReviewsPage />} />
+
+            {/* Real Estate Advisory Frontline Workspace (Deck P005) */}
+            <Route path="/real-estate/dashboard" element={<MyDayPage />} />
+            <Route path="/real-estate/prospects" element={<LeadInboxPage />} />
+            <Route path="/real-estate/prospects/:id" element={<ProspectPage />} />
+            <Route path="/real-estate/activities" element={<ConversationsAreaPage />} />
+            <Route path="/real-estate/tasks" element={<TasksAreaPage />} />
+            <Route path="/real-estate/deals" element={<PipelineAreaPage />} />
+            <Route path="/real-estate/documents" element={<DocumentsAreaPage />} />
+            <Route path="/real-estate/reports" element={<PerformancePage />} />
+            <Route path="/real-estate/reviews" element={<ReviewsPage />} />
+
             <Route path="/wealth/*" element={<PlaceholderPage />} />
             <Route path="/banking/*" element={<PlaceholderPage />} />
+            <Route path="/markets/*" element={<PlaceholderPage />} />
+            <Route path="/real-estate/*" element={<PlaceholderPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

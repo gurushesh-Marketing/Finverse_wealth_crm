@@ -68,7 +68,7 @@ export function createNationalRouter(): Router {
   // Role gate: only NM can access national manager endpoints
   router.use((req: AuthedRequest, res, next) => {
     if (req.auth?.session.role !== 'NM') {
-      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Wealth National Manager role required.' } });
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'National Manager role required.' } });
       return;
     }
     next();

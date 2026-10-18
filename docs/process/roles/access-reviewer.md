@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-access-reviewer.md` and `reviewer.md`
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the change set / task packet.
 - Applicable installed skills: `.agents/skills/finverse-access-contract/SKILL.md` (employee, role, vertical, team grant, effective-date boundaries), `.agents/skills/security-review/SKILL.md` (deny-by-default, mutation scope).
 - Absent skills: none.

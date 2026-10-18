@@ -311,6 +311,8 @@ export function CeoOperatingPage() {
                 <option value="all">All Divisions</option>
                 <option value="wealth">Wealth Management</option>
                 <option value="banking">Corporate Banking</option>
+                <option value="markets">Markets & Trading</option>
+                <option value="real-estate">Real Estate</option>
               </Select>
             </div>
             <Button size="sm" variant="outline" onClick={() => load()}>

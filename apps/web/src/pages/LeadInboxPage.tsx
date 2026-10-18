@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { EnquiryInput, LeadSummary, SavedView } from '@finverse/contracts';
 import { api, ApiError } from '../lib/api';
 import { wealthApi } from '../lib/wealth-api';
@@ -20,6 +20,33 @@ function fmt(iso: string | null): string {
 const EMPTY_FILTERS = { search: '', stage: '', due: '', source: '', product: '' };
 
 export function LeadInboxPage() {
+  const location = useLocation();
+  const isBanking = location.pathname.startsWith('/banking');
+  const isMarkets = location.pathname.startsWith('/markets');
+  const isRealEstate = location.pathname.startsWith('/real-estate') || location.pathname.startsWith('/real_estate');
+  const basePath = isBanking ? '/banking' : isMarkets ? '/markets' : isRealEstate ? '/real-estate' : '/wealth';
+  const stageOptions = isBanking
+    ? ['new', 'eligibility', 'documents', 'sanction', 'disbursal', 'contacted', 'lost']
+    : isMarkets
+    ? ['new', 'kyc', 'risk-profile', 'demat-opened', 'active-funded', 'contacted', 'lost']
+    : isRealEstate
+    ? ['new', 'requirement', 'site-visit', 'booking', 'registration', 'qualified', 'lost']
+    : ['new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'converted', 'lost'];
+  const productOptions = isBanking
+    ? ['Corporate Term Loan', 'V1 Current Account', 'Working Capital Facility', 'Trade Finance & Escrow']
+    : isMarkets
+    ? ['Equity Delivery & Intraday', 'F&O Derivatives', 'Direct Mutual Funds', 'Commodities & Currencies']
+    : isRealEstate
+    ? ['Luxury Residential Mandate', 'Commercial Office Space', 'Plotted Development & Villas', 'Retail High-Street Asset']
+    : ['V1 Wealth Portfolio', 'V1 Savings Plus', 'Investment advisory'];
+  const sourceOptions = isBanking
+    ? ['Branch Intake', 'Corporate Portal', 'Relationship Manager Referral', 'Website', 'Employee referral']
+    : isMarkets
+    ? ['Trading App Direct', 'Broking Partner Referral', 'Website', 'Employee referral', 'Sub-broker Network']
+    : isRealEstate
+    ? ['HNI Referral', 'Property Portal Direct', 'Developer Campaign', 'Website', 'Employee referral']
+    : ['Website', 'Campaign C12', 'Employee referral'];
+
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [leads, setLeads] = useState<LeadSummary[] | null>(null);
   const [views, setViews] = useState<SavedView[]>([]);
@@ -75,23 +102,26 @@ export function LeadInboxPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-muted-foreground">
-            <Link to="/wealth/dashboard" className="hover:text-primary hover:underline">
+            <Link to={`${basePath}/dashboard`} className="hover:text-primary hover:underline">
               ← Sales caller workspace
             </Link>
             <span>/</span>
             <span className="text-primary font-bold">SC-02 / LEAD INBOX</span>
           </div>
           <h1 className="mt-1 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Lead Inbox
+            {isBanking ? 'Commercial Credit & Borrower Inbox' : isMarkets ? 'Markets & Trading Lead Inbox' : isRealEstate ? 'Real Estate Advisory Lead Inbox' : 'Lead Inbox'}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Wealth · assigned permission scope · illustrative records
+            {isBanking ? 'Commercial Banking' : isMarkets ? 'Markets & Securities' : isRealEstate ? 'Real Estate Advisory' : 'Wealth'} · assigned permission scope · illustrative records
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="default" className="bg-[#DCEEEA] text-primary font-medium">
-            Scoped action
+          <Badge tone="default" className="bg-[#DCEEEA] text-primary font-medium inline-flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {isBanking ? 'Banking scope' : isMarkets ? 'Markets scope' : isRealEstate ? 'Real Estate scope' : 'Wealth scope'}
           </Badge>
           <Button
             size="sm"
@@ -163,7 +193,7 @@ export function LeadInboxPage() {
                 onChange={(e) => setFilters({ ...filters, stage: e.target.value })}
               >
                 <option value="">All stages</option>
-                {['new', 'not-contacted', 'contacted', 'follow-up', 'qualified', 'converted', 'lost'].map((s) => (
+                {stageOptions.map((s) => (
                   <option key={s} value={s}>{label(s)}</option>
                 ))}
               </Select>
@@ -189,9 +219,9 @@ export function LeadInboxPage() {
                 onChange={(e) => setFilters({ ...filters, product: e.target.value })}
               >
                 <option value="">All products</option>
-                <option value="V1 Wealth Portfolio">V1 Wealth Portfolio</option>
-                <option value="V1 Savings Plus">V1 Savings Plus</option>
-                <option value="Investment advisory">Investment advisory</option>
+                {productOptions.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </Select>
             </div>
             <div>
@@ -202,9 +232,9 @@ export function LeadInboxPage() {
                 onChange={(e) => setFilters({ ...filters, source: e.target.value })}
               >
                 <option value="">All sources</option>
-                <option value="Website">Website</option>
-                <option value="Campaign C12">Campaign C12</option>
-                <option value="Employee referral">Employee referral</option>
+                {sourceOptions.map((src) => (
+                  <option key={src} value={src}>{src}</option>
+                ))}
               </Select>
             </div>
           </div>
@@ -234,7 +264,7 @@ export function LeadInboxPage() {
                   <tr key={lead.id} className="transition-colors hover:bg-secondary/40">
                     <td className="px-4 py-3 font-mono text-xs font-semibold">
                       <Link
-                        to={`/wealth/prospects/${lead.id}`}
+                        to={`${basePath}/prospects/${lead.id}`}
                         className="text-primary underline-offset-4 hover:underline"
                       >
                         {lead.id}
@@ -247,7 +277,7 @@ export function LeadInboxPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge tone={lead.stage === 'follow-up' ? 'open' : 'default'}>
+                      <Badge tone={lead.stage === 'follow-up' || lead.stage === 'documents' || lead.stage === 'kyc' ? 'open' : lead.stage === 'converted' || lead.stage === 'disbursal' || lead.stage === 'active-funded' ? 'converted' : 'default'}>
                         {label(lead.stage)}
                       </Badge>
                     </td>
@@ -259,7 +289,7 @@ export function LeadInboxPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        to={`/wealth/prospects/${lead.id}`}
+                        to={`${basePath}/prospects/${lead.id}`}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
                       >
                         Open →
@@ -315,6 +345,8 @@ export function LeadInboxPage() {
       {/* SC-05 New Enquiry Dialog */}
       <NewEnquiryDialog
         open={enquiryOpen}
+        isBanking={isBanking}
+        isMarkets={isMarkets}
         onClose={() => setEnquiryOpen(false)}
         onSaved={(msg) => { setNote(msg); setEnquiryOpen(false); void load(); }}
       />
@@ -394,13 +426,46 @@ export function LeadInboxPage() {
   );
 }
 
-function NewEnquiryDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
+function NewEnquiryDialog({
+  open,
+  isBanking,
+  isMarkets,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  isBanking?: boolean;
+  isMarkets?: boolean;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+}) {
+  const defaultProduct = isBanking
+    ? 'V1 Current Account'
+    : isMarkets
+    ? 'Equity Delivery & Intraday'
+    : 'V1 Wealth Portfolio';
+  const defaultSource = isBanking
+    ? 'Branch Intake'
+    : isMarkets
+    ? 'Trading App Direct'
+    : 'Employee referral';
+  const productOpts = isBanking
+    ? ['Corporate Term Loan', 'V1 Current Account', 'Working Capital Facility', 'Trade Finance & Escrow']
+    : isMarkets
+    ? ['Equity Delivery & Intraday', 'F&O Derivatives', 'Direct Mutual Funds', 'Commodities & Currencies']
+    : ['V1 Wealth Portfolio', 'V1 Savings Plus', 'Investment advisory'];
+  const sourceOpts = isBanking
+    ? ['Branch Intake', 'Corporate Portal', 'Relationship Manager Referral', 'Website', 'Employee referral']
+    : isMarkets
+    ? ['Trading App Direct', 'Broking Partner Referral', 'Website', 'Employee referral', 'Sub-broker Network']
+    : ['Employee referral', 'Website', 'Campaign C12'];
+
   const [form, setForm] = useState<EnquiryInput>({
     displayName: '',
     phone: '',
     email: '',
-    product: 'V1 Wealth Portfolio',
-    source: 'Employee referral',
+    product: defaultProduct,
+    source: defaultSource,
     permissionEvidence: '',
     need: '',
   });
@@ -470,15 +535,15 @@ function NewEnquiryDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
           placeholder="Optional"
         />
       </FormRow>
-      <FormRow label="Product (within Wealth)" htmlFor="enq-product" error={errors.product?.[0]}>
+      <FormRow label={`Product (${isBanking ? 'Banking' : isMarkets ? 'Markets' : 'Wealth'})`} htmlFor="enq-product" error={errors.product?.[0]}>
         <Select
           id="enq-product"
           value={form.product}
           onChange={(e) => setForm({ ...form, product: e.target.value })}
         >
-          <option>V1 Wealth Portfolio</option>
-          <option>V1 Savings Plus</option>
-          <option>Investment advisory</option>
+          {productOpts.map((p) => (
+            <option key={p}>{p}</option>
+          ))}
         </Select>
       </FormRow>
       <FormRow label="Source" htmlFor="enq-source" error={errors.source?.[0]}>
@@ -487,9 +552,9 @@ function NewEnquiryDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
           value={form.source}
           onChange={(e) => setForm({ ...form, source: e.target.value })}
         >
-          <option>Employee referral</option>
-          <option>Website</option>
-          <option>Campaign C12</option>
+          {sourceOpts.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
         </Select>
       </FormRow>
       <FormRow label="Permission evidence (reference and date)" htmlFor="enq-perm" error={errors.permissionEvidence?.[0]}>

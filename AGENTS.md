@@ -18,9 +18,42 @@ Consult the canonical document governing the specific domain rather than guessin
 | **Application Flows** | [`docs/product/app-flow.md`](docs/product/app-flow.md) | Auth flow, lead state machine (`Not Contacted -> Converted/Lost/Reopened`), tiered escalations (SC->TL->MG->RM->NM->CEO->CFO), referrals. |
 | **UI/UX Interaction** | [`docs/design/design-flow.md`](docs/design/design-flow.md) | Six-zone workspace anatomy, drawer panel flows, mobile priority tasks & bottom sheets, modal dialogs, conflict resolution. |
 | **Relational Schema** | [`docs/architecture/backend-schema.md`](docs/architecture/backend-schema.md) | Actual implemented schema (migrations 0001–0014) vs planned schema (`DE`, `HR`, `SA`), table invariants matrix. |
-| **Execution Plan** | [`docs/process/implementation-plan.md`](docs/process/implementation-plan.md) | Phased roadmap, testing levels, 12 deck acceptance scenarios, compact Manager resume packet, SDLC role-completion protocol. |
+| **Execution Plan** | [`docs/process/implementation-plan.md`](docs/process/implementation-plan.md) | **Single Authoritative Delivery Standard & Canonical Workflow**: Universal 6-step loop, Action Deck grounding, navigable implementation traceability chain, post-deployment corrections, testing levels, 12 deck acceptance scenarios. |
+
+## Mandatory Delivery Standard & Canonical Workflow
+
+All work across **all verticals (Wealth, Banking, Markets/Trading, Real Estate)**, **Horizontals (Data Entry, HR, Superadmin)**, and **Executives (CEO, CFO)** is strictly governed by the canonical standard in [`docs/process/implementation-plan.md`](docs/process/implementation-plan.md). Parallel or competing workflows are prohibited.
+
+### 1. The Universal Task Sequence (Every Task Follows This Sequence)
+```
+Resume Checkpoint → Retrieve Relevant Knowledge → Inspect Requirements & Implementation → Smallest Appropriate Change → Verify Affected Behavior → Update Checkpoint & Knowledge
+```
+- **Resume:** Read `docs/process/STATUS.md` for active milestone, blockers, and exact next task.
+- **Retrieve:** Query `graphify-requirements/graph.json` (`& ".\.venv-graphify\Scripts\graphify.exe" query "<q>" --graph graphify-requirements/graph.json`) to locate action nodes and deck pages.
+- **Inspect:** Ground every design and function in the canonical Action Deck (`docs/reference/NEW-Finverse_Wealth_CRM_Premium_UIUX_Action_Deck.pdf` P001..P320) and brand system (`docs/design/design-system.md`). Inspect actual PDF pages and extracted screens (`evidence/`), never shortened text summaries. Inspect existing shared components before writing code.
+- **Change:** Implement the smallest appropriate, type-safe change with Zod contracts and pragmatic SOLID boundaries.
+- **Verify:** Run live PostgreSQL 16 tests, verify monorepo typecheck/lint/build, and capture live browser screens across Desktop (`1536x800`) and Mobile (`390x844`) after data loads.
+- **Update:** Update `STATUS.md`, `BUILD_LOG.md`, and `COVERAGE_MATRIX.md`; refresh both knowledge graphs deterministically.
+
+### 2. Post-Deployment Corrections Protocol
+For each reported issue:
+1. Identify deployed revision and reproduce symptom on live PostgreSQL.
+2. Retrieve affected requirement, implementation, and cross-vertical dependencies.
+3. Assess whether shared components or other verticals are affected.
+4. Make smallest justified forward fix using compatible migrations; never drop or wipe production data.
+5. Verify failed behavior and run regression checks across affected workspaces.
+6. Update affected documentation and knowledge graphs.
+
+### 3. Traceability Chain
+Every requirement must maintain navigable references:
+`Deck Page → Action ID → Route/Component → Contract/Service → DB Table/Migration → Test/Evidence`.
 
 ## User-Approved Engineering Policies
+
+### 0. Mandatory Action Deck Grounding & Continuous Memory Policy
+- **Zero Hallucination / Zero Stripped-Down UI:** Every operational role and vertical dashboard (Wealth, Banking, Markets, Real Estate) must strictly follow the visual layouts, metrics, zones, and contracts defined in the canonical Action Deck PDF (`docs/reference/NEW-Finverse_Wealth_CRM_Premium_UIUX_Action_Deck.pdf`, P001..P320) and the Graphify requirements graph (`graphify-requirements/graph.json`).
+- **Never Simplify Dashboards:** Every role workspace must render full visual detailing: institutional breadcrumb, preview notice, vertical scope badge (e.g. `Banking scope` with shield), hero priority card in brand dark teal (`#113F3D`), operating signals with 7-day sparklines, needs-attention breakdowns, commitments table, and the right-rail 3-card guidance stack (`HOW THIS WORKS`, `WHEN A CHECK FAILS`, `PERMISSION & EVIDENCE`).
+- **Continuous Knowledge Graph Maintenance:** After every completed slice or change, deterministically refresh both knowledge graphs (`python scripts/build_requirements_graph.py` and `graphify extract . --code-only`), and update `STATUS.md`, `COVERAGE_MATRIX.md`, and `BUILD_LOG.md`.
 
 ### 1. Software Development Life Cycle (SDLC) Policy
 Every operational role and functional feature must advance through the structured, evidence-led lifecycle:
