@@ -2367,3 +2367,133 @@ ode --import tsx --test apps/api/test/real_estate.api.test.ts: **5/5 test suites
      - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
      - Code Graph (graphify extract . --code-only): Refreshed and up to date.
   6. **Completion Gate**: **Real Estate Advisory Manager Wave Verified and Closed**. Stopped strictly at the Real Estate Manager gate without advancing to Regional Manager or another vertical. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 072 — Role Waves: Wealth Regional Manager RM-01..RM-10 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Wealth Regional Manager Wave Audit & Action Deck Grounding**:
+     - Audited Wealth Regional Manager role wave (**RM-01 through RM-10**) with persona Kavita Rao (kavita@finverse.demo / demo1234, EMP-008), supervising REGION-SOUTH (Branch Manager Neel Verma EMP-007, supervising Wealth Alpha, Beta, and Gamma).
+     - Grounded in authentic Action Deck PDF pages P161 through P184: verified regional scope, metrics, single solid primary button rule, 3-card guidance rails, territory planning, target cascade, and escalation resolution.
+  2. **Multi-Vertical Dynamic Supervisor Verification**:
+     - Verified RegionalManagerPages.tsx across RegionalManagersPage and RegionalReviewsPage correctly initializes with dynamic useEffect synchronization, cleanly defaulting selectedManagerId to supervised Branch Manager Neel Verma (EMP-007).
+     - Demo Access Panel accordion for Wealth expanded cleanly, populating authenticated session with role = 'RM', verticalGrants = ['wealth'], teamGrants = ['TEAM-WEALTH-ALPHA', 'TEAM-WEALTH-BETA', 'TEAM-WEALTH-GAMMA'], regionGrants = ['REGION-SOUTH'].
+  3. **Action-by-Action Wealth Regional Manager Grounding (RM-01..RM-10)**:
+     - **RM-01 (Regional command dashboard & Manager interventions — Deck P161..P164)**: /regional/overview with period & comparison selectors, 4 executive cards (Regional Target Pace %, Won Revenue vs Parent Target, Critical SLA Exceptions, Supervised Managers), manager hierarchy breakdown table with Low Sample Size badge, 'In this view' metric banner, and '+ Regional intervention' drawer logging interventions into management_actions.
+     - **RM-02 (Branch Manager operating scorecards & KPI drilldown — Deck P165/P166)**: /regional/managers with dynamic manager selector defaulting to Neel Verma (EMP-007), comprehensive scorecard with conversion rate, SLA adherence, active interventions, supervised teams, and team leader breakdown.
+     - **RM-03 (Territory coverage plans & capacity reallocation — Deck P167/P168)**: /regional/territories displaying South Region territory saturation, advisor density per account tier, coverage gap alerts, and territory adjustment plan submission.
+     - **RM-04 (Regional target cascade & parent reconciliation — Deck P169/P170)**: /regional/targets with Parent National Manager Target Reconciliation, real-time unallocated remainder calculation, strict server-side over-allocation guard (422 Unprocessable Entity if sum exceeds parent target), and publish action cascading branch targets to Neel Verma (EMP-007).
+     - **RM-05 (Cross-manager atomic lead transfers — Deck P171/P172)**: /regional/transfers with cross-manager high-value account transfer requests, verified approval/rejection workflow, atomic ownership transition, and tamper-evident lead_ownership_events audit logging.
+     - **RM-06 (Branch staffing requisitions & HR escalation — Deck P173/P174)**: /regional/transfers staffing requisition modal capturing branch vacancy justification, target role, headcount request, and routing to HR queue (hr_requisitions).
+     - **RM-07 (Consolidated regional forecast rollup to NM — Deck P175/P176)**: /regional/forecasts reviewing submitted branch manager forecasts, applying regional risk haircuts/adjustments with mandatory explanation, and bottom-up submission to National Manager.
+     - **RM-08 (Regional commercial exceptions & SLA escalations — Deck P177/P178)**: /regional/exceptions with delegated authority ceiling, resolving tier-2 commercial fee waiver / rate exceptions and repeated SLA breaches with 72h turnaround recovery plans.
+     - **RM-09 (Branch Manager quarterly performance reviews — Deck P179/P180)**: /regional/reviews selecting supervised branch managers, recording versioned evaluations across operational dimensions, structured commitments, and development directives.
+     - **RM-10 (Regional executive meeting pack & delivery schedules — Deck P181..P184)**: /regional/reviews with executive preview, binary %PDF meeting pack export via pdfkit streaming, and recurring report delivery schedule configuration.
+  4. **Executed Verification Evidence**:
+     - node --import tsx --test apps/api/test/regional.api.test.ts: **12/12 tests passed (100% green in 2.58s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/wealth-regional-manager.spec.ts: **18/18 tests passed (100% green in 19.4s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **24 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/wealth_regional_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 1.36s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Wealth Regional Manager Wave Verified and Closed**. Stopped strictly at the Wealth Regional Manager gate without advancing to Banking RM or National Manager. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 073 — Role Waves: Commercial Banking Regional Manager RM-01..RM-10 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Commercial Banking Regional Manager Wave Audit & Action Deck Grounding**:
+     - Audited Commercial Banking Regional Manager role wave (**RM-01 through RM-10**) with persona Arjun Mehta (arjun@finverse.demo / demo1234, EMP-019), supervising REGION-BANKING-WEST (Branch Manager Kunal Shah EMP-017, supervising Commercial Banking Alpha and Beta).
+     - Grounded in authentic Action Deck PDF pages P161 through P184: verified regional banking scope, metrics, single solid primary button rule, 3-card guidance rails, commercial corridor territory planning, target cascade, and commercial escalation resolution.
+  2. **Multi-Vertical Dynamic Supervisor Verification**:
+     - Hardened RegionalManagerPages.tsx across all regional modules (RegionalManagersPage, RegionalTerritoriesPage, RegionalTargetsPage, RegionalApprovalsPage, RegionalForecastsPage, RegionalReviewsPage, RegionalReportsPage) to dynamically derive the active vertical name from session grants and backend regions.
+     - Demo Access Panel accordion for Banking expanded cleanly, populating authenticated session with role = 'RM', verticalGrants = ['banking'], teamGrants = ['TEAM-BANKING-ALPHA', 'TEAM-BANKING-BETA'], regionGrants = ['REGION-BANKING-WEST'].
+  3. **Action-by-Action Commercial Banking Regional Manager Grounding (RM-01..RM-10)**:
+     - **RM-01 (Regional command dashboard & Manager interventions — Deck P161..P164)**: /regional/overview with period & comparison selectors, 4 executive cards (Parent NM Target: 150, Achieved Wins, Regional Backlog, Supervised Managers), manager hierarchy breakdown table with Low Sample Size badge, 'In this view' metric banner, and '+ Regional intervention' drawer logging interventions into management_actions.
+     - **RM-02 (Branch Manager operating scorecards & KPI drilldown — Deck P165/P166)**: /regional/managers with dynamic manager selector defaulting to Kunal Shah (EMP-017), comprehensive scorecard with conversion rate, SLA adherence, active interventions, supervised teams, and team leader breakdown (Rohan Sen EMP-016, Priya Sen EMP-018).
+     - **RM-03 (Territory coverage plans & capacity reallocation — Deck P167/P168)**: /regional/territories displaying West Zone territory saturation (Mumbai Commercial Hub, Gujarat Industrial Zone, Pune SME Belt), commercial loan queue distribution, coverage gap alerts, and territory adjustment plan submission.
+     - **RM-04 (Regional target cascade & parent reconciliation — Deck P169/P170)**: /regional/targets with Parent National Manager Target Reconciliation (150 approved wins), real-time unallocated remainder calculation, strict server-side over-allocation guard (400 Bad Request if sum exceeds parent target), and publish action cascading branch targets to Kunal Shah (EMP-017).
+     - **RM-05 (Cross-manager atomic lead transfers — Deck P171/P172)**: /regional/approvals with cross-branch commercial loan facility transfer requests, verified approval/rejection workflow, atomic ownership transition, and tamper-evident lead_events audit logging.
+     - **RM-06 (Branch staffing requisitions & HR escalation — Deck P173/P174)**: /regional/approvals staffing requisition modal capturing branch vacancy justification, target role (Commercial Relationship Manager), headcount request, and routing to HR queue (regional_staffing_plans).
+     - **RM-07 (Consolidated regional forecast rollup to NM — Deck P175/P176)**: /regional/forecasts reviewing submitted branch manager forecasts, applying regional risk haircuts/adjustments with mandatory explanation, and bottom-up submission to National Manager.
+     - **RM-08 (Regional commercial exceptions & SLA escalations — Deck P177/P178)**: /regional/forecasts with delegated authority ceiling, resolving tier-2 commercial fee waiver / rate exceptions and repeated SLA breaches with turnaround recovery plans.
+     - **RM-09 (Branch Manager quarterly performance reviews — Deck P179/P180)**: /regional/reviews selecting supervised branch manager Kunal Shah (EMP-017), recording versioned evaluations across operational dimensions, structured commitments, and development directives.
+     - **RM-10 (Regional executive meeting pack & delivery schedules — Deck P181..P184)**: /regional/reports with executive preview, binary %PDF meeting pack export via pdfkit streaming, and recurring report delivery schedule configuration.
+  4. **Executed Verification Evidence**:
+     - node --import tsx --test --test-name-pattern="Banking Regional Manager" apps/api/test/banking.api.test.ts: **Passed (100% green in 1.38s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/banking-regional-manager.spec.ts: **18/18 tests passed (100% green in 20.5s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **24 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/banking_regional_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 1.53s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Commercial Banking Regional Manager Wave Verified and Closed**. Stopped strictly at the Banking Regional Manager gate without advancing to Markets RM or National Manager. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 074 — Role Waves: Markets & Securities Regional Manager RM-01..RM-10 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Markets & Securities Regional Manager Wave Audit & Action Deck Grounding**:
+     - Audited Markets & Securities Regional Manager role wave (**RM-01 through RM-10**) with persona Rajesh Bansal (rajesh.b@finverse.demo / demo1234, EMP-024), supervising REGION-MARKETS-WEST (Branch Manager Manish Vyas EMP-022, supervising Markets Alpha and Beta).
+     - Grounded in authentic Action Deck PDF pages P161 through P184: verified regional markets scope, metrics, single solid primary button rule, 3-card guidance rails, trading corridor territory planning, target cascade, and trading escalation resolution.
+  2. **Multi-Vertical Dynamic Supervisor Verification**:
+     - Hardened RegionalManagerPages.tsx across all regional modules (RegionalManagersPage, RegionalTerritoriesPage, RegionalTargetsPage, RegionalApprovalsPage, RegionalForecastsPage, RegionalReviewsPage, RegionalReportsPage) to dynamically derive the active vertical name from session grants and backend regions.
+     - Enhanced regional-manager.ts backend repo to return authentic trading hub sub-regions (Mumbai BKC Trading Hub, Gujarat Commodities & Equity Corridor, Pune Active Derivatives Belt) for markets vertical.
+     - Demo Access Panel accordion for Markets & Securities expanded cleanly, populating authenticated session with role = 'RM', verticalGrants = ['markets'], teamGrants = ['TEAM-MARKETS-ALPHA', 'TEAM-MARKETS-BETA'], regionGrants = ['REGION-MARKETS-WEST'].
+  3. **Action-by-Action Markets & Securities Regional Manager Grounding (RM-01..RM-10)**:
+     - **RM-01 (Regional command dashboard & Manager interventions — Deck P161..P164)**: /regional/overview with period & comparison selectors, 4 executive cards (Parent NM Target: 200, Achieved Wins, Regional Backlog, Supervised Managers), manager hierarchy breakdown table with Low Sample Size badge, 'In this view' metric banner, and '+ Regional intervention' drawer logging interventions into management_actions.
+     - **RM-02 (Branch Manager operating scorecards & KPI drilldown — Deck P165/P166)**: /regional/managers with dynamic manager selector defaulting to Manish Vyas (EMP-022), comprehensive scorecard with conversion rate, SLA adherence, active interventions, supervised teams, and team leader breakdown (Meera Nair EMP-005, Tarun Sen EMP-023).
+     - **RM-03 (Territory coverage plans & capacity reallocation — Deck P167/P168)**: /regional/territories displaying West Zone territory saturation (Mumbai BKC Trading Hub, Gujarat Commodities & Equity Corridor, Pune Active Derivatives Belt), Demat account queue distribution, coverage gap alerts, and territory adjustment plan submission.
+     - **RM-04 (Regional target cascade & parent reconciliation — Deck P169/P170)**: /regional/targets with Parent National Manager Target Reconciliation (200 approved wins), real-time unallocated remainder calculation, strict server-side over-allocation guard (400 Bad Request if sum exceeds parent target), and publish action cascading branch targets to Manish Vyas (EMP-022).
+     - **RM-05 (Cross-manager atomic lead transfers — Deck P171/P172)**: /regional/approvals with cross-branch institutional trading account transfer requests, verified approval/rejection workflow, atomic ownership transition, and tamper-evident lead_events audit logging.
+     - **RM-06 (Branch staffing requisitions & HR escalation — Deck P173/P174)**: /regional/approvals staffing requisition modal capturing branch vacancy justification, target role (Equity Trading Associate), headcount request, and routing to HR queue (regional_staffing_plans).
+     - **RM-07 (Consolidated regional forecast rollup to NM — Deck P175/P176)**: /regional/forecasts reviewing submitted branch manager forecasts, applying regional risk haircuts/adjustments with mandatory explanation, and bottom-up submission to National Manager.
+     - **RM-08 (Regional commercial exceptions & SLA escalations — Deck P177/P178)**: /regional/forecasts with delegated authority ceiling, resolving tier-2 brokerage fee waiver exceptions and repeated SLA breaches with turnaround recovery plans.
+     - **RM-09 (Branch Manager quarterly performance reviews — Deck P179/P180)**: /regional/reviews selecting supervised branch manager Manish Vyas (EMP-022), recording versioned evaluations across operational dimensions, structured commitments, and development directives.
+     - **RM-10 (Regional executive meeting pack & delivery schedules — Deck P181..P184)**: /regional/reports with executive preview, binary %PDF meeting pack export via pdfkit streaming, and recurring report delivery schedule configuration.
+  4. **Executed Verification Evidence**:
+     - node --import tsx --test --test-name-pattern="Markets Regional Manager" apps/api/test/markets.api.test.ts: **Passed (100% green in 1.43s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/markets-regional-manager.spec.ts: **18/18 tests passed (100% green in 20.3s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **24 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/markets_regional_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 917ms)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Markets & Securities Regional Manager Wave Verified and Closed**. Stopped strictly at the Markets Regional Manager gate without advancing to Real Estate RM or National Manager. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 075 — Role Waves: Real Estate Advisory Regional Manager RM-01..RM-10 Fully Audited & Verified
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Real Estate Advisory Regional Manager Wave Audit & Action Deck Grounding**:
+     - Audited Real Estate Advisory Regional Manager role wave (**RM-01 through RM-10**) with persona Siddharth Malhotra (siddharth.m@finverse.demo / demo1234, EMP-029), supervising REGION-REALESTATE-WEST (Branch Manager Vikramaditya Singhania EMP-028, supervising Real Estate Alpha and Beta).
+     - Grounded in authentic Action Deck PDF pages P161 through P184: verified regional real estate scope, metrics, single solid primary button rule, 3-card guidance rails, luxury property corridor territory planning, target cascade, and mandate escalation resolution.
+  2. **Multi-Vertical Dynamic Supervisor Verification**:
+     - Hardened RegionalManagerPages.tsx across all regional modules (RegionalManagersPage, RegionalTerritoriesPage, RegionalTargetsPage, RegionalApprovalsPage, RegionalForecastsPage, RegionalReviewsPage, RegionalReportsPage) to dynamically derive the active vertical name from session grants and backend regions.
+     - Enhanced regional-manager.ts backend repo to return authentic property hub sub-regions (South Mumbai Luxury Residential Belt, BKC & Lower Parel Commercial Corridor, Pune Luxury Enclaves & Land Parcels) for real_estate vertical.
+     - Demo Access Panel accordion for Real Estate Advisory expanded cleanly, populating authenticated session with role = 'RM', verticalGrants = ['real_estate'], teamGrants = ['TEAM-REALESTATE-ALPHA', 'TEAM-REALESTATE-BETA'], regionGrants = ['REGION-REALESTATE-WEST'].
+  3. **Action-by-Action Real Estate Advisory Regional Manager Grounding (RM-01..RM-10)**:
+     - **RM-01 (Regional command dashboard & Manager interventions — Deck P161..P164)**: /regional/overview with period & comparison selectors, 4 executive cards (Parent NM Target: 100, Achieved Wins, Regional Backlog, Supervised Managers), manager hierarchy breakdown table with Low Sample Size badge, 'In this view' metric banner, and '+ Regional intervention' drawer logging interventions into management_actions.
+     - **RM-02 (Branch Manager operating scorecards & KPI drilldown — Deck P165/P166)**: /regional/managers with dynamic manager selector defaulting to Vikramaditya Singhania (EMP-028), comprehensive scorecard with conversion rate, SLA adherence, active interventions, supervised teams, and team leader breakdown (Neha Gupta EMP-027, Pooja Reddy EMP-032).
+     - **RM-03 (Territory coverage plans & capacity reallocation — Deck P167/P168)**: /regional/territories displaying West Zone territory saturation (South Mumbai Luxury Residential Belt, BKC & Lower Parel Commercial Corridor, Pune Luxury Enclaves & Land Parcels), property mandate queue distribution, coverage gap alerts, and territory adjustment plan submission.
+     - **RM-04 (Regional target cascade & parent reconciliation — Deck P169/P170)**: /regional/targets with Parent National Manager Target Reconciliation (100 approved wins), real-time unallocated remainder calculation, strict server-side over-allocation guard (400 Bad Request if sum exceeds parent target), and publish action cascading branch targets to Vikramaditya Singhania (EMP-028).
+     - **RM-05 (Cross-manager atomic lead transfers — Deck P171/P172)**: /regional/approvals with cross-branch luxury property mandate transfer requests, verified approval/rejection workflow, atomic ownership transition, and tamper-evident lead_events audit logging.
+     - **RM-06 (Branch staffing requisitions & HR escalation — Deck P173/P174)**: /regional/approvals staffing requisition modal capturing branch vacancy justification, target role (Luxury Mandate Consultant), headcount request, and routing to HR queue (regional_staffing_plans).
+     - **RM-07 (Consolidated regional forecast rollup to NM — Deck P175/P176)**: /regional/forecasts reviewing submitted branch manager forecasts, applying regional risk haircuts/adjustments with mandatory explanation, and bottom-up submission to National Manager.
+     - **RM-08 (Regional commercial exceptions & SLA escalations — Deck P177/P178)**: /regional/forecasts with delegated authority ceiling, resolving architectural survey and RERA carpet area verification SLA bottlenecks with turnaround recovery plans.
+     - **RM-09 (Branch Manager quarterly performance reviews — Deck P179/P180)**: /regional/reviews selecting supervised branch manager Vikramaditya Singhania (EMP-028), recording versioned evaluations across operational dimensions, structured commitments, and development directives.
+     - **RM-10 (Regional executive meeting pack & delivery schedules — Deck P181..P184)**: /regional/reports with executive preview, binary %PDF meeting pack export via pdfkit streaming, and recurring report delivery schedule configuration.
+  4. **Executed Verification Evidence**:
+     - node --import tsx --test --test-name-pattern="Real Estate Regional Manager" apps/api/test/real_estate.api.test.ts: **Passed (100% green in 1.30s)** against live PostgreSQL 16 Alpine (:5433).
+     - Playwright Dedicated E2E Suite apps/web/e2e/real-estate-regional-manager.spec.ts: **18/18 tests passed (100% green in 20.4s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Visual Evidence Capture: **24 high-resolution screenshots captured** across Desktop and Mobile viewports in evidence/screenshots/real_estate_regional_manager/.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across @finverse/contracts, @finverse/api, @finverse/web.
+     - Monorepo Lint (pnpm -r lint --quiet): **0 errors** across monorepo.
+     - Monorepo Build (pnpm build): **0 errors (built cleanly in 1.19s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
+     - Code Graph (graphify extract . --code-only): Refreshed and up to date.
+  6. **Completion Gate**: **Real Estate Advisory Regional Manager Wave Verified and Closed**. Regional Manager wave complete across all 4 verticals. Stopped strictly at the Real Estate RM gate without advancing to National Manager. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.

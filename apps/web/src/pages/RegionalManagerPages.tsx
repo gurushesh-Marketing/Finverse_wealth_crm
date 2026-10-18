@@ -179,6 +179,13 @@ function DeckBottomBar({
   );
 }
 
+function getVerticalDisplayName(vertical?: string): string {
+  if (vertical === 'banking') return 'Commercial Banking';
+  if (vertical === 'markets') return 'Markets & Securities';
+  if (vertical === 'real-estate' || vertical === 'real_estate') return 'Real Estate Advisory';
+  return 'Wealth Management';
+}
+
 // ─── RM-01: Region Overview ───
 export function RegionalOverviewPage() {
   const { session } = useSession();
@@ -277,7 +284,7 @@ export function RegionalOverviewPage() {
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Vertical</p>
-                  <p className="font-semibold text-foreground capitalize">{data?.region?.vertical || 'Wealth'}</p>
+                  <p className="font-semibold text-foreground capitalize">{getVerticalDisplayName(data?.region?.vertical)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-[11px]">Period</p>
@@ -516,11 +523,20 @@ export function RegionalOverviewPage() {
 
 // ─── RM-02: Review a Manager scorecard ───
 export function RegionalManagersPage() {
+  const { session } = useSession();
   const loadOverview = useCallback(() => regionalApi.overview(), []);
   const [overview] = useLoad<any>(loadOverview);
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0] || overview?.region?.vertical);
 
   const [selectedManagerId, setSelectedManagerId] = useState<string>('EMP-007');
-  const loadScorecard = useCallback(() => regionalApi.getManagerScorecard(selectedManagerId), [selectedManagerId]);
+
+  useEffect(() => {
+    if (overview?.managers && overview.managers.length > 0 && (!selectedManagerId || !overview.managers.some((m: any) => m.managerId === selectedManagerId))) {
+      setSelectedManagerId(overview.managers[0].managerId);
+    }
+  }, [overview, selectedManagerId]);
+
+  const loadScorecard = useCallback(() => (selectedManagerId ? regionalApi.getManagerScorecard(selectedManagerId) : Promise.resolve(null)), [selectedManagerId]);
   const [scorecard, reloadScorecard, { loading, initialLoading, error, clearError }] = useLoad<any>(loadScorecard);
 
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -565,7 +581,7 @@ export function RegionalManagersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Review a Manager scorecard"
-        subtitle="RM-02 / MANAGERS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`RM-02 / MANAGERS · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={reloadScorecard} disabled={loading}>
@@ -641,7 +657,7 @@ export function RegionalManagersPage() {
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Manager</span>
-                    <span className="font-semibold text-foreground">{scorecard?.manager?.name || 'Neel Verma'}</span>
+                    <span className="font-semibold text-foreground">{scorecard?.manager?.name || overview?.managers?.[0]?.name || 'Branch Manager'}</span>
                   </div>
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Period</span>
@@ -841,18 +857,39 @@ export function RegionalManagersPage() {
 
 // ─── RM-03: Plan territory coverage ───
 export function RegionalTerritoriesPage() {
+  const { session } = useSession();
   const loadTerritories = useCallback(() => regionalApi.getTerritories(), []);
   const [data, load, { loading, initialLoading, error, clearError }] = useLoad<any>(loadTerritories);
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0]);
 
   const [planDrawerOpen, setPlanDrawerOpen] = useState(false);
   const [territoryName, setTerritoryName] = useState('South Metro Zone');
   const [subRegion, setSubRegion] = useState('Karnataka South Hub');
   const [productScope, setProductScope] = useState('V1 Wealth Portfolio');
-  const [selectedTeams] = useState<string[]>(['TEAM-WEALTH-ALPHA']);
+  const [selectedTeams, setSelectedTeams] = useState<string[]>(['TEAM-WEALTH-ALPHA']);
   const [capacityGap, setCapacityGap] = useState(2);
   const [proposal, setProposal] = useState('');
   const [activationDate, setActivationDate] = useState('2026-10-15');
   const s = useSubmitAction();
+
+  useEffect(() => {
+    if (data?.subRegions && data.subRegions.length > 0) {
+      setSubRegion(data.subRegions[0]);
+      setTerritoryName(`${data.regionName || verticalName} Hub`);
+    }
+    if (session?.teamGrants && session.teamGrants.length > 0) {
+      setSelectedTeams([session.teamGrants[0]]);
+    }
+    if (session?.verticalGrants?.[0] === 'markets') {
+      setProductScope('Equity Cash & Demat, F&O Derivatives');
+    } else if (session?.verticalGrants?.[0] === 'banking') {
+      setProductScope('Corporate Term Loan, Working Capital Facility');
+    } else if (session?.verticalGrants?.[0] === 'real_estate' || session?.verticalGrants?.[0] === 'real-estate') {
+      setProductScope('Luxury Residential Mandates, Commercial Leasing');
+    } else {
+      setProductScope('V1 Wealth Portfolio');
+    }
+  }, [data, session, verticalName]);
 
   const handleSavePlan = async () => {
     if (!territoryName.trim() || !proposal.trim()) {
@@ -881,7 +918,7 @@ export function RegionalTerritoriesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Plan territory coverage"
-        subtitle="RM-03 / TERRITORIES · Wealth · assigned permission scope · illustrative records"
+        subtitle={`RM-03 / TERRITORIES · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -933,7 +970,7 @@ export function RegionalTerritoriesPage() {
                 <div className="mt-3 space-y-2 text-xs">
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Products</span>
-                    <span className="font-medium text-foreground">Wealth eligible products</span>
+                    <span className="font-medium text-foreground">{verticalName} eligible products</span>
                   </div>
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Queues</span>
@@ -982,7 +1019,7 @@ export function RegionalTerritoriesPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold">Active Team Coverage &amp; Intake Ratios</CardTitle>
-                <p className="text-xs text-muted-foreground">Load distribution across authorized Wealth teams</p>
+                <p className="text-xs text-muted-foreground">Load distribution across authorized {verticalName} teams</p>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
                 <table className="w-full text-left text-xs">
@@ -1110,8 +1147,10 @@ export function RegionalTerritoriesPage() {
 
 // ─── RM-04: Allocate regional targets to Managers ───
 export function RegionalTargetsPage() {
+  const { session } = useSession();
   const loadTargets = useCallback(() => regionalApi.getTargets(), []);
   const [data, load, { loading, initialLoading, error, clearError }] = useLoad<any>(loadTargets);
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0]);
 
   const [parentTarget, setParentTarget] = useState<number>(250);
   const [periodLabel, setPeriodLabel] = useState<string>('October');
@@ -1160,7 +1199,7 @@ export function RegionalTargetsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Allocate regional targets to Managers"
-        subtitle="RM-04 / REGIONAL TARGETS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`RM-04 / REGIONAL TARGETS · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={load} disabled={loading}>
@@ -1319,7 +1358,9 @@ export function RegionalTargetsPage() {
 
 // ─── RM-05 & RM-06: Capacity & Approvals ───
 export function RegionalApprovalsPage() {
+  const { session } = useSession();
   const [tab, setTab] = useState<'transfers' | 'staffing'>('transfers');
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0]);
   const loadTransfers = useCallback(() => regionalApi.listTransfers(), []);
   const [transfers, reloadTransfers, transfersState] = useLoad<any[]>(loadTransfers);
 
@@ -1355,7 +1396,7 @@ export function RegionalApprovalsPage() {
         approvedHeadcount,
         activeHeadcount,
         requisitions: [
-          { title: 'Senior Wealth Sales Associate', teamId: 'TEAM-WEALTH-ALPHA', count: 2, justification: 'Queue growth', priority: 'high' },
+          { title: session?.verticalGrants?.[0] === 'banking' ? 'Commercial Relationship Manager' : session?.verticalGrants?.[0] === 'markets' ? 'Equity Trading Associate' : (session?.verticalGrants?.[0] === 'real_estate' || session?.verticalGrants?.[0] === 'real-estate') ? 'Luxury Mandate Consultant' : 'Senior Wealth Sales Associate', teamId: session?.teamGrants?.[0] || 'TEAM-BANKING-ALPHA', count: 2, justification: 'Queue growth', priority: 'high' },
         ],
         businessJustification: justification.trim(),
         status: 'approved_by_rm',
@@ -1375,7 +1416,7 @@ export function RegionalApprovalsPage() {
         approvedHeadcount: staffing?.activePlan?.approved_headcount || approvedHeadcount,
         activeHeadcount: staffing?.activePlan?.active_headcount || activeHeadcount,
         requisitions: [
-          { title: 'Senior Wealth Sales Associate', teamId: 'TEAM-WEALTH-ALPHA', count: 2, justification: 'Queue growth', priority: 'high' },
+          { title: session?.verticalGrants?.[0] === 'banking' ? 'Commercial Relationship Manager' : session?.verticalGrants?.[0] === 'markets' ? 'Equity Trading Associate' : (session?.verticalGrants?.[0] === 'real_estate' || session?.verticalGrants?.[0] === 'real-estate') ? 'Luxury Mandate Consultant' : 'Senior Wealth Sales Associate', teamId: session?.teamGrants?.[0] || 'TEAM-BANKING-ALPHA', count: 2, justification: 'Queue growth', priority: 'high' },
         ],
         businessJustification: note,
         status,
@@ -1393,7 +1434,7 @@ export function RegionalApprovalsPage() {
     <div className="space-y-6">
       <PageHeader
         title={tab === 'transfers' ? 'Approve a cross-Manager transfer' : 'Approve a regional staffing plan'}
-        subtitle={tab === 'transfers' ? 'RM-05 / CAPACITY & APPROVALS · Wealth · assigned permission scope · illustrative records' : 'RM-06 / CAPACITY & APPROVALS · Wealth · assigned permission scope · illustrative records'}
+        subtitle={tab === 'transfers' ? `RM-05 / CAPACITY & APPROVALS · ${verticalName} · assigned permission scope · illustrative records` : `RM-06 / CAPACITY & APPROVALS · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={handleRefresh} disabled={activeLoading}>
@@ -1736,7 +1777,9 @@ export function RegionalApprovalsPage() {
 
 // ─── RM-07 & RM-08: Forecast & Risks ───
 export function RegionalForecastsPage() {
+  const { session } = useSession();
   const [tab, setTab] = useState<'forecast' | 'escalations'>('forecast');
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0]);
   const loadForecast = useCallback(() => regionalApi.getForecasts(), []);
   const [forecast, reloadForecast, forecastState] = useLoad<any>(loadForecast);
 
@@ -1744,7 +1787,19 @@ export function RegionalForecastsPage() {
   const [escalations, reloadEscalations, escalationsState] = useLoad<any[]>(loadEscalations);
 
   const [adjustment, setAdjustment] = useState<number>(0);
-  const [assumptions, setAssumptions] = useState('Consolidated pipeline with 5% risk discount on late-stage wealth closures.');
+  const [assumptions, setAssumptions] = useState('Consolidated pipeline with 5% risk discount on late-stage closures.');
+
+  useEffect(() => {
+    if (session?.verticalGrants?.[0] === 'markets') {
+      setAssumptions('Consolidated trading pipeline with 5% risk discount on late-stage active Demat funding.');
+    } else if (session?.verticalGrants?.[0] === 'banking') {
+      setAssumptions('Consolidated credit pipeline with 5% risk discount on late-stage commercial facilities.');
+    } else if (session?.verticalGrants?.[0] === 'real_estate' || session?.verticalGrants?.[0] === 'real-estate') {
+      setAssumptions('Consolidated mandate pipeline with 5% risk discount on luxury residential bookings.');
+    } else {
+      setAssumptions('Consolidated pipeline with 5% risk discount on late-stage wealth closures.');
+    }
+  }, [session]);
   const [escalationDrawerOpen, setEscalationDrawerOpen] = useState(false);
 
   const [escTitle, setEscTitle] = useState('');
@@ -1824,7 +1879,7 @@ export function RegionalForecastsPage() {
     <div className="space-y-6">
       <PageHeader
         title={tab === 'forecast' ? 'Submit the regional forecast' : 'Resolve a regional escalation'}
-        subtitle={tab === 'forecast' ? 'RM-07 / FORECAST & RISKS · Wealth · assigned permission scope · illustrative records' : 'RM-08 / FORECAST & RISKS · Wealth · assigned permission scope · illustrative records'}
+        subtitle={tab === 'forecast' ? `RM-07 / FORECAST & RISKS · ${verticalName} · assigned permission scope · illustrative records` : `RM-08 / FORECAST & RISKS · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={handleRefresh} disabled={activeLoading}>
@@ -2257,11 +2312,20 @@ export function RegionalForecastsPage() {
 
 // ─── RM-09: Run a Manager review ───
 export function RegionalReviewsPage() {
+  const { session } = useSession();
   const loadOverview = useCallback(() => regionalApi.overview(), []);
   const [overview] = useLoad<any>(loadOverview);
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0] || overview?.region?.vertical);
 
   const [selectedManagerId, setSelectedManagerId] = useState<string>('EMP-007');
-  const loadReviews = useCallback(() => regionalApi.listReviews(selectedManagerId), [selectedManagerId]);
+
+  useEffect(() => {
+    if (overview?.managers && overview.managers.length > 0 && (!selectedManagerId || !overview.managers.some((m: any) => m.managerId === selectedManagerId))) {
+      setSelectedManagerId(overview.managers[0].managerId);
+    }
+  }, [overview, selectedManagerId]);
+
+  const loadReviews = useCallback(() => (selectedManagerId ? regionalApi.listReviews(selectedManagerId) : Promise.resolve([])), [selectedManagerId]);
   const [reviews, reloadReviews, { loading, initialLoading, error, clearError }] = useLoad<any[]>(loadReviews);
 
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -2303,7 +2367,7 @@ export function RegionalReviewsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Run a Manager review"
-        subtitle="RM-09 / REVIEWS · Wealth · assigned permission scope · illustrative records"
+        subtitle={`RM-09 / REVIEWS · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={reloadReviews} disabled={loading}>
@@ -2385,7 +2449,7 @@ export function RegionalReviewsPage() {
                 <div className="mt-3 space-y-2 text-xs">
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Reviewee</span>
-                    <span className="font-semibold text-foreground">Neel Verma</span>
+                    <span className="font-semibold text-foreground">{overview?.managers?.find((m: any) => m.managerId === selectedManagerId)?.name || 'Branch Manager'}</span>
                   </div>
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Period</span>
@@ -2550,7 +2614,9 @@ export function RegionalReviewsPage() {
 
 // ─── RM-10: Produce the regional review pack ───
 export function RegionalReportsPage() {
+  const { session } = useSession();
   const [period] = useState('October 2026');
+  const verticalName = getVerticalDisplayName(session?.verticalGrants?.[0]);
   const loadPreview = useCallback(() => regionalApi.previewReportPack(period), [period]);
   const [preview, reloadPreview, previewState] = useLoad<any>(loadPreview);
 
@@ -2562,7 +2628,7 @@ export function RegionalReportsPage() {
 
   const [schedName, setSchedName] = useState('Weekly Regional Governance Pack');
   const [schedCadence, setSchedCadence] = useState('Every Monday 09:00 IST');
-  const [schedRecipients, setSchedRecipients] = useState('kavita@finverse.demo, nm@finverse.demo');
+  const [schedRecipients, setSchedRecipients] = useState('rm@finverse.demo, nm@finverse.demo');
   const s = useSubmitAction();
 
   const handleDownloadPdf = async () => {
@@ -2615,7 +2681,7 @@ export function RegionalReportsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Produce the regional review pack"
-        subtitle="RM-10 / REPORTS & HELP · Wealth · assigned permission scope · illustrative records"
+        subtitle={`RM-10 / REPORTS & HELP · ${verticalName} · assigned permission scope · illustrative records`}
         actions={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={handleRefresh} disabled={activeLoading}>
@@ -2670,7 +2736,7 @@ export function RegionalReportsPage() {
                   </div>
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Scope</span>
-                    <span className="text-foreground">Wealth South</span>
+                    <span className="text-foreground">{preview?.scope?.regionName || `${verticalName} Regional Zone`}</span>
                   </div>
                   <div className="flex justify-between border-b border-border/40 pb-1.5">
                     <span className="text-muted-foreground">Audience</span>

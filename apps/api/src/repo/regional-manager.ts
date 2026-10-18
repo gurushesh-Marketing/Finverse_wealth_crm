@@ -421,6 +421,10 @@ export async function getTerritoryCoverage(scope: Scope) {
     regionName: regionalScope.regionName,
     subRegions: regionalScope.teams[0]?.vertical === 'banking'
       ? ['Mumbai Commercial Hub', 'Gujarat Industrial Zone', 'Pune SME Belt']
+      : regionalScope.teams[0]?.vertical === 'markets'
+      ? ['Mumbai BKC Trading Hub', 'Gujarat Commodities & Equity Corridor', 'Pune Active Derivatives Belt']
+      : (regionalScope.teams[0]?.vertical === 'real_estate' || regionalScope.teams[0]?.vertical === 'real-estate')
+      ? ['South Mumbai Luxury Residential Belt', 'BKC & Lower Parel Commercial Corridor', 'Pune Luxury Enclaves & Land Parcels']
       : ['Karnataka South Hub', 'Tamil Nadu Metro Zone', 'Kerala Coastal Belt'],
     languageQueues: ['English', 'Hindi', 'Kannada', 'Tamil', 'Telugu'],
     teamStats: teamStats.map((t) => ({

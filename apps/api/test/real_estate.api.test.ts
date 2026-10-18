@@ -415,28 +415,103 @@ test('Real Estate Manager MG-01..13: Real Estate Manager supervisory oversight',
   console.log('PASS Real Estate Manager MG-01..13: Real Estate Manager supervisory oversight verified');
 });
 
-test('Real Estate Regional Manager RM-01..10: Real Estate regional governance', async () => {
-  // 1. Authenticate as Siddharth Malhotra (EMP-029, RM, REGION-REALESTATE-WEST)
+test('Real Estate Regional Manager RM-01..10: Real Estate regional governance, scorecards, territory planning, target cascade, cross-manager transfers, staffing requisitions, forecast rollup, escalations, manager reviews, and PDF review pack', async () => {
+  // Login as Siddharth Malhotra (EMP-029, Real Estate Regional Manager)
   const siddharthCookie = await loginAs('siddharth.m@finverse.demo');
+  const sameerCookie = await loginAs('sameer@finverse.demo');
+  const nehaCookie = await loginAs('neha.g@finverse.demo');
+  const vikramCookie = await loginAs('vikramaditya@finverse.demo');
+
+  // Role Gate: Frontline caller Sameer, TL Neha, and Manager Vikramaditya cannot access Regional Manager routes (403 Forbidden)
+  const sameerDenied = await fetch(`${base}/api/regional/overview`, { headers: { Cookie: sameerCookie } });
+  assert.equal(sameerDenied.status, 403, 'Frontline caller must be denied Regional Manager access');
+
+  const nehaDenied = await fetch(`${base}/api/regional/overview`, { headers: { Cookie: nehaCookie } });
+  assert.equal(nehaDenied.status, 403, 'Team Lead must be denied Regional Manager access');
+
+  const vikramDenied = await fetch(`${base}/api/regional/overview`, { headers: { Cookie: vikramCookie } });
+  assert.equal(vikramDenied.status, 403, 'Branch Manager must be denied Regional Manager access');
+
+  // Verify RM Session Resolution
   const meRes = await fetch(`${base}/api/auth/me`, { headers: { Cookie: siddharthCookie } });
   assert.equal(meRes.status, 200);
-  const me = (await meRes.json()) as any;
-  assert.equal(me.session.role, 'RM');
-  assert.ok(me.session.verticalGrants.includes('real_estate'));
+  const { session } = (await meRes.json()) as any;
+  assert.equal(session.employeeId, 'EMP-029', 'Must resolve Siddharth Malhotra');
+  assert.equal(session.role, 'RM');
+  assert.ok(session.verticalGrants.includes('real_estate'));
+  assert.ok(session.teamGrants.includes('TEAM-REALESTATE-ALPHA'));
+  assert.ok(session.teamGrants.includes('TEAM-REALESTATE-BETA'));
 
-  // RM-01: Regional overview
-  const ovRes = await fetch(`${base}/api/regional/overview?period=month-to-date`, {
-    headers: { Cookie: siddharthCookie },
-  });
-  assert.equal(ovRes.status, 200);
-  const ov = (await ovRes.json()) as any;
-  assert.equal(ov.data.region.id, 'REGION-REALESTATE-WEST');
-  assert.equal(ov.data.region.vertical, 'real_estate');
+  // RM-01: Regional Overview across Real Estate West Zone
+  const ovRes = await fetch(`${base}/api/regional/overview?period=month-to-date`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(ovRes.status, 200, 'Real Estate Regional Manager overview must return 200');
+  const ovData = (await ovRes.json()) as any;
+  const overview = ovData.data;
+  assert.equal(overview.region.id, 'REGION-REALESTATE-WEST');
+  assert.equal(overview.region.vertical, 'real_estate');
+  assert.ok(overview.region.teamsCount >= 2, 'Must cover multiple real estate teams');
+  assert.ok(overview.managers.some((m: any) => m.managerId === 'EMP-028'), 'Must include Real Estate Manager Vikramaditya Singhania');
 
-  // RM-04: Regional target allocate
-  const cascadeRes = await fetch(`${base}/api/regional/targets/allocate`, {
+  // Create regional management intervention for Vikramaditya Singhania
+  const actRes = await fetch(`${base}/api/regional/actions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: siddharthCookie },
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceAction: 'RM-01',
+      kind: 'regional-intervention',
+      subjectManagerEmployeeId: 'EMP-028',
+      ownerEmployeeId: 'EMP-029',
+      title: 'South Mumbai Luxury Mandate Inspection Turnaround',
+      detail: 'Expedite architectural site inspections and RERA due diligence searches for landmark residential towers',
+      dueAt: new Date(Date.now() + 86400000 * 3).toISOString(),
+    }),
+  });
+  assert.equal(actRes.status, 201);
+
+  // RM-02: In-Scope Real Estate Manager Scorecard (Vikramaditya Singhania)
+  const scRes = await fetch(`${base}/api/regional/managers/EMP-028/scorecard?period=October`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(scRes.status, 200);
+  const scData = (await scRes.json()) as any;
+  const scorecard = scData.data;
+  assert.equal(scorecard.manager.id, 'EMP-028');
+  assert.ok(scorecard.teamLeads.some((tl: any) => tl.id === 'EMP-027'), 'Must include TL Neha Gupta');
+  assert.ok(scorecard.teamLeads.some((tl: any) => tl.id === 'EMP-032'), 'Must include TL Pooja Reddy');
+
+  // Cross-vertical isolation: Out-of-scope Wealth Manager (Neel Verma, EMP-007) returns 404 Not Found
+  const foreignScRes = await fetch(`${base}/api/regional/managers/EMP-007/scorecard?period=October`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(foreignScRes.status, 404, 'Out-of-scope Wealth manager must return 404');
+
+  // RM-03: Territory Coverage Planning for Real Estate West Zone
+  const terrRes = await fetch(`${base}/api/regional/territories`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(terrRes.status, 200);
+  const terrData = (await terrRes.json()) as any;
+  assert.ok(terrData.data.subRegions.some((s: string) => s.includes('Mumbai') || s.includes('Residential') || s.includes('Commercial')));
+
+  const saveTerrRes = await fetch(`${base}/api/regional/territories`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      territoryName: 'Western Luxury Residential & Commercial Mandate Corridor',
+      subRegion: 'South Mumbai Luxury Residential Belt',
+      productScope: 'Luxury Residential Mandate, Commercial Office Space, Real Estate Investment Trusts (REITs)',
+      languageQueues: ['English', 'Hindi', 'Marathi', 'Gujarati'],
+      targetTeamIds: ['TEAM-REALESTATE-ALPHA', 'TEAM-REALESTATE-BETA'],
+      capacityGap: 2,
+      routingProposal: 'Route luxury residential mandates in Worli/Malabar Hill to Real Estate Alpha; commercial leasing to Beta',
+      activationDate: '2026-11-01',
+      status: 'activated',
+    }),
+  });
+  assert.equal(saveTerrRes.status, 201);
+
+  // RM-04: Regional Target Cascade & Non-Over-Allocation Enforcement
+  const tgRes = await fetch(`${base}/api/regional/targets`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(tgRes.status, 200);
+
+  // Valid allocation: 80 wins allocated to Vikramaditya Singhania from 100 parent target
+  const allocTgRes = await fetch(`${base}/api/regional/targets/allocate`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       periodLabel: 'October',
       metric: 'approved-wins',
@@ -447,17 +522,215 @@ test('Real Estate Regional Manager RM-01..10: Real Estate regional governance', 
       publish: true,
     }),
   });
-  assert.equal(cascadeRes.status, 201);
+  assert.equal(allocTgRes.status, 201);
 
-  // RM-10: Executive Review Pack PDF
-  const packRes = await fetch(`${base}/api/regional/reports/generate-pdf`, {
+  // Over-allocation check: Allocating 150 wins when parent target is 100 must be rejected (400 Bad Request)
+  const overAllocRes = await fetch(`${base}/api/regional/targets/allocate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: siddharthCookie },
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'October',
+      metric: 'approved-wins',
+      approvedNmTarget: 100,
+      managerAllocations: [
+        { managerEmployeeId: 'EMP-028', targetWins: 150 },
+      ],
+      publish: true,
+    }),
+  });
+  assert.equal(overAllocRes.status, 400, 'Over-allocation exceeding parent NM target must be rejected');
+
+  // RM-05: Cross-Manager Lead Transfer & Decision
+  const xferLeadId = `${RUN_PREFIX}-RM-RE-XFER`;
+  await db.query(
+    `INSERT INTO leads (id, vertical, display_name, phone, preferred_language, product, source, stage, team_id)
+     VALUES ($1, 'real_estate', 'Kavita Birla Estate', '+91 98765 66099', 'en', 'Luxury Residential Mandate', 'Direct Referral', 'requirement', 'TEAM-REALESTATE-BETA')`,
+    [xferLeadId]
+  );
+
+  const xferRes = await fetch(`${base}/api/regional/transfers`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceManagerEmployeeId: 'EMP-028',
+      destinationManagerEmployeeId: 'EMP-028',
+      sourceTeamId: 'TEAM-REALESTATE-BETA',
+      destinationTeamId: 'TEAM-REALESTATE-ALPHA',
+      leadIds: [xferLeadId],
+      reason: 'Regional balance reallocation of high-value Worli sea-facing mandate',
+      forecastImpactNotes: 'Expected token receipt Q4 2026',
+    }),
+  });
+  assert.equal(xferRes.status, 201);
+  const xferData = (await xferRes.json()) as any;
+  const transferId = xferData.data.id;
+
+  // Decide transfer with approval
+  const decideXferRes = await fetch(`${base}/api/regional/transfers/decide`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transferId,
+      decision: 'approved',
+      resolutionNotes: 'Approved commercial cross-branch rebalancing under Regional Manager authority',
+    }),
+  });
+  assert.equal(decideXferRes.status, 200);
+
+  // Verify lead's team in database is updated to Real Estate Alpha and audit logged
+  const { rows: movedLeadCheck } = await db.query(`SELECT team_id FROM leads WHERE id = $1`, [xferLeadId]);
+  assert.equal(movedLeadCheck[0].team_id, 'TEAM-REALESTATE-ALPHA');
+
+  // RM-06: Regional Staffing Envelope & Requisition Submission to HR
+  const staffRes = await fetch(`${base}/api/regional/staffing`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(staffRes.status, 200);
+
+  const planStaffRes = await fetch(`${base}/api/regional/staffing`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'Q4-2026',
+      plannedHeadcount: 8,
+      approvedHeadcount: 6,
+      activeHeadcount: 4,
+      requisitions: [
+        { title: 'Luxury Mandate Consultant', teamId: 'TEAM-REALESTATE-ALPHA', count: 2, justification: 'Luxury residential mandate expansion', priority: 'high' },
+      ],
+      businessJustification: 'Support 50% surge in Grade-A commercial office space and luxury residential mandates',
+      status: 'submitted_to_hr',
+    }),
+  });
+  assert.equal(planStaffRes.status, 201);
+
+  // RM-07: Regional Forecast Rollup & Submission to NM
+  const mFcstId = `MFCST-RE-${Date.now().toString(36)}`;
+  await db.query(
+    `INSERT INTO manager_forecasts (id, manager_employee_id, period_label, bottom_up_revenue, management_adjustment, adjusted_revenue, currency, status, accepted_forecast_ids, submitted_at)
+     VALUES ($1, 'EMP-028', 'October', 35000000, 3000000, 38000000, 'INR', 'submitted_to_rm', '[]', now())`,
+    [mFcstId]
+  );
+
+  const fcstRollupRes = await fetch(`${base}/api/regional/forecasts?period=October`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(fcstRollupRes.status, 200);
+
+  const submitFcstRes = await fetch(`${base}/api/regional/forecasts/submit`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      periodLabel: 'October',
+      regionalAdjustment: 2000000,
+      acceptedManagerForecastIds: [mFcstId],
+      topRegionalRisks: [{ title: 'BMC architectural zoning delays', severity: 'medium', impact: 'Token clearance delay' }],
+      regionalAssumptions: 'Anticipated 2 major commercial office lease closures by end of October',
+      submitToNm: true,
+    }),
+  });
+  assert.equal(submitFcstRes.status, 201);
+
+  // RM-08: Regional Escalations & Exceptions Management
+  const escListRes = await fetch(`${base}/api/regional/escalations`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(escListRes.status, 200);
+
+  const createEscRes = await fetch(`${base}/api/regional/escalations`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceType: 'operational_risk',
+      title: 'RERA Carpet Area Verification Delay in Lower Parel Mandate',
+      severity: 'high',
+      accountableManagerEmployeeId: 'EMP-028',
+      detail: 'Architectural certificate delay causing SLA breach on token execution for INR 30 Cr commercial floor',
+      deadline: new Date(Date.now() + 86400000 * 2).toISOString(),
+    }),
+  });
+  assert.equal(createEscRes.status, 201);
+  const createEscData = (await createEscRes.json()) as any;
+  const escId = createEscData.data.id;
+
+  const resolveEscRes = await fetch(`${base}/api/regional/escalations/resolve`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      escalationId: escId,
+      decision: 'resolved',
+      recoveryDecision: 'Appointed secondary architectural survey partner and secured carpet area certificate within 24h',
+    }),
+  });
+  assert.equal(resolveEscRes.status, 200);
+
+  // RM-09: Structured Manager Performance Review
+  const saveRevRes = await fetch(`${base}/api/regional/reviews`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      managerEmployeeId: 'EMP-028',
+      periodLabel: 'Q3-2026',
+      performanceRating: 'exceeding',
+      strengths: 'Exceptional client advisory rigor on high-ticket luxury mandates across Real Estate Alpha & Beta',
+      blockers: 'RERA legal search turnaround bottlenecks on redevelopment mandates',
+      improvementCommitments: ['Reduce average mandate-to-token duration from 21d to 14d'],
+      supportActions: 'Authorize expedited architectural survey panel access and dedicated property legal desk',
+      privateRmNotes: 'Strong leadership candidate for National Real Estate Head succession',
+      nextReviewDate: '2026-12-30',
+      acknowledged: true,
+    }),
+  });
+  assert.equal(saveRevRes.status, 201);
+
+  // Non-manager or foreign-manager review rejection (403)
+  const invalidRevRes = await fetch(`${base}/api/regional/reviews`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      managerEmployeeId: 'EMP-007', // Neel Verma (Wealth Manager, out of Real Estate scope)
+      periodLabel: 'Q3-2026',
+      performanceRating: 'achieving',
+      strengths: 'Good wealth sales',
+      blockers: 'No blockers',
+      improvementCommitments: ['Maintain pace'],
+      nextReviewDate: '2026-12-30',
+      acknowledged: true,
+    }),
+  });
+  assert.equal(invalidRevRes.status, 403, 'Reviewing an out-of-scope manager must be rejected');
+
+  // RM-10: Audited Binary PDF Review Pack & Report Schedules
+  const prevReportRes = await fetch(`${base}/api/regional/reports/preview?period=October+2026`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(prevReportRes.status, 200);
+  const prevReportData = (await prevReportRes.json()) as any;
+  assert.ok(prevReportData.data.title.includes('Regional'));
+  assert.equal(prevReportData.data.scope.vertical, 'real_estate');
+
+  // Generate binary PDF
+  const genPdfRes = await fetch(`${base}/api/regional/reports/generate-pdf`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ period: 'October 2026', sections: ['overview', 'managers', 'targets', 'forecast', 'risks'] }),
   });
-  assert.equal(packRes.status, 200);
-  const packData = (await packRes.json()) as any;
-  assert.ok(packData.data.downloadUrl);
+  assert.equal(genPdfRes.status, 200);
+  const genPdfData = (await genPdfRes.json()) as any;
+  assert.ok(genPdfData.data.downloadUrl);
+
+  const dlRes = await fetch(`${base}${genPdfData.data.downloadUrl}`, { headers: { Cookie: siddharthCookie } });
+  assert.equal(dlRes.status, 200);
+  assert.equal(dlRes.headers.get('content-type'), 'application/pdf');
+  const dlBytes = Buffer.from(await dlRes.arrayBuffer());
+  assert.ok(dlBytes.subarray(0, 4).toString().startsWith('%PDF'), 'Downloaded review pack must be valid binary %PDF');
+
+  // Save recurring report schedule
+  const saveSchedRes = await fetch(`${base}/api/regional/reports/schedules`, {
+    method: 'POST',
+    headers: { Cookie: siddharthCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Real Estate Advisory West Zone Weekly Executive Cadence',
+      periodType: 'weekly',
+      cadence: 'Monday 08:30 IST',
+      recipients: ['siddharth.m@finverse.demo', 'vikramaditya@finverse.demo'],
+      sections: ['overview', 'managers', 'targets', 'forecast', 'risks'],
+      status: 'active',
+    }),
+  });
+  assert.equal(saveSchedRes.status, 201);
 
   console.log('PASS Real Estate Regional Manager RM-01..10: Real Estate regional governance verified');
 });
