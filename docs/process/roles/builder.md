@@ -6,6 +6,8 @@ implementation owner**.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, then these skills once and apply
 them throughout:
 

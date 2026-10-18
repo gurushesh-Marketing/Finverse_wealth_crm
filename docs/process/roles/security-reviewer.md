@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-security-reviewer.md` and `reviewer.m
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the change set.
 - Applicable installed skills: `.agents/skills/security-review/SKILL.md` (auth, sessions, validation, secrets, mutations), `.agents/skills/finverse-access-contract/SKILL.md` (access boundaries), `.agents/skills/postgres-patterns/SKILL.md` (parameterised SQL, transaction isolation).
 - Absent skills: none.

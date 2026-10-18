@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { managerApi } from '../lib/manager-api';
+import { useSession } from '../lib/session';
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -142,12 +144,40 @@ export function ManagerOverviewPage() {
     }, 'Management intervention created successfully.');
   };
 
+  const location = useLocation();
+  const { session } = useSession();
+  const isBanking = session?.verticalGrants?.includes('banking') || location.pathname.startsWith('/banking');
+  const isMarkets = session?.verticalGrants?.includes('markets') || location.pathname.startsWith('/markets');
+  const isRealEstate = session?.verticalGrants?.includes('real_estate') || session?.verticalGrants?.includes('real-estate') || location.pathname.startsWith('/real-estate');
+  const verticalLabel = isBanking ? 'Commercial Banking' : isMarkets ? 'Markets & Securities' : isRealEstate ? 'Real Estate Advisory' : 'Wealth';
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Manager overview"
-        subtitle="Performance, target pace, ageing, and backlog across assigned team leaders · MG-01"
-        actions={
+      {/* Top Breadcrumb & Action Header (Deck P135) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-muted-foreground">
+            <Link to="/manager/overview" className="hover:text-primary hover:underline">
+              ← Manager workspace
+            </Link>
+            <span>/</span>
+            <span className="text-primary font-bold">MG-01 / MANAGER OVERVIEW</span>
+          </div>
+          <h1 className="mt-1 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Investigate performance across team leaders
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {verticalLabel} · assigned permission scope · illustrative records
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="default" className="bg-[#DCEEEA] text-primary font-medium inline-flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Scoped action
+          </Badge>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onChange={(e) => setPeriod(e.target.value as MgPeriod)} className="w-36 text-xs">
               <option value="today">Today</option>
@@ -160,12 +190,12 @@ export function ManagerOverviewPage() {
               <option value="previous-period">vs Prev Period</option>
               <option value="target-pace">vs Target Pace</option>
             </Select>
-            <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+            <Button size="sm" variant="outline" onClick={load} disabled={loading} className="border-primary/40">
               {loading && data ? 'Refreshing…' : 'Refresh'}
             </Button>
           </div>
-        }
-      />
+        </div>
+      </div>
 
       {error ? (
         <div role="alert" className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
@@ -189,101 +219,214 @@ export function ManagerOverviewPage() {
       ) : !data ? (
         <EmptyState title="No overview data" message="Overview metrics could not be loaded for the selected period." />
       ) : (
-        <>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <p>
-              Scope: {data.teams.map((t: any) => t.name).join(' + ')} · As of {new Date(data.asOf).toLocaleTimeString()} ·
-              Role: Wealth Manager ({data.manager.name})
-            </p>
-            {loading ? <span className="font-mono text-[11px] text-primary animate-pulse">Refreshing…</span> : null}
+        <div className="space-y-6">
+          {/* Sub-status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 font-medium text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+              <span>Ready for review</span>
+            </div>
+            <div className="font-mono">Updated 09:42 IST · as-of {new Date(data.asOf).toLocaleTimeString()}</div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {data.kpis.map((k: any) => (
-              <Card key={k.key} className="p-4 border-l-4 border-l-primary">
-                <p className="text-xs font-medium text-muted-foreground">{k.label}</p>
-                <p className="mt-1 font-heading text-2xl font-bold text-foreground">{k.value}</p>
-                <p className="text-xs text-primary font-medium mt-0.5">{k.comparison}</p>
-                <p className="mt-2 font-mono text-[10px] text-muted-foreground">{k.formula}</p>
-              </Card>
-            ))}
-          </div>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base font-semibold">Team Leader Contribution & Backlog</CardTitle>
-              <span className="text-xs text-muted-foreground">
-                Notice: Low sample size teams display count explicitly; never automatically ranked worst.
-              </span>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                      <th className="py-2">Team Leader</th>
-                      <th>Assigned Teams</th>
-                      <th>Target Pace</th>
-                      <th>Wins</th>
-                      <th>Active Backlog</th>
-                      <th>Ageing (&gt;3d)</th>
-                      <th>Overdue SLA</th>
-                      <th>Open Actions</th>
-                      <th className="text-right">Intervention</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {data.tlBreakdown.map((tl: any) => (
-                      <tr key={tl.tlEmployeeId} className="hover:bg-muted/40">
-                        <td className="py-3 font-medium">
-                          {tl.tlName}
-                          {tl.isLowSample ? (
-                            <Badge tone="pending" className="ml-2 text-[10px]">
-                              Sample: {tl.sampleSize}
-                            </Badge>
-                          ) : null}
-                        </td>
-                        <td className="text-muted-foreground">{tl.teams.join(', ')}</td>
-                        <td>
-                          <span className="font-semibold text-emerald-700 dark:text-emerald-400">{tl.targetPace}</span>
-                        </td>
-                        <td>{tl.wins}</td>
-                        <td>{tl.openBacklog} leads</td>
-                        <td>
-                          {tl.ageingLeads > 0 ? (
-                            <span className="text-amber-600 font-medium">{tl.ageingLeads}</span>
-                          ) : (
-                            '0'
-                          )}
-                        </td>
-                        <td>
-                          {tl.overdueTasks > 0 ? (
-                            <span className="text-rose-600 font-bold">{tl.overdueTasks}</span>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </td>
-                        <td>{tl.openActions}</td>
-                        <td className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedTlId(tl.tlEmployeeId);
-                              setActionDrawerOpen(true);
-                            }}
-                          >
-                            Assign Action
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* Parameter Grid (Deck P135: WORK AREA) */}
+          <Card className="p-4 bg-secondary/30 border-border/70">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-3">
+              Work Area / Investigate performance across team leaders
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div className="rounded-md border border-border/60 bg-card p-3">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase">Scope</span>
+                <p className="mt-1 font-semibold text-foreground text-sm">Assigned TLs</p>
               </div>
-            </CardContent>
+              <div className="rounded-md border border-border/60 bg-card p-3">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase">Period</span>
+                <p className="mt-1 font-semibold text-foreground text-sm capitalize">{period.replace(/-/g, ' ')}</p>
+              </div>
+              <div className="rounded-md border border-border/60 bg-card p-3">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase">Compare</span>
+                <p className="mt-1 font-semibold text-foreground text-sm">Same cohort basis</p>
+              </div>
+              <div className="rounded-md border border-border/60 bg-card p-3">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase">Drill-Down</span>
+                <p className="mt-1 font-semibold text-foreground text-sm">TL then associate</p>
+              </div>
+            </div>
           </Card>
-        </>
+
+          {/* Big Metric Banner Card (Deck P135: IN THIS VIEW) */}
+          <div className="rounded-xl border border-border bg-[#F4FAF8] p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">In this view</span>
+                <h2 className="mt-1 font-heading text-xl font-bold text-foreground">
+                  Team leads to review
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Contribution, capacity and pipeline quality across assigned teams.
+                </p>
+              </div>
+              <div className="font-heading text-5xl font-bold tracking-tight text-primary">
+                {data.tlBreakdown?.length ?? 14}
+              </div>
+            </div>
+          </div>
+
+          {/* Two-Column Layout: Left Content (8 cols) + Right Guidance Rail (4 cols) */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Left 8 Cols: KPIs and TL Table */}
+            <div className="space-y-6 lg:col-span-8">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {data.kpis.map((k: any) => (
+                  <Card key={k.key} className="p-3 border-l-4 border-l-primary bg-card">
+                    <p className="text-xs font-medium text-muted-foreground">{k.label}</p>
+                    <p className="mt-1 font-heading text-2xl font-bold text-foreground">{k.value}</p>
+                    <p className="text-xs text-primary font-medium mt-0.5">{k.comparison}</p>
+                    <p className="mt-1.5 font-mono text-[10px] text-muted-foreground truncate">{k.formula}</p>
+                  </Card>
+                ))}
+              </div>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/60">
+                  <CardTitle className="text-base font-semibold">Team Leader Contribution & Backlog</CardTitle>
+                  <span className="text-xs text-muted-foreground">
+                    Notice: Low sample size teams display count explicitly; never automatically ranked worst.
+                  </span>
+                </CardHeader>
+                <CardContent className="pt-3">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm" role="table">
+                      <thead>
+                        <tr className="border-b border-border/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <th className="pb-2 font-medium">Team Leader</th>
+                          <th className="pb-2 font-medium">Assigned Teams</th>
+                          <th className="pb-2 font-medium">Target Pace</th>
+                          <th className="pb-2 font-medium">Wins</th>
+                          <th className="pb-2 font-medium">Active Backlog</th>
+                          <th className="pb-2 font-medium">Ageing (&gt;3d)</th>
+                          <th className="pb-2 font-medium">Overdue SLA</th>
+                          <th className="pb-2 font-medium">Open Actions</th>
+                          <th className="pb-2 text-right font-medium">Intervention</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {data.tlBreakdown.map((tl: any) => (
+                          <tr key={tl.tlEmployeeId} className="transition-colors hover:bg-secondary/30">
+                            <td className="py-3 font-medium">
+                              {tl.tlName}
+                              {tl.isLowSample ? (
+                                <Badge tone="pending" className="ml-2 text-[10px]">
+                                  Sample: {tl.sampleSize}
+                                </Badge>
+                              ) : null}
+                            </td>
+                            <td className="text-muted-foreground">{tl.teams.join(', ')}</td>
+                            <td>
+                              <span className="font-semibold text-emerald-700 dark:text-emerald-400">{tl.targetPace}</span>
+                            </td>
+                            <td>{tl.wins}</td>
+                            <td>{tl.openBacklog} leads</td>
+                            <td>
+                              {tl.ageingLeads > 0 ? (
+                                <span className="text-amber-600 font-medium">{tl.ageingLeads}</span>
+                              ) : (
+                                '0'
+                              )}
+                            </td>
+                            <td>
+                              {tl.overdueTasks > 0 ? (
+                                <span className="text-rose-600 font-bold">{tl.overdueTasks}</span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </td>
+                            <td>{tl.openActions}</td>
+                            <td className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedTlId(tl.tlEmployeeId);
+                                  setActionDrawerOpen(true);
+                                }}
+                              >
+                                Assign Action
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right 4 Cols: 3-Card Guidance Rail (Deck P135) */}
+            <div className="space-y-4 lg:col-span-4">
+              {/* Card 1: How this works */}
+              <Card className="p-4 bg-card border-border">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  How This Works
+                </span>
+                <h3 className="mt-1 font-heading text-sm font-bold text-foreground">
+                  Your next steps
+                </h3>
+                <ul className="mt-3 space-y-3 text-xs text-muted-foreground">
+                  <li className="flex gap-2">
+                    <span className="font-mono font-bold text-primary">01</span>
+                    <span>Inspect target pace, ageing and backlog by TL.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono font-bold text-primary">02</span>
+                    <span>Open a TL contribution and drill into permitted evidence.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono font-bold text-primary">03</span>
+                    <span>Assign an intervention owner inside the Manager workspace.</span>
+                  </li>
+                </ul>
+              </Card>
+
+              {/* Card 2: When a check fails */}
+              <Card className="p-4 bg-card border-border">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  When a Check Fails
+                </span>
+                <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                  A low sample-size team displays its sample size; do not automatically rank it as best or worst.
+                </p>
+              </Card>
+
+              {/* Card 3: Permission & evidence */}
+              <Card className="p-4 bg-card border-border">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Permission & Evidence
+                </span>
+                <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                  No access to sibling Managers or other verticals. Team percentages must be recomputed from eligible totals.
+                </p>
+              </Card>
+            </div>
+          </div>
+
+          {/* Bottom Authorization Footer & Single Solid Primary Button (Deck P135) */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Current role and scope checked on submit</span>
+            </div>
+            <Link
+              to="/manager/leaders"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+            >
+              Continue →
+            </Link>
+          </div>
+        </div>
       )}
 
       {/* MG-01 Intervention Drawer */}
@@ -346,7 +489,14 @@ export function ManagerLeadersPage() {
   const [tab, setTab] = useState<'scorecard' | 'source-quality'>('scorecard');
   const loadTls = useCallback(() => managerApi.getTls(), []);
   const [tls] = useLoad<any[]>(loadTls);
-  const [selectedTlId, setSelectedTlId] = useState<string>('EMP-003'); // Tara Iyer default
+  const [selectedTlId, setSelectedTlId] = useState<string>('');
+
+  useEffect(() => {
+    if (tls && tls.length > 0 && (!selectedTlId || !tls.some((t: any) => t.id === selectedTlId))) {
+      setSelectedTlId(tls[0].id);
+    }
+  }, [tls, selectedTlId]);
+
   const loadScorecard = useCallback(
     () => (selectedTlId ? managerApi.getTlScorecard(selectedTlId, 'September') : Promise.resolve(null)),
     [selectedTlId]
@@ -702,6 +852,17 @@ export function ManagerCapacityPage() {
   const [justification, setJustification] = useState('');
   const [handoffPlan, setHandoffPlan] = useState('');
 
+  useEffect(() => {
+    if (capacity?.teams && capacity.teams.length > 0) {
+      setSourceTeam(capacity.teams[0].teamId);
+      if (capacity.teams.length > 1) {
+        setDestTeam(capacity.teams[1].teamId);
+      } else {
+        setDestTeam(capacity.teams[0].teamId);
+      }
+    }
+  }, [capacity?.teams]);
+
   const s = useSubmitAction();
 
   const handleCreateTransfer = async () => {
@@ -839,16 +1000,32 @@ export function ManagerCapacityPage() {
             <CardContent className="space-y-3">
               <FormField label="Source Team">
                 <Select value={sourceTeam} onChange={(e) => setSourceTeam(e.target.value)}>
-                  <option value="TEAM-WEALTH-ALPHA">Wealth Alpha</option>
-                  <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
-                  <option value="TEAM-WEALTH-GAMMA">Wealth Gamma</option>
+                  {capacity?.teams?.length ? (
+                    capacity.teams.map((t: any) => (
+                      <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="TEAM-WEALTH-ALPHA">Wealth Alpha</option>
+                      <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
+                      <option value="TEAM-WEALTH-GAMMA">Wealth Gamma</option>
+                    </>
+                  )}
                 </Select>
               </FormField>
               <FormField label="Destination Team">
                 <Select value={destTeam} onChange={(e) => setDestTeam(e.target.value)}>
-                  <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
-                  <option value="TEAM-WEALTH-ALPHA">Wealth Alpha</option>
-                  <option value="TEAM-WEALTH-GAMMA">Wealth Gamma</option>
+                  {capacity?.teams?.length ? (
+                    capacity.teams.map((t: any) => (
+                      <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
+                      <option value="TEAM-WEALTH-ALPHA">Wealth Alpha</option>
+                      <option value="TEAM-WEALTH-GAMMA">Wealth Gamma</option>
+                    </>
+                  )}
                 </Select>
               </FormField>
               <FormField label="Lead IDs (comma-separated)">
@@ -1063,7 +1240,7 @@ export function ManagerTargetsPage() {
     }
     await s.run(async () => {
       const tlAllocList = data.tls.map((t: any) => ({
-        teamId: t.team_ids[0] || 'TEAM-WEALTH-ALPHA',
+        teamId: t.team_ids[0] || (data.teams?.[0]?.id ?? 'TEAM-WEALTH-ALPHA'),
         tlEmployeeId: t.id,
         allocatedValue: allocations[t.id] || 0,
       }));
@@ -1680,8 +1857,15 @@ export function ManagerExceptionsPage() {
 export function ManagerReviewsPage() {
   const loadTls = useCallback(() => managerApi.getTls(), []);
   const [tls] = useLoad<any[]>(loadTls);
-  const [selectedTlId, setSelectedTlId] = useState('EMP-003'); // Tara Iyer default
-  const loadReviews = useCallback(() => managerApi.getReviews(selectedTlId), [selectedTlId]);
+  const [selectedTlId, setSelectedTlId] = useState('');
+
+  useEffect(() => {
+    if (tls && tls.length > 0 && (!selectedTlId || !tls.some((t: any) => t.id === selectedTlId))) {
+      setSelectedTlId(tls[0].id);
+    }
+  }, [tls, selectedTlId]);
+
+  const loadReviews = useCallback(() => (selectedTlId ? managerApi.getReviews(selectedTlId) : Promise.resolve([])), [selectedTlId]);
   const [reviews, loadReviewsFn, { loading: revLoading, initialLoading: revInitialLoading, error: revError, clearError: clearRevError }] = useLoad<any[]>(loadReviews);
 
   const [strengths, setStrengths] = useState('Strong team discipline and high task adherence across Alpha.');

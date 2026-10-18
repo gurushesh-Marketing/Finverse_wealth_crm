@@ -21,7 +21,12 @@ async function main(): Promise<void> {
       ['TEAM-WEALTH-ALPHA', 'Wealth Alpha', 'wealth'],
       ['TEAM-WEALTH-BETA', 'Wealth Beta', 'wealth'],
       ['TEAM-BANKING-ALPHA', 'Banking Alpha', 'banking'],
+      ['TEAM-BANKING-BETA', 'Banking Beta', 'banking'],
       ['TEAM-WEALTH-GAMMA', 'Wealth Gamma', 'wealth'],
+      ['TEAM-MARKETS-ALPHA', 'Markets Alpha', 'markets'],
+      ['TEAM-MARKETS-BETA', 'Markets Beta', 'markets'],
+      ['TEAM-REALESTATE-ALPHA', 'Real Estate Alpha', 'real_estate'],
+      ['TEAM-REALESTATE-BETA', 'Real Estate Beta', 'real_estate'],
     ];
     for (const [id, name, vertical] of teams) {
       await pool.query(
@@ -42,6 +47,15 @@ async function main(): Promise<void> {
       ['EMP-009', 'vikram@finverse.demo', 'Vikram Malhotra'],
       ['EMP-010', 'rajiv@finverse.demo', 'Rajiv Mehta'],
       ['EMP-011', 'ananya@finverse.demo', 'Ananya Roy'],
+      ['EMP-013', 'alok@finverse.demo', 'Alok Verma'],
+      ['EMP-014', 'pooja@finverse.demo', 'Pooja Sharma'],
+      ['EMP-016', 'rohan@finverse.demo', 'Rohan Sen'],
+      ['EMP-017', 'kunal@finverse.demo', 'Kunal Shah'],
+      ['EMP-018', 'priyas@finverse.demo', 'Priya Sen'],
+      ['EMP-019', 'arjun@finverse.demo', 'Arjun Mehta'],
+      ['EMP-020', 'suresh@finverse.demo', 'Suresh Nair'],
+      ['EMP-021', 'kabir@finverse.demo', 'Kabir Joshi'],
+      ['EMP-026', 'sameer@finverse.demo', 'Sameer Kulkarni'],
     ];
     for (const [id, email, displayName] of employees) {
       await pool.query(
@@ -58,6 +72,7 @@ async function main(): Promise<void> {
       ['ASG-WEALTH-003A', 'EMP-003', 'TL', 'wealth', 'TEAM-WEALTH-ALPHA'],
       ['ASG-WEALTH-003B', 'EMP-003', 'TL', 'wealth', 'TEAM-WEALTH-BETA'],
       ['ASG-BANK-001', 'EMP-004', 'SC', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-TL-001', 'EMP-016', 'TL', 'banking', 'TEAM-BANKING-ALPHA'],
       ['ASG-WEALTH-005', 'EMP-005', 'TL', 'wealth', 'TEAM-WEALTH-GAMMA'],
       ['ASG-WEALTH-006', 'EMP-006', 'SC', 'wealth', 'TEAM-WEALTH-GAMMA'],
       ['ASG-WEALTH-MG-A', 'EMP-007', 'MG', 'wealth', 'TEAM-WEALTH-ALPHA'],
@@ -73,6 +88,19 @@ async function main(): Promise<void> {
       ['ASG-EXEC-CEO-B', 'EMP-010', 'CEO', 'banking', 'TEAM-BANKING-ALPHA'],
       ['ASG-EXEC-CFO-W', 'EMP-011', 'CFO', 'wealth', 'TEAM-WEALTH-ALPHA'],
       ['ASG-EXEC-CFO-B', 'EMP-011', 'CFO', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-SA-W', 'EMP-013', 'SA', 'wealth', 'TEAM-WEALTH-ALPHA'],
+      ['ASG-SA-B', 'EMP-013', 'SA', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-HR-W', 'EMP-014', 'HR', 'wealth', 'TEAM-WEALTH-ALPHA'],
+      ['ASG-HR-B', 'EMP-014', 'HR', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-MG-A', 'EMP-017', 'MG', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-MG-B', 'EMP-017', 'MG', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-BANK-TL-002', 'EMP-018', 'TL', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-BANK-RM-A', 'EMP-019', 'RM', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-RM-B', 'EMP-019', 'RM', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-BANK-NM-A', 'EMP-020', 'NM', 'banking', 'TEAM-BANKING-ALPHA'],
+      ['ASG-BANK-NM-B', 'EMP-020', 'NM', 'banking', 'TEAM-BANKING-BETA'],
+      ['ASG-MKT-SC-001', 'EMP-021', 'SC', 'markets', 'TEAM-MARKETS-ALPHA'],
+      ['ASG-RE-SC-001', 'EMP-026', 'SC', 'real_estate', 'TEAM-REALESTATE-ALPHA'],
     ];
     for (const [id, employeeId, role, vertical, teamId] of assignments) {
       await pool.query(
@@ -97,6 +125,12 @@ async function main(): Promise<void> {
       { id: 'FV-1102', vertical: 'wealth', name: 'Prospect I', email: null, phone: '+91 98765 40012', product: 'V1 Savings Plus', source: 'Campaign C12', stage: 'not-contacted', owner: 'EMP-006', team: 'TEAM-WEALTH-GAMMA' },
       { id: 'FV-1103', vertical: 'wealth', name: 'Prospect J', email: 'prospect.j@example.test', phone: '+91 98765 40013', product: 'V1 Wealth Portfolio', source: 'Employee referral', stage: 'new', owner: 'EMP-006', team: 'TEAM-WEALTH-GAMMA' },
       { id: 'FV-1104', vertical: 'wealth', name: 'Prospect K', email: null, phone: '+91 98765 40014', product: 'V1 Savings Plus', source: 'Campaign C12', stage: 'new', owner: null as unknown as string, team: 'TEAM-WEALTH-GAMMA' },
+      { id: 'FV-3001', vertical: 'markets', name: 'Rohan Verma', email: 'rohan.verma@trading.demo', phone: '+91 98765 60001', product: 'Equity Delivery & Intraday', source: 'Trading App Direct', stage: 'new', owner: 'EMP-021', team: 'TEAM-MARKETS-ALPHA' },
+      { id: 'FV-3002', vertical: 'markets', name: 'Priya Kulkarni', email: 'priya.k@finverse.demo', phone: '+91 98765 60002', product: 'F&O Derivatives', source: 'Trading App Direct', stage: 'kyc', owner: 'EMP-021', team: 'TEAM-MARKETS-ALPHA' },
+      { id: 'FV-3003', vertical: 'markets', name: 'Aakash Singhal', email: 'aakash.s@investor.demo', phone: '+91 98765 60003', product: 'Direct Mutual Funds', source: 'Website', stage: 'new', owner: null as unknown as string, team: 'TEAM-MARKETS-ALPHA' },
+      { id: 'FV-4001', vertical: 'real_estate', name: 'Ananya Deshmukh', email: 'ananya.d@luxuryestates.demo', phone: '+91 98765 70001', product: 'Luxury Residential Mandate', source: 'HNI Referral', stage: 'new', owner: 'EMP-026', team: 'TEAM-REALESTATE-ALPHA' },
+      { id: 'FV-4002', vertical: 'real_estate', name: 'Rajesh Goenka', email: 'rajesh.g@capitalgroup.demo', phone: '+91 98765 70002', product: 'Commercial Office Space', source: 'Direct Inbound', stage: 'requirement', owner: 'EMP-026', team: 'TEAM-REALESTATE-ALPHA' },
+      { id: 'FV-4003', vertical: 'real_estate', name: 'Sunita Menon', email: 'sunita.m@investments.demo', phone: '+91 98765 70003', product: 'Plotted Development & Villas', source: 'Developer Campaign', stage: 'site-visit', owner: null as unknown as string, team: 'TEAM-REALESTATE-ALPHA' },
     ];
     for (const l of leads) {
       await pool.query(
@@ -112,6 +146,8 @@ async function main(): Promise<void> {
       ['FV-1002', 'EMP-001', 'voice-call', 'Introduction call', daysFromNow(0, 4), 'high'],
       ['FV-1004', 'EMP-002', 'whatsapp', 'Share brochure', daysFromNow(2), 'normal'],
       ['FV-2001', 'EMP-004', 'email', 'Send account opening kit', daysFromNow(1), 'normal'],
+      ['FV-3001', 'EMP-021', 'voice-call', 'Verify Aadhaar OTP & complete SEBI KYC verification', daysFromNow(0, 2), 'high'],
+      ['FV-4001', 'EMP-026', 'voice-call', 'Schedule site inspection for Worli Sea-Face penthouse mandate', daysFromNow(0, 2), 'high'],
     ].map((t) => [t[0] as string, t[1] as string, t[2] as string, t[3] as string, t[4] as string, t[5] as Date, t[6] as string]) as Array<[string, string, string, string, string, Date, string]>;
 
     for (const [leadId, owner, action, purpose, dueAt, priority] of tasks) {
@@ -155,6 +191,11 @@ async function main(): Promise<void> {
     await pool.query(
       `INSERT INTO reviews (id, employee_id, reviewer_employee_id, period, scorecard, commitments)
        VALUES ('REV-SEED-2', 'EMP-002', 'EMP-003', 'September', '{"contactRate": 0.55, "followUps": 14, "note": "Synthetic demo scorecard"}', '[]')
+       ON CONFLICT (id) DO NOTHING`
+    );
+    await pool.query(
+      `INSERT INTO reviews (id, employee_id, reviewer_employee_id, period, scorecard, commitments)
+       VALUES ('REV-SEED-BANK-1', 'EMP-004', 'EMP-016', 'September', '{"contactRate": 0.58, "followUps": 16, "commercialDisbursals": 2, "note": "Commercial banking caller quarterly review"}', '[]')
        ON CONFLICT (id) DO NOTHING`
     );
 

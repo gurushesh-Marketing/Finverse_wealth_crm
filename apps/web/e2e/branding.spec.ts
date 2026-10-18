@@ -6,7 +6,7 @@ async function loginOk(page: Page) {
   await page.getByLabel('Password', { exact: true }).fill('demo1234');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL(/\/wealth\/dashboard/);
-  await expect(page.getByRole('heading', { name: 'My day' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Your next conversation starts here|My day/ })).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 }
 

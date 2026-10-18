@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const ROLES = ['SC', 'TL', 'MG', 'RM', 'NM', 'CEO', 'CFO', 'DE', 'HR', 'SA'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const VERTICALS = ['wealth', 'banking', 'markets', 'real-estate'] as const;
+export const VERTICALS = ['wealth', 'banking', 'markets', 'real-estate', 'real_estate'] as const;
 export type Vertical = (typeof VERTICALS)[number];
 
 export const STAGES = [
@@ -14,6 +14,21 @@ export const STAGES = [
   'qualified',
   'converted',
   'lost',
+  // Commercial Banking (Deck P005)
+  'eligibility',
+  'documents',
+  'sanction',
+  'disbursal',
+  // Markets & Securities (Deck P005)
+  'kyc',
+  'risk-profile',
+  'demat-opened',
+  'active-funded',
+  // Real Estate Advisory (Deck P005)
+  'requirement',
+  'site-visit',
+  'booking',
+  'registration',
 ] as const;
 export type Stage = (typeof STAGES)[number];
 
@@ -137,6 +152,7 @@ export interface LeadDetail {
   nextActionAt: string | null;
   dueStatus: DueStatus;
   recordVersion: number;
+  vertical?: string;
   createdAt: string;
   tasks: LeadTask[];
   timeline: TimelineEvent[];
@@ -427,14 +443,41 @@ export const lossSchema = z.object({
 });
 export type LossInput = z.infer<typeof lossSchema>;
 
-export const reopenSchema = z.object({
-  reason: z.string().trim().min(3).max(300),
-  newEvidence: z.string().trim().min(3).max(200),
-  requestedNextStage: z.enum(['not-contacted', 'contacted', 'follow-up', 'qualified'], {
-    errorMap: () => ({ message: 'Choose a non-terminal stage.' }),
-  }),
-  nextAction: z.string().trim().min(3).max(100),
-});
+export const REOPEN_STAGES = [
+  'not-contacted',
+  'contacted',
+  'follow-up',
+  'qualified',
+  'new',
+  // Commercial Banking (Deck P005)
+  'eligibility',
+  'documents',
+  'sanction',
+  // Markets & Securities (Deck P005)
+  'kyc',
+  'risk-profile',
+  'demat-opened',
+] as const;
+
+export const reopenSchema = z
+  .object({
+    reason: z.string().trim().min(3).max(300),
+    newEvidence: z.string().trim().min(3).max(200).optional(),
+    evidenceRef: z.string().trim().min(3).max(200).optional(),
+    requestedNextStage: z.enum(REOPEN_STAGES, {
+      errorMap: () => ({ message: 'Choose a non-terminal stage.' }),
+    }),
+    nextAction: z.string().trim().min(3).max(100),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.newEvidence && !val.evidenceRef) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['newEvidence'],
+        message: 'Evidence is required to reopen.',
+      });
+    }
+  });
 export type ReopenInput = z.infer<typeof reopenSchema>;
 
 export const handoffSchema = z.object({
@@ -817,3 +860,6 @@ export * from './regional-manager';
 export * from './national-manager';
 export * from './ceo';
 export * from './cfo';
+export * from './superadmin';
+export * from './hr';
+export * from './data-entry';

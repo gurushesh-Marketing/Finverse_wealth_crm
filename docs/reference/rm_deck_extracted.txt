@@ -1,0 +1,303 @@
+============================== PAGE 161 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+161
+
+
+============================== PAGE 162 ==============================
+RM / REGION OVERVIEW
+RM-01 Investigate regional gaps
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+162
+USER ACTION
+01
+Inspect Manager contributions and regional exceptions.
+02
+Select a metric to drill through Managers, TLs and permitted
+evidence.
+03
+Create an intervention while staying in the RM workspace.
+BEFORE IT CAN PROCEED
+Geographic scope never grants other vertical data. Scope is vertical plus assigned organisation.
+SYSTEM COMMIT
+Query unique descendant facts and render separate current-capacity measures.
+REPORTING CONSEQUENCE
+Show regional attainment, source mix, backlog, forecast and action progress.
+IF IT CANNOT COMPLETE
+Historical restructuring is shown by dated segments, not rewritten to match the current
+organisation.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 163 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+163
+
+
+============================== PAGE 164 ==============================
+RM / MANAGERS
+RM-02 Review a Manager scorecard
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+164
+USER ACTION
+01
+Open an authorised Manager.
+02
+Inspect contribution, forecast accuracy and unresolved
+actions.
+03
+Assign a management action or schedule a review.
+BEFORE IT CAN PROCEED
+Only permitted fields and descendants are available; there is no Manager-dashboard
+impersonation.
+SYSTEM COMMIT
+Combine current operating records and historical facts with clear labels.
+REPORTING CONSEQUENCE
+Separate operational health and actual sales performance.
+IF IT CANNOT COMPLETE
+Transferred Managers expose only approved history for the period of the RM relationship.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 165 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+165
+
+
+============================== PAGE 166 ==============================
+RM / TERRITORIES
+RM-03 Plan territory coverage
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+166
+USER ACTION
+01
+Inspect lead demand against current authorised coverage.
+02
+Propose queue-to-team coverage changes.
+03
+Submit the dated configuration change for approved
+activation.
+BEFORE IT CAN PROCEED
+Coverage changes cannot directly grant employees another vertical. Validate eligible skills and
+geography.
+SYSTEM COMMIT
+Version routing proposal, approver and activation date; Admin publishes approved configuration.
+REPORTING CONSEQUENCE
+Compare response time and conversion before/after with stable cohort definitions.
+IF IT CANNOT COMPLETE
+No eligible destination keeps the queue visible and assigned to an accountable supervisor.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 167 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+167
+
+
+============================== PAGE 168 ==============================
+RM / REGIONAL TARGETS
+RM-04 Allocate regional targets to Managers
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+168
+USER ACTION
+01
+Open the regional target approved by NM.
+02
+Allocate by Manager and validate totals.
+03
+Publish authorised allocation or request a change from NM.
+BEFORE IT CAN PROCEED
+Metric and financial basis must match parent targets. Historic locked allocations are versioned.
+SYSTEM COMMIT
+Persist allocation version and notify Managers.
+REPORTING CONSEQUENCE
+Track allocated, unallocated and achieved values separately.
+IF IT CANNOT COMPLETE
+A mid-period restructure requires approved prorating and preserves earlier assignments.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 169 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+169
+
+
+============================== PAGE 170 ==============================
+RM / CAPACITY & APPROVALS
+RM-05 Approve a cross-Manager transfer
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+170
+USER ACTION
+01
+Inspect eligibility, tasks and forecast impact on both sides.
+02
+Approve specific transfers within the assigned region and
+vertical.
+03
+Review successful changes and any conflicts.
+BEFORE IT CAN PROCEED
+Both organisational branches must be granted. Original event attribution and deadlines remain
+unchanged.
+SYSTEM COMMIT
+Execute version-checked ownership/task transactions and notify affected Managers.
+REPORTING CONSEQUENCE
+Report transferred work separately from new allocations and preserve old activity credit.
+IF IT CANNOT COMPLETE
+Other-region destination requires NM approval; another vertical requires the referral workflow.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 171 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+171
+
+
+============================== PAGE 172 ==============================
+RM / CAPACITY & APPROVALS
+RM-06 Approve a regional staffing plan
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+172
+USER ACTION
+01
+Review Manager capacity proposals and expected demand.
+02
+Prioritise staffing requests within the approved regional
+envelope.
+03
+Submit required hiring/role approvals to HR and authorised
+leadership.
+BEFORE IT CAN PROCEED
+Plan approval is not a permission grant or hire completion. Role changes still require Super Admin
+execution.
+SYSTEM COMMIT
+Version staffing recommendation and create accountable implementation tasks.
+REPORTING CONSEQUENCE
+Show planned, approved and active capacity separately.
+IF IT CANNOT COMPLETE
+Budget beyond authority escalates; the system must not treat requested headcount as available
+capacity.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 173 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+173
+
+
+============================== PAGE 174 ==============================
+RM / FORECAST & RISKS
+RM-07 Submit the regional forecast
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+174
+USER ACTION
+01
+Review accepted Manager forecasts and open gaps.
+02
+Add supported regional assumptions separately.
+03
+Submit a frozen forecast and risk register to NM.
+BEFORE IT CAN PROCEED
+Deduplicate opportunities and use a common expected-revenue basis. Preserve every submitted
+version.
+SYSTEM COMMIT
+Store forecast provenance, changes and submission time.
+REPORTING CONSEQUENCE
+Compare prediction and actual on matched periods after data maturity.
+IF IT CANNOT COMPLETE
+Incomplete submissions are disclosed and escalated; no silent roll-forward.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 175 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+175
+
+
+============================== PAGE 176 ==============================
+RM / FORECAST & RISKS
+RM-08 Resolve a regional escalation
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+176
+USER ACTION
+01
+Assess evidence and affected teams.
+02
+Assign a recovery decision, owner and deadline.
+03
+Escalate to NM if policy, budget or geography exceeds
+authority.
+BEFORE IT CAN PROCEED
+Use explicit delegation and limits. Finance decisions stay within finance authority.
+SYSTEM COMMIT
+Append decision and follow-up tasks; retain unresolved risk history.
+REPORTING CONSEQUENCE
+Track regional risk ageing and recovery evidence.
+IF IT CANNOT COMPLETE
+Overdue high-severity risks notify NM automatically under the configured escalation policy.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 177 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+177
+
+
+============================== PAGE 178 ==============================
+RM / REVIEWS
+RM-09 Run a Manager review
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+178
+USER ACTION
+01
+Prepare evidence and Manager self-reflection.
+02
+Record decisions, support and improvement commitments.
+03
+Complete, acknowledge and follow up before the next
+review.
+BEFORE IT CAN PROCEED
+Historical contribution is scoped to the relationship period; private notes have separate visibility.
+SYSTEM COMMIT
+Store meeting snapshot, response and action ownership.
+REPORTING CONSEQUENCE
+Review cadence and completion are distinct from sales attainment.
+IF IT CANNOT COMPLETE
+Metric disputes remain attached to the review and use the correction workflow.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== PAGE 179 ==============================
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+179
+
+
+============================== PAGE 180 ==============================
+RM / REPORTS & HELP
+RM-10 Produce the regional review pack
+Regional manager / Assigned region / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+180
+USER ACTION
+01
+Choose period and permitted report sections.
+02
+Preview summary-to-Manager reconciliation.
+03
+Generate the protected PDF and optional approved schedule.
+BEFORE IT CAN PROCEED
+Region label does not widen vertical permissions. Revalidate both recipient and export owner.
+SYSTEM COMMIT
+Generate snapshot-bound report with versions and audit trail.
+REPORTING CONSEQUENCE
+Include target bridge, forecast changes, quality flags and open actions.
+IF IT CANNOT COMPLETE
+Changes to scope suspend affected schedules until a permitted owner confirms them.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.

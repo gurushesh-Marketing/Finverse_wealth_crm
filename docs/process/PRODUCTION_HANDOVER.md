@@ -1,6 +1,6 @@
 # Production Deployment & Operations Handover — Finverse CRM v2
 
-**Intended Recipient:** Dhanan (DevOps & Engineering Handover)  
+**Intended Recipient:** DevOps & Engineering Teams (Project Handover)<br>
 **Document Status:** Production Release Preparation Specification  
 **Application:** Finverse CRM v2 (Institutional Multi-Vertical CRM)  
 **Effective Date:** 2026-10-06  
@@ -164,7 +164,7 @@ docker rm -f fvc2-restore-test
 ### 7.3 Support Escalation Matrix
 - **Level 1 (Operational Support):** Login issues, user lockouts, report generation timeouts — resolved via Superadmin workspace (`SA-01`, `SA-02`).
 - **Level 2 (Application Support):** Lead allocation queue stuck, commercial exception routing stalls — handled by CRM operations team.
-- **Level 3 (Platform & Database Engineering):** Relational lock contention, database replication lag, fatal API 500 errors — handled by Dhanan & backend team.
+- **Level 3 (Platform & Database Engineering):** Relational lock contention, database replication lag, fatal API 500 errors — handled by platform & backend engineering teams.
 
 ---
 
@@ -187,17 +187,17 @@ Following deployment to the target production environment:
 
 ---
 
-## 9. Dhanan Developer Handoff (Feature Branch Collaboration in Same CRM)
+## 9. Engineering & Feature Branch Collaboration Handoff (Same CRM)
 
 ### 9.1 Branching & Workspace Strategy
-- **Single Monorepo, Shared Domain:** Dhanan works within the **SAME Finverse CRM v2 repository** on a dedicated feature branch (e.g. `feature/dhanan-<task-or-vertical>`).
+- **Single Monorepo, Shared Domain:** Contributors work within the **SAME Finverse CRM v2 repository** on a dedicated feature branch (e.g. `feature/<task-or-vertical>`).
 - **Do Not Branch Off Outdated Heads:** Branch directly from the published Wealth Manager checkpoint.
 - **Push Without Force:** Never force-push (`git push --force`) to shared branches.
 
 ### 9.2 Local Development Setup
 ```bash
 # 1. Clone/Fetch and create your feature branch
-git checkout -b feature/dhanan-<vertical>
+git checkout -b feature/<vertical>
 
 # 2. Install workspace dependencies
 pnpm install

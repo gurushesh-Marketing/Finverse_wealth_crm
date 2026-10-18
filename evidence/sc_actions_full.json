@@ -1,0 +1,1110 @@
+[
+  {
+    "id": "SC-01",
+    "role": "SC",
+    "module": "My day",
+    "title": "Start the day and prioritise work",
+    "kind": "dashboard",
+    "fields": [
+      [
+        "Period",
+        "Today, 25 Sep"
+      ],
+      [
+        "Priority",
+        "Overdue first"
+      ],
+      [
+        "Availability",
+        "Available"
+      ],
+      [
+        "Queue",
+        "My active assignment"
+      ]
+    ],
+    "steps": [
+      "Review overdue, promised callbacks and new lead deadlines.",
+      "Open a priority row to enter that prospect record.",
+      "Mark availability for allocation; this never changes the login role."
+    ],
+    "validation": "Current active assignment is mandatory. Availability uses approved hours and absence status; it does not change ownership.",
+    "system": "Load own tasks, lead counts and reminders with an as-of timestamp. Record availability changes with effective time.",
+    "report": "My day shows operational workload. Personal performance keeps the historical team and role for each event.",
+    "exception": "No active assignment: show access pending. A delayed provider shows a stale-data badge, not zero calls."
+  },
+  {
+    "id": "SC-02",
+    "role": "SC",
+    "module": "Lead inbox",
+    "title": "Filter, search and save a lead view",
+    "kind": "list",
+    "fields": [
+      [
+        "Search",
+        "Prospect or lead ID"
+      ],
+      [
+        "Stage",
+        "Not contacted"
+      ],
+      [
+        "Source",
+        "Website"
+      ],
+      [
+        "Due",
+        "Today"
+      ],
+      [
+        "Saved view",
+        "New website leads"
+      ]
+    ],
+    "steps": [
+      "Choose stage, due date, source and product filters.",
+      "Select Apply filters; view only owned results and permitted contact fields.",
+      "Save view with a name or Reset to the default inbox."
+    ],
+    "validation": "Search, counts and suggestions must obey ownership scope. Saved views store filters, never a reusable copy of customer data.",
+    "system": "Run a paginated scoped query. Store the employee-specific view definition and reapply current permissions each time.",
+    "report": "Changing a filter changes the displayed slice only. It never changes lead attribution or report definitions.",
+    "exception": "No match: show an empty state and Clear filters. Another caller lead ID returns no exposed customer information."
+  },
+  {
+    "id": "SC-03",
+    "role": "SC",
+    "module": "Lead inbox",
+    "title": "Open a prospect and inspect the full record",
+    "kind": "record",
+    "fields": [
+      [
+        "Opportunity",
+        "FV-1042"
+      ],
+      [
+        "Contact",
+        "Prospect B / masked number"
+      ],
+      [
+        "Product",
+        "V1 product"
+      ],
+      [
+        "Source",
+        "Website / campaign C12"
+      ],
+      [
+        "Owner",
+        "Asha / Alpha"
+      ],
+      [
+        "Next action",
+        "Call today 11:00"
+      ]
+    ],
+    "steps": [
+      "Open a lead from the inbox or a valid notification.",
+      "Use Summary, Timeline, Tasks, Documents and Outcome tabs.",
+      "Select Call, WhatsApp or Add activity from the prospect header."
+    ],
+    "validation": "The opportunity must belong to the current permitted workload. Contact links expose only enquiries the caller may see.",
+    "system": "Fetch opportunity and scoped related records. Show provenance, ownership history, permissions and outstanding tasks.",
+    "report": "Viewing a record is not a contact activity and adds no sales credit. Sensitive document access is separately audited.",
+    "exception": "Reassigned while open: show a read-only access-changed message, clear sensitive fields and return to the inbox."
+  },
+  {
+    "id": "SC-04",
+    "role": "SC",
+    "module": "Lead inbox",
+    "title": "Correct prospect information",
+    "kind": "form",
+    "fields": [
+      [
+        "Display name",
+        "Prospect B"
+      ],
+      [
+        "Phone",
+        "Verified contact field"
+      ],
+      [
+        "Email",
+        "Optional"
+      ],
+      [
+        "Preferred language",
+        "English"
+      ],
+      [
+        "Correction reason",
+        "Customer correction"
+      ]
+    ],
+    "steps": [
+      "Select Edit details from the prospect record.",
+      "Update allowed fields and explain the correction.",
+      "Save changes; protected identity changes go to verification or a review queue."
+    ],
+    "validation": "Validate phone/email format and possible duplicate identity. Caller cannot change source attribution, vertical or ownership.",
+    "system": "Save permitted values with record-version checking. Append before/after audit and retain original intake provenance.",
+    "report": "A correction does not create a new lead or improve contact counts. Contact permission remains a separate record.",
+    "exception": "Possible duplicate: pause the identity change and submit a review. Never merge customer records automatically from this form."
+  },
+  {
+    "id": "SC-05",
+    "role": "SC",
+    "module": "Lead inbox",
+    "title": "Create a permitted self-sourced enquiry",
+    "kind": "form",
+    "fields": [
+      [
+        "Prospect",
+        "New prospect"
+      ],
+      [
+        "Phone",
+        "Required verified format"
+      ],
+      [
+        "Product",
+        "Within V1"
+      ],
+      [
+        "Source",
+        "Employee referral"
+      ],
+      [
+        "Permission evidence",
+        "Reference and date"
+      ],
+      [
+        "Need",
+        "Customer requirement"
+      ]
+    ],
+    "steps": [
+      "Select New enquiry if the role grant enables manual creation.",
+      "Capture source, need and contact-permission evidence.",
+      "Submit enquiry to validation; receive its processing reference."
+    ],
+    "validation": "Role permission, mandatory fields and source evidence are required. Run duplicate checks before making a new opportunity.",
+    "system": "Store manual intake separately with origin and creator. Publish through normal routing; self-ownership is not assumed.",
+    "report": "Source credit and sales ownership are separate. Invalid or duplicate intake is reported explicitly, not as fresh sales work.",
+    "exception": "Existing enquiry: link or send for duplicate review. Missing permission keeps the record out of outbound contact queues."
+  },
+  {
+    "id": "SC-06",
+    "role": "SC",
+    "module": "Conversations",
+    "title": "Place a voice call",
+    "kind": "dialer",
+    "fields": [
+      [
+        "Prospect",
+        "FV-1042 / Prospect B"
+      ],
+      [
+        "Number",
+        "Masked until authorised dial"
+      ],
+      [
+        "Call mode",
+        "Approved business line"
+      ],
+      [
+        "Permission",
+        "Eligible"
+      ],
+      [
+        "Provider",
+        "Connected"
+      ]
+    ],
+    "steps": [
+      "Select Call after reviewing prospect context and channel eligibility.",
+      "During the call use Mute, Unmute and End call; each shows current call state.",
+      "After the call open mandatory wrap-up; record the actual result."
+    ],
+    "validation": "Check assigned owner, contact permission, working hours, frequency cap and provider health before placing the call.",
+    "system": "Request one provider call with an idempotency key. Show connecting, ringing, connected, ended or failed states.",
+    "report": "Only unique provider-confirmed calls count as verified attempts. Connected duration comes from provider evidence.",
+    "exception": "Provider unavailable: offer Retry or a labelled manual activity. Repeated button clicks must not start duplicate calls."
+  },
+  {
+    "id": "SC-07",
+    "role": "SC",
+    "module": "Conversations",
+    "title": "Complete call wrap-up and next action",
+    "kind": "form",
+    "fields": [
+      [
+        "Call ID",
+        "CALL-7821"
+      ],
+      [
+        "Disposition",
+        "Connected"
+      ],
+      [
+        "Need confirmed",
+        "Yes"
+      ],
+      [
+        "Conversation note",
+        "Callback requested"
+      ],
+      [
+        "Next action",
+        "Follow-up call"
+      ],
+      [
+        "Due",
+        "26 Sep, 11:00 IST"
+      ]
+    ],
+    "steps": [
+      "Choose Connected, No answer, Busy, Wrong number or Callback.",
+      "Record the conversation result and required next step.",
+      "Save wrap-up; move to the next eligible lead only after the save succeeds."
+    ],
+    "validation": "Connected alone does not prove qualified need. Follow-up needs a due time and owner. No-answer cannot set Contacted.",
+    "system": "Append activity and allowed stage event. Create/update the next task atomically and close the completed task.",
+    "report": "Call facts use call-start date. Stage and task completion use their own event times; a repeated save counts once.",
+    "exception": "Uncertain outcome: keep the call in Needs wrap-up. Unsaved notes stay in a recoverable draft with an expiry policy."
+  },
+  {
+    "id": "SC-08",
+    "role": "SC",
+    "module": "Conversations",
+    "title": "Record a manual call with clear evidence status",
+    "kind": "form",
+    "fields": [
+      [
+        "Activity type",
+        "Manual voice call"
+      ],
+      [
+        "Occurred at",
+        "25 Sep, 14:00 IST"
+      ],
+      [
+        "Outcome",
+        "Connected"
+      ],
+      [
+        "Duration",
+        "Self-reported"
+      ],
+      [
+        "Reason",
+        "Provider outage"
+      ],
+      [
+        "Note",
+        "Customer callback"
+      ]
+    ],
+    "steps": [
+      "Open Add activity and choose Manual call.",
+      "Enter actual event time, reason, outcome and next action.",
+      "Save as a manual entry; submit any required supervisor verification."
+    ],
+    "validation": "Allow only a configured backdating window. Do not accept a future call time or fabricate a provider call ID.",
+    "system": "Store actor, entered time, event time and manual verification status. Link follow-up and preserve edit history.",
+    "report": "Show manual activity separately from verified call volume. Supervisor approval does not turn it into a provider event.",
+    "exception": "Duplicate suspected: flag for TL review. Incorrect saved entries use a correction, not silent deletion."
+  },
+  {
+    "id": "SC-09",
+    "role": "SC",
+    "module": "Conversations",
+    "title": "Send an approved WhatsApp message",
+    "kind": "chat",
+    "fields": [
+      [
+        "Conversation",
+        "Prospect B / V1"
+      ],
+      [
+        "Permission",
+        "Recorded and active"
+      ],
+      [
+        "Template",
+        "Appointment reminder"
+      ],
+      [
+        "Language",
+        "English"
+      ],
+      [
+        "Variables",
+        "Date, time, secure link"
+      ],
+      [
+        "Preview",
+        "Customer-facing text"
+      ]
+    ],
+    "steps": [
+      "Open WhatsApp from the prospect and choose an eligible template or allowed reply.",
+      "Review merged variables and recipient before Send.",
+      "Read queued, delivered, read, replied or failed status in the same conversation."
+    ],
+    "validation": "Check current provider policy, eligible product, permission, conversation window, template approval and opt-out before sending.",
+    "system": "Create one outbound message, store provider ID and reconcile signed delivery callbacks. Suppress queued outreach on opt-out.",
+    "report": "Sent or delivered is not successful contact. A meaningful customer response can support contact with an activity record.",
+    "exception": "Template unavailable or permission missing: disable Send with a reason. Use a secure document link for sensitive information."
+  },
+  {
+    "id": "SC-10",
+    "role": "SC",
+    "module": "Conversations",
+    "title": "Handle an inbound reply or missed call",
+    "kind": "chat",
+    "fields": [
+      [
+        "Channel",
+        "WhatsApp reply"
+      ],
+      [
+        "Matched enquiry",
+        "FV-1042"
+      ],
+      [
+        "Received",
+        "25 Sep, 14:10 IST"
+      ],
+      [
+        "Customer intent",
+        "Reschedule"
+      ],
+      [
+        "Next task",
+        "Confirm new time"
+      ]
+    ],
+    "steps": [
+      "Open an unread conversation assigned to your workload.",
+      "Read prior context, answer within permitted channel rules and update the task.",
+      "Mark handled only after recording the response or next action."
+    ],
+    "validation": "Resolve ambiguous enquiry matches without exposing other vertical conversations. Unowned replies route to a supervisor queue.",
+    "system": "Deduplicate inbound event IDs. Append message to the right enquiry and notify its current owner or accountable queue.",
+    "report": "Track first response and unresolved inbound age separately from outbound attempt counts.",
+    "exception": "Ownership changed: route to the new owner. Never leave an inbound message assigned to a disabled account."
+  },
+  {
+    "id": "SC-11",
+    "role": "SC",
+    "module": "Calendar & tasks",
+    "title": "Schedule a follow-up",
+    "kind": "calendar",
+    "fields": [
+      [
+        "Lead",
+        "FV-1042"
+      ],
+      [
+        "Action",
+        "Voice call"
+      ],
+      [
+        "Due",
+        "26 Sep, 11:00 IST"
+      ],
+      [
+        "Priority",
+        "Normal"
+      ],
+      [
+        "Reminder",
+        "15 minutes before"
+      ],
+      [
+        "Purpose",
+        "Confirm documents"
+      ]
+    ],
+    "steps": [
+      "Select Schedule follow-up from the lead or call wrap-up.",
+      "Pick date, time, action, purpose and reminder.",
+      "Save; the task appears in My calendar and the lead timeline."
+    ],
+    "validation": "Require future due time, current owner and an eligible channel. Warn about conflicts and outside-hours appointments.",
+    "system": "Create a versioned task and reminder job. Mark Follow-up stage if the transition is allowed.",
+    "report": "The task enters the due-period denominator. Committed deadline and any later revision remain traceable.",
+    "exception": "Duplicate open task for the same purpose: offer Update existing or explicitly confirm a separate task."
+  },
+  {
+    "id": "SC-12",
+    "role": "SC",
+    "module": "Calendar & tasks",
+    "title": "Reschedule a promised callback",
+    "kind": "form",
+    "fields": [
+      [
+        "Task",
+        "TASK-120"
+      ],
+      [
+        "Original due",
+        "26 Sep, 11:00"
+      ],
+      [
+        "New due",
+        "26 Sep, 16:00"
+      ],
+      [
+        "Reason",
+        "Customer requested"
+      ],
+      [
+        "Customer informed",
+        "Yes"
+      ]
+    ],
+    "steps": [
+      "Open the due task and select Reschedule.",
+      "Enter the new time and a specific reason.",
+      "Save and send an eligible confirmation if selected."
+    ],
+    "validation": "Keep the original deadline. Repeated deferrals or overdue moves may require TL approval under the configured threshold.",
+    "system": "Append schedule revision, cancel obsolete reminder jobs and create replacements. Retain original SLA history.",
+    "report": "Rescheduling never erases a missed commitment. Show revised workload and original on-time performance separately.",
+    "exception": "Approval required: keep the old committed deadline active until the change is approved; display both dates clearly."
+  },
+  {
+    "id": "SC-13",
+    "role": "SC",
+    "module": "Calendar & tasks",
+    "title": "Complete, cancel or reopen a task",
+    "kind": "form",
+    "fields": [
+      [
+        "Task",
+        "TASK-120"
+      ],
+      [
+        "Outcome",
+        "Completed"
+      ],
+      [
+        "Evidence",
+        "Call or note reference"
+      ],
+      [
+        "Next step",
+        "Submit documents"
+      ],
+      [
+        "Next due",
+        "27 Sep, 10:00"
+      ],
+      [
+        "Cancellation reason",
+        "Required if cancelled"
+      ]
+    ],
+    "steps": [
+      "Open the task and choose Complete, Request cancellation or Reopen correction.",
+      "Record the result and next action for an open opportunity.",
+      "Save; return to the calendar with the updated task state."
+    ],
+    "validation": "Completion must have a truthful outcome. Cancellation needs an allowed reason; reopen after finalisation is a logged correction.",
+    "system": "Write task transition and linked activity once. Cancel reminders for terminal tasks and create the next task where needed.",
+    "report": "Eligible due tasks remain in the follow-up metric. Approved cancellations are excluded and reported separately.",
+    "exception": "A task moved to another owner cannot be completed from a stale caller screen."
+  },
+  {
+    "id": "SC-14",
+    "role": "SC",
+    "module": "Calendar & tasks",
+    "title": "Book a prospect meeting or visit",
+    "kind": "calendar",
+    "fields": [
+      [
+        "Meeting type",
+        "Consultation / visit"
+      ],
+      [
+        "Lead",
+        "FV-1042"
+      ],
+      [
+        "Slot",
+        "28 Sep, 15:00 IST"
+      ],
+      [
+        "Location",
+        "Office / approved link"
+      ],
+      [
+        "Attendees",
+        "Prospect and advisor"
+      ],
+      [
+        "Agenda",
+        "Product discussion"
+      ]
+    ],
+    "steps": [
+      "Select Book meeting and inspect available authorised slots.",
+      "Confirm attendees, location and agenda.",
+      "Book the slot and issue eligible invitations; record attended, no-show or cancelled later."
+    ],
+    "validation": "Check slot conflicts, attendee access and product-specific requirements. External communication needs an approved channel.",
+    "system": "Reserve the slot atomically, create attendee tasks and queue invitation delivery with separate delivery status.",
+    "report": "Track booked, attended and no-show counts separately. Booking alone is not conversion.",
+    "exception": "Slot taken during save: show alternative slots. Failed invitation does not silently cancel an already reserved appointment."
+  },
+  {
+    "id": "SC-15",
+    "role": "SC",
+    "module": "My pipeline",
+    "title": "Qualify the opportunity",
+    "kind": "form",
+    "fields": [
+      [
+        "Need",
+        "Documented requirement"
+      ],
+      [
+        "Product",
+        "Approved V1 product"
+      ],
+      [
+        "Expected value",
+        "Estimate with currency"
+      ],
+      [
+        "Time horizon",
+        "Within 30 days"
+      ],
+      [
+        "Fit checklist",
+        "Configured questions"
+      ],
+      [
+        "Next step",
+        "Prepare proposal"
+      ]
+    ],
+    "steps": [
+      "Open Qualification from the prospect record.",
+      "Complete the product-specific checklist and record customer needs.",
+      "Save qualification; use the recommended next action inside the permitted pipeline."
+    ],
+    "validation": "Mandatory qualification fields depend on the configured product. An estimate cannot be entered as verified revenue.",
+    "system": "Persist answers with checklist version and append activity. Suggest the next milestone without auto-approving a sale.",
+    "report": "Show qualification completion and estimated pipeline separately from verified outcomes.",
+    "exception": "Product mismatch: request an approved referral. The caller cannot change the lead into another vertical."
+  },
+  {
+    "id": "SC-16",
+    "role": "SC",
+    "module": "My pipeline",
+    "title": "Move an opportunity in the pipeline",
+    "kind": "kanban",
+    "fields": [
+      [
+        "Opportunity",
+        "FV-1042"
+      ],
+      [
+        "Current stage",
+        "Contacted"
+      ],
+      [
+        "Requested stage",
+        "Follow-up"
+      ],
+      [
+        "Reason",
+        "Customer requested callback"
+      ],
+      [
+        "Required evidence",
+        "Next task details"
+      ]
+    ],
+    "steps": [
+      "Drag a card or choose Change stage for an owned opportunity.",
+      "Complete the transition form shown for the target stage.",
+      "Confirm; return the card to its original stage if the server rejects the change."
+    ],
+    "validation": "Server validates the allowed state transition, ownership and required fields. Converted always follows approval rules.",
+    "system": "Append a stage event with prior state, actor, reason and rule version. Update related tasks in the same transaction.",
+    "report": "Stage counts and ageing refresh from authoritative events. Dragging a card without saving changes no metrics.",
+    "exception": "Stale record: show the newer stage and request review. A UI drag cannot bypass a locked or rejected milestone."
+  },
+  {
+    "id": "SC-17",
+    "role": "SC",
+    "module": "My pipeline",
+    "title": "Prepare and send a proposal",
+    "kind": "form",
+    "fields": [
+      [
+        "Product",
+        "Approved V1 offering"
+      ],
+      [
+        "Template",
+        "Current approved version"
+      ],
+      [
+        "Commercial terms",
+        "Within allowed limits"
+      ],
+      [
+        "Validity",
+        "30 Sep"
+      ],
+      [
+        "Attachments",
+        "Approved product document"
+      ],
+      [
+        "Recipient",
+        "Prospect B"
+      ]
+    ],
+    "steps": [
+      "Select Prepare proposal and populate approved product information.",
+      "Preview terms and any exception requiring superior approval.",
+      "Submit for approval or Send approved proposal through an eligible channel."
+    ],
+    "validation": "No unapproved return claims, altered mandatory terms or discounts outside authority. Required disclosures come from approved content.",
+    "system": "Version the proposal, store approval evidence and log send status. Preserve earlier versions as read-only.",
+    "report": "Proposal sent is a pipeline milestone, not won revenue. Report pending commercial approvals separately.",
+    "exception": "Expired or withdrawn product content blocks sending. An approved proposal edited afterward must be approved again."
+  },
+  {
+    "id": "SC-18",
+    "role": "SC",
+    "module": "Documents",
+    "title": "Request documents securely",
+    "kind": "form",
+    "fields": [
+      [
+        "Lead",
+        "FV-1042"
+      ],
+      [
+        "Checklist",
+        "V1 product version 2"
+      ],
+      [
+        "Requested files",
+        "Configured evidence"
+      ],
+      [
+        "Upload link",
+        "Expiring customer link"
+      ],
+      [
+        "Due",
+        "29 Sep"
+      ],
+      [
+        "Reminder",
+        "Enabled"
+      ]
+    ],
+    "steps": [
+      "Open Documents and select the approved checklist.",
+      "Generate a secure upload request and preview the customer message.",
+      "Send via an eligible channel and monitor pending items."
+    ],
+    "validation": "Only request permitted documents for this product and stage. Do not request full sensitive identifiers inside chat.",
+    "system": "Issue scoped upload tokens, store expiry and link evidence to the opportunity. Scan uploaded files before release.",
+    "report": "Document completeness is operational progress. An uploaded file is not automatically verified.",
+    "exception": "Expired link can be replaced after permission checking. A suspicious file stays quarantined and unavailable to users."
+  },
+  {
+    "id": "SC-19",
+    "role": "SC",
+    "module": "Documents",
+    "title": "Upload, replace or inspect evidence",
+    "kind": "record",
+    "fields": [
+      [
+        "Document type",
+        "Milestone evidence"
+      ],
+      [
+        "File",
+        "Approved format and size"
+      ],
+      [
+        "Version",
+        "New version"
+      ],
+      [
+        "Visibility",
+        "Permitted reviewers"
+      ],
+      [
+        "Validation",
+        "Pending review"
+      ]
+    ],
+    "steps": [
+      "Open an allowed document slot or upload on behalf of the customer when permitted.",
+      "Inspect scan status and request review; replace via a new version if needed.",
+      "Download only when the role and document policy permit it."
+    ],
+    "validation": "Check file type, size, malware status and field-level access. Caller cannot self-mark independent evidence as verified.",
+    "system": "Use private storage and short-lived links. Keep version and access audit; enforce the approved retention policy.",
+    "report": "Report requested, received, accepted and rejected evidence separately.",
+    "exception": "Rejected evidence shows the reviewer reason and correction path. No hard deletion of evidence supporting an approved sale."
+  },
+  {
+    "id": "SC-20",
+    "role": "SC",
+    "module": "My pipeline",
+    "title": "Submit a conversion for approval",
+    "kind": "form",
+    "fields": [
+      [
+        "Opportunity",
+        "FV-1042"
+      ],
+      [
+        "Win milestone",
+        "Configured V1 rule"
+      ],
+      [
+        "Milestone date",
+        "25 Sep"
+      ],
+      [
+        "Value",
+        "INR 1,00,000"
+      ],
+      [
+        "Evidence",
+        "Verified reference"
+      ],
+      [
+        "Proposed credit",
+        "Default owner"
+      ]
+    ],
+    "steps": [
+      "Open Submit conversion when required product milestones are complete.",
+      "Review amount, evidence and credit allocation.",
+      "Submit; the record enters Pending conversion and routes to the eligible superior."
+    ],
+    "validation": "Require complete evidence, no unresolved blocking exceptions and an independent approver. Credit splits must total 100%.",
+    "system": "Create a versioned approval request. Lock the submitted payload and notify the correct TL or next independent approver.",
+    "report": "Pending submissions do not count as wins. Approved conversion uses its effective event date and locked attribution.",
+    "exception": "Rejected submission returns with precise reasons. The caller corrects and resubmits a new version without losing history."
+  },
+  {
+    "id": "SC-21",
+    "role": "SC",
+    "module": "My pipeline",
+    "title": "Mark a lead lost with a useful reason",
+    "kind": "form",
+    "fields": [
+      [
+        "Opportunity",
+        "FV-1042"
+      ],
+      [
+        "Loss reason",
+        "Not interested"
+      ],
+      [
+        "Explanation",
+        "Customer declined current offer"
+      ],
+      [
+        "Competitor",
+        "Optional factual entry"
+      ],
+      [
+        "Future contact",
+        "Based on permission"
+      ]
+    ],
+    "steps": [
+      "Select Mark lost from the lead record.",
+      "Choose a structured reason and add relevant context.",
+      "Confirm loss; an opt-out request must also update contact suppression immediately."
+    ],
+    "validation": "Loss requires an allowed reason. Duplicate and invalid-data cases use their own dispositions rather than inflating sales losses.",
+    "system": "Append loss event and cancel obsolete sales tasks. Preserve conversation and ownership history.",
+    "report": "Loss analysis groups by product, reason, source and event-time hierarchy. Cohort metrics preserve their defined denominator.",
+    "exception": "Converted records cannot be changed to Lost by the caller. Use a cancellation/refund request to protect financial history."
+  },
+  {
+    "id": "SC-22",
+    "role": "SC",
+    "module": "My pipeline",
+    "title": "Request a lost opportunity to be reopened",
+    "kind": "form",
+    "fields": [
+      [
+        "Opportunity",
+        "FV-0920"
+      ],
+      [
+        "Reason",
+        "Customer renewed interest"
+      ],
+      [
+        "New evidence",
+        "Inbound request reference"
+      ],
+      [
+        "Requested next stage",
+        "Contacted"
+      ],
+      [
+        "Next action",
+        "Call tomorrow"
+      ]
+    ],
+    "steps": [
+      "Open permitted lost history and select Request reopen.",
+      "Explain the new customer signal and next action.",
+      "Submit to TL; work resumes only after approval and current ownership confirmation."
+    ],
+    "validation": "Contact suppression remains binding. A new product or independent enquiry may need a linked new opportunity instead.",
+    "system": "Create reopen approval and preserve the original loss event. On approval, append a reopen event and create a task.",
+    "report": "Report reopen counts separately. Reopening does not create another first-assigned lead in the same cohort.",
+    "exception": "Old lead outside current scope: send a reference-only request through support; do not reveal its customer details."
+  },
+  {
+    "id": "SC-23",
+    "role": "SC",
+    "module": "Lead inbox",
+    "title": "Request a handoff or cross-vertical referral",
+    "kind": "form",
+    "fields": [
+      [
+        "Opportunity",
+        "FV-1042"
+      ],
+      [
+        "Reason",
+        "Different product need"
+      ],
+      [
+        "Destination",
+        "Approved receiving queue"
+      ],
+      [
+        "Customer permission",
+        "Evidence attached"
+      ],
+      [
+        "Handoff note",
+        "Minimum necessary context"
+      ]
+    ],
+    "steps": [
+      "Select Request handoff or Refer enquiry.",
+      "Provide reason, approved destination and customer permission.",
+      "Submit; keep working only on the current authorised responsibility until acceptance."
+    ],
+    "validation": "Caller cannot browse destination staff or vertical data. Cross-vertical referral creates a scoped linked enquiry, not shared ownership.",
+    "system": "Notify receiving authority, record accept/decline and handoff deadline. Move tasks only for an approved same-enquiry transfer.",
+    "report": "Earlier activities stay with the original actor. Referral credit, if used, is separately configured and cannot duplicate revenue.",
+    "exception": "Declined referral returns with reason. The sender sees handoff status, not the receiving vertical workspace."
+  },
+  {
+    "id": "SC-24",
+    "role": "SC",
+    "module": "Conversations",
+    "title": "Record an opt-out or contact complaint",
+    "kind": "form",
+    "fields": [
+      [
+        "Request",
+        "Stop WhatsApp contact"
+      ],
+      [
+        "Source",
+        "Customer reply"
+      ],
+      [
+        "Received at",
+        "25 Sep, 16:20"
+      ],
+      [
+        "Channels",
+        "Requested suppression scope"
+      ],
+      [
+        "Complaint note",
+        "Customer statement"
+      ]
+    ],
+    "steps": [
+      "Select Contact preferences or Record complaint immediately.",
+      "Capture the exact request and affected channels.",
+      "Save suppression and raise a complaint task if resolution is needed."
+    ],
+    "validation": "An explicit opt-out takes effect immediately and needs no sales approval. Broader contact restrictions override campaign settings.",
+    "system": "Update suppression, cancel queued outbound messages and notify the current owner. Link complaint to an accountable resolution queue.",
+    "report": "Suppressed contacts are visible as a separate operational category. Users cannot erase opt-out to improve reachability.",
+    "exception": "Conflicting channel evidence is reviewed by the policy owner; outreach remains blocked for the disputed channel."
+  },
+  {
+    "id": "SC-25",
+    "role": "SC",
+    "module": "Performance",
+    "title": "Inspect personal performance and its calculation",
+    "kind": "report",
+    "fields": [
+      [
+        "Period",
+        "Daily / Weekly / Monthly"
+      ],
+      [
+        "Other periods",
+        "Quarter / Half-year / Year"
+      ],
+      [
+        "Metric",
+        "Conversion cohort"
+      ],
+      [
+        "View",
+        "Historical assignment"
+      ],
+      [
+        "Comparison",
+        "Previous equivalent period"
+      ]
+    ],
+    "steps": [
+      "Open Performance and choose period and metric.",
+      "Select a KPI to inspect its formula, numerator, denominator and eligible evidence.",
+      "Switch to permitted career history for prior roles without opening a previous role interface."
+    ],
+    "validation": "Personal facts stay tied to the employee. Current-team and event-time performance are clearly separated; zero targets show N/A.",
+    "system": "Query versioned metric facts using period timezone and cutoff. Mask historical customer details outside current scope.",
+    "report": "Show verified/manual activity, transfers received, targets, wins, credited revenue and last refresh independently.",
+    "exception": "Late evidence displays a revised report version. Open finance periods remain provisional and visibly labelled."
+  },
+  {
+    "id": "SC-26",
+    "role": "SC",
+    "module": "Reviews & help",
+    "title": "Prepare for and acknowledge a one-to-one",
+    "kind": "review",
+    "fields": [
+      [
+        "Review",
+        "September performance"
+      ],
+      [
+        "Reviewer",
+        "Current authorised TL"
+      ],
+      [
+        "Self-reflection",
+        "Wins and blockers"
+      ],
+      [
+        "Commitments",
+        "Owner and due date"
+      ],
+      [
+        "Employee response",
+        "Optional disagreement"
+      ]
+    ],
+    "steps": [
+      "Open an assigned review and complete self-reflection.",
+      "During the meeting review the frozen scorecard and agree action items.",
+      "Acknowledge receipt and add a response; track each commitment until completed."
+    ],
+    "validation": "Acknowledgement is not agreement. Employee cannot alter the reviewer rating or see private restricted reviewer notes.",
+    "system": "Version review content, store acknowledgement time and create follow-up tasks. Record changes after the meeting.",
+    "report": "Review completion and commitment closure appear in the permitted coaching report, separate from sales results.",
+    "exception": "Disputed metric: submit a correction request linked to the evidence. Do not overwrite the meeting snapshot silently."
+  },
+  {
+    "id": "SC-27",
+    "role": "SC",
+    "module": "Performance",
+    "title": "Generate a personal meeting PDF",
+    "kind": "report",
+    "fields": [
+      [
+        "Report",
+        "Personal performance"
+      ],
+      [
+        "Period",
+        "September"
+      ],
+      [
+        "Snapshot",
+        "As-of 25 Sep, 18:00"
+      ],
+      [
+        "Sections",
+        "Results, funnel, commitments"
+      ],
+      [
+        "Recipient",
+        "Self / authorised reviewer"
+      ]
+    ],
+    "steps": [
+      "Choose Export PDF and review the included sections.",
+      "Generate the pack and wait for Ready, or inspect failure details.",
+      "Download from the authenticated report centre; sharing follows the approved recipient rules."
+    ],
+    "validation": "Caller can export only permitted personal data. Recheck scope at generation and download; minimise prospect identifiers.",
+    "system": "Create export job with snapshot, recipient, expiry and audit. Watermark the file and revoke pending jobs after access changes.",
+    "report": "PDF stores metric version, cutoff and period. It must reconcile with the selected on-screen snapshot.",
+    "exception": "Access revoked before download: deny the file. Downloaded copies cannot be technically recalled."
+  },
+  {
+    "id": "SC-28",
+    "role": "SC",
+    "module": "Reviews & help",
+    "title": "Raise a blocker or request a metric correction",
+    "kind": "form",
+    "fields": [
+      [
+        "Request type",
+        "Incorrect activity attribution"
+      ],
+      [
+        "Record reference",
+        "CALL-7821"
+      ],
+      [
+        "Expected correction",
+        "Describe discrepancy"
+      ],
+      [
+        "Evidence",
+        "Permitted attachment"
+      ],
+      [
+        "Priority",
+        "Normal"
+      ]
+    ],
+    "steps": [
+      "Open Help or Raise issue on the affected record.",
+      "Describe the blocker and attach permitted evidence.",
+      "Submit, track response and confirm resolution without editing protected facts directly."
+    ],
+    "validation": "Request must reference a record the caller may identify. Attachment and text rules prevent unauthorised cross-team disclosure.",
+    "system": "Route to TL, operations, finance or access support by category. Record owner, SLA, decisions and correction linkage.",
+    "report": "Accepted corrections append an adjustment or revised fact and retain the prior report version.",
+    "exception": "Urgent access issue goes to Super Admin. A pending dispute never grants temporary access to another dashboard."
+  }
+]

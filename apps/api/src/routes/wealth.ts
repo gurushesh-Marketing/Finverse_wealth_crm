@@ -142,10 +142,12 @@ export function wealthRouter(): Router {
   router.post('/leads/:id/handoff', wrap(async (req, res) => res.status(201).json(await pipeline.requestHandoff(req.auth!.scope, String(req.params.id), parse(handoffSchema, req)))));
   router.post('/leads/:id/help', wrap(async (req, res) => res.status(201).json(await pipeline.requestHelp(req.auth!.scope, String(req.params.id), parse(helpRequestSchema, req)))));
   router.get('/leads/:id/requests', wrap(async (req, res) => res.json({ requests: await pipeline.listRequests(req.auth!.scope, String(req.params.id)) })));
-  router.post('/requests/:id/decide', wrap(async (req, res) => {
+  const decideOutcomeHandler = wrap(async (req, res) => {
     const input = parse(outcomeDecisionSchema, req);
     res.json(await pipeline.decideRequest(req.auth!.scope, String(req.params.id), input.decision, input.reason, input.evidence));
-  }));
+  });
+  router.post('/requests/:id/decide', decideOutcomeHandler);
+  router.post('/requests/:id/decision', decideOutcomeHandler);
 
   // SC-18/19
   router.get('/leads/:id/document-requests', wrap(async (req, res) => res.json({ requests: await files.listDocumentRequests(req.auth!.scope, String(req.params.id)) })));

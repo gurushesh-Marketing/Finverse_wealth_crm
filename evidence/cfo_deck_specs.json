@@ -1,0 +1,116 @@
+{
+  "CFO-01": {
+    "screen_page": 225,
+    "spec_page": 226,
+    "spec_text": "CFO / FINANCE OVERVIEW\nCFO-01 Inspect revenue, cash and outstanding balances\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n226\nUSER ACTION\n01\nReview recognised revenue, receipts, receivables and\nunmatched cash.\n02\nClick a balance to open the contributing ledger entries.\n03\nOpen a reconciliation or approval task inside the CFO\ninterface.\nBEFORE IT CAN PROCEED\nSeparate sales value, revenue, cash and balances. Never sum mixed currencies without approved\nFX conversion.\nSYSTEM COMMIT\nQuery finance ledger and sales reconciliation views with source watermark and close version.\nREPORTING CONSEQUENCE\nDisplay reconciliation gaps and provisional totals alongside approved figures.\nIF IT CANNOT COMPLETE\nFinance-feed outage freezes the last valid balance with a stale label; it does not report zero cash.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n225\n"
+  },
+  "CFO-02": {
+    "screen_page": 227,
+    "spec_page": 228,
+    "spec_text": "CFO / REVENUE & INVOICES\nCFO-02 Verify a sales-to-finance handoff\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n228\nUSER ACTION\n01\nOpen the finance handoff from an approved conversion.\n02\nCheck earning milestone, amount, beneficiary and\nsupporting evidence.\n03\nAccept for finance processing or return precise missing\ninformation.\nBEFORE IT CAN PROCEED\nSales conversion alone is insufficient. Independent approval and approved revenue policy are\nrequired.\nSYSTEM COMMIT\nRecord finance verification and create the next recognition/invoice task without duplicating the\nsales win.\nREPORTING CONSEQUENCE\nTrack pending finance handoffs and processing age separately from conversion counts.\nIF IT CANNOT COMPLETE\nConflicting amount or missing evidence blocks finance posting while preserving the approved\nsales event.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n227\n"
+  },
+  "CFO-03": {
+    "screen_page": 229,
+    "spec_page": 230,
+    "spec_text": "CFO / REVENUE & INVOICES\nCFO-03 Approve a revenue recognition entry\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n230\nUSER ACTION\n01\nReview proposed recognition date, net amount and policy\nevidence.\n02\nApprove within authority using an independent\npreparer/approver flow.\n03\nPost the entry and inspect its source linkage.\nBEFORE IT CAN PROCEED\nFixed-precision money, valid currency and an open period are required. Exclude\ntaxes/pass-through sums per approved accounting policy.\nSYSTEM COMMIT\nPost an immutable recognition entry and audit the policy version and approver.\nREPORTING CONSEQUENCE\nRecognised revenue is the sum of approved positive and negative entries by recognition date.\nIF IT CANNOT COMPLETE\nClosed period or self-approval blocks posting. Use a governed adjustment workflow.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n229\n"
+  },
+  "CFO-04": {
+    "screen_page": 231,
+    "spec_page": 232,
+    "spec_text": "CFO / REVENUE & INVOICES\nCFO-04 Create or approve a receivable invoice\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n232\nUSER ACTION\n01\nCreate a draft from verified commercial evidence or import\nthe accounting-system invoice.\n02\nReview line items, currency, due date and unique external\nreference.\n03\nApprove within permission and issue through the agreed\ninvoicing source.\nBEFORE IT CAN PROCEED\nConfirm the system of record before build. CRM must not issue a second invoice for an\naccounting-system invoice.\nSYSTEM COMMIT\nStore invoice status, immutable issued version and ledger linkage; draft edits are versioned.\nREPORTING CONSEQUENCE\nReceivables use invoices, credits and allocated receipts. Invoice amount is not automatically\nrecognised revenue.\nIF IT CANNOT COMPLETE\nInvalid tax/configuration or duplicate invoice reference holds the draft for correction.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n231\n"
+  },
+  "CFO-05": {
+    "screen_page": 233,
+    "spec_page": 234,
+    "spec_text": "CFO / RECEIPTS & ALLOCATION\nCFO-05 Import or inspect settled receipt evidence\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n234\nUSER ACTION\n01\nImport an authorised payment batch or inspect incoming\nfeed records.\n02\nReview validation and duplicate exclusions.\n03\nAccept valid settled receipts into the unmatched queue.\nBEFORE IT CAN PROCEED\nUnique provider/bank references prevent duplicates. Verify source and settlement status before\ncash recognition.\nSYSTEM COMMIT\nStore source provenance, settlement date and receipt amount. Quarantine invalid or conflicting\nrows.\nREPORTING CONSEQUENCE\nShow imported, duplicate, pending and settled totals separately.\nIF IT CANNOT COMPLETE\nA failed retry must reuse the batch/event key and cannot add cash twice.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n233\n"
+  },
+  "CFO-06": {
+    "screen_page": 235,
+    "spec_page": 236,
+    "spec_text": "CFO / RECEIPTS & ALLOCATION\nCFO-06 Match a receipt to invoices\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n236\nUSER ACTION\n01\nOpen an unmatched receipt and inspect candidate invoices.\n02\nAllocate full or partial amounts across eligible invoices.\n03\nConfirm reconciliation and review remaining balances.\nBEFORE IT CAN PROCEED\nAllocated amounts cannot exceed available receipt or open invoice balance. Currency/FX\ntreatment must be explicit.\nSYSTEM COMMIT\nWrite allocation rows transactionally and update reconciled balances without changing original\nreceipt evidence.\nREPORTING CONSEQUENCE\nAge only unpaid invoice balances. Keep unapplied cash in suspense.\nIF IT CANNOT COMPLETE\nAmbiguous match requires human review. A match suggestion never posts automatically without\nthe configured authority.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n235\n"
+  },
+  "CFO-07": {
+    "screen_page": 237,
+    "spec_page": 238,
+    "spec_text": "CFO / RECONCILIATION\nCFO-07 Investigate an unmatched payment\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n238\nUSER ACTION\n01\nInspect the source reference and eligible commercial\nrecords.\n02\nRequest clarification from the responsible team with minimal\nnecessary data.\n03\nResolve by a verified match, approved correction or\nsuspense classification.\nBEFORE IT CAN PROCEED\nDo not assign arbitrary customer or employee credit to clear the queue. Preserve settlement\nevidence.\nSYSTEM COMMIT\nCreate a reconciliation case with owner and due date; append all decisions.\nREPORTING CONSEQUENCE\nUnmatched cash remains visible in cash totals and suspense, not as unexplained revenue.\nIF IT CANNOT COMPLETE\nSuspected duplicate or fraud is escalated to the designated owner; no automatic write-off.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n237\n"
+  },
+  "CFO-08": {
+    "screen_page": 239,
+    "spec_page": 240,
+    "spec_text": "CFO / RECONCILIATION\nCFO-08 Reconcile sales, revenue and cash totals\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n240\nUSER ACTION\n01\nOpen the reconciliation bridge and inspect differences.\n02\nClassify timing, partial payments, reversals or missing\nrecords.\n03\nApprove the reconciliation or create correction tasks.\nBEFORE IT CAN PROCEED\nDifferent measurement bases must not be forced to equal. Every difference needs a traceable\nexplanation.\nSYSTEM COMMIT\nFreeze reconciliation version and link outstanding exceptions and source watermarks.\nREPORTING CONSEQUENCE\nExecutive reports show certified versus unreconciled components explicitly.\nIF IT CANNOT COMPLETE\nUnexplained material variance blocks period certification according to the approved close policy.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n239\n"
+  },
+  "CFO-09": {
+    "screen_page": 241,
+    "spec_page": 242,
+    "spec_text": "CFO / RECEIVABLES\nCFO-09 Review ageing and assign collection work\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n242\nUSER ACTION\n01\nInspect unpaid balances aged from due date.\n02\nOpen an invoice and assign an eligible follow-up task.\n03\nTrack promise-to-pay, dispute and actual settlement\nseparately.\nBEFORE IT CAN PROCEED\nCollection contact must obey approved channel and product restrictions. Do not assume\nWhatsApp is eligible for debt collection.\nSYSTEM COMMIT\nCreate accountable tasks linked to invoice balance and retain promise revisions.\nREPORTING CONSEQUENCE\nMeasure overdue balance, days outstanding and resolved disputes with the same as-of date.\nIF IT CANNOT COMPLETE\nDisputed invoice is flagged and routed for resolution; a promise-to-pay never counts as received\ncash.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n241\n"
+  },
+  "CFO-10": {
+    "screen_page": 243,
+    "spec_page": 244,
+    "spec_text": "CFO / APPROVALS & INCENTIVES\nCFO-10 Approve a refund request\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n244\nUSER ACTION\n01\nReview refund eligibility, evidence and prior refunds.\n02\nApprove within limits through an independent approval path.\n03\nTrack payment execution confirmation separately from\napproval.\nBEFORE IT CAN PROCEED\nPrevent over-refund and duplicate execution. Require verified beneficiary and current\npermission.\nSYSTEM COMMIT\nRecord approval and external execution reference. Post the appropriate negative receipt/ledger\nevent only from confirmed evidence.\nREPORTING CONSEQUENCE\nRefund reporting uses actual settlement date and linked commercial reversal where applicable.\nIF IT CANNOT COMPLETE\nApproval alone does not mean money was refunded. Failed execution stays pending with an\naccountable owner.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n243\n"
+  },
+  "CFO-11": {
+    "screen_page": 245,
+    "spec_page": 246,
+    "spec_text": "CFO / APPROVALS & INCENTIVES\nCFO-11 Approve a credit note or revenue reversal\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n246\nUSER ACTION\n01\nInspect original entry and correction evidence.\n02\nApprove a linked negative or correcting entry within\nauthority.\n03\nReview updated balances and downstream incentive impact.\nBEFORE IT CAN PROCEED\nOriginal entries are never overwritten. Use closed-period policy and an independent approver.\nSYSTEM COMMIT\nAppend the adjustment with original ID, reason, policy and effective date.\nREPORTING CONSEQUENCE\nRevised finance totals reconcile to the full ledger; historic reports retain prior versions.\nIF IT CANNOT COMPLETE\nAdjustment beyond authority or into a locked period requires escalation and cannot be backdated\nsilently.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n245\n"
+  },
+  "CFO-12": {
+    "screen_page": 247,
+    "spec_page": 248,
+    "spec_text": "CFO / APPROVALS & INCENTIVES\nCFO-12 Review an incentive calculation\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n248\nUSER ACTION\n01\nInspect eligible credited outcomes and scheme rules.\n02\nReview exclusions, caps, refunds and transfer attribution.\n03\nApprove the calculation for the separate payout process if\npermitted.\nBEFORE IT CAN PROCEED\nScheme must be signed, versioned and effective for the period. Credit shares sum to 100%; own\nsubmission cannot be self-approved.\nSYSTEM COMMIT\nFreeze calculation inputs and approval, then create payout handoff records.\nREPORTING CONSEQUENCE\nSeparate accrued, approved and paid incentives. Staff replacement never inherits prior employee\nentitlement.\nIF IT CANNOT COMPLETE\nA dispute holds only the affected item where policy allows; record reason and evidence, not an\nunexplained total edit.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n247\n"
+  },
+  "CFO-13": {
+    "screen_page": 249,
+    "spec_page": 250,
+    "spec_text": "CFO / APPROVALS & INCENTIVES\nCFO-13 Resolve a finance or incentive dispute\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n250\nUSER ACTION\n01\nReview original rules, evidence and employee claim.\n02\nApprove a justified adjustment with an independent decision.\n03\nNotify the requester with permitted detail and link the\ncorrection.\nBEFORE IT CAN PROCEED\nDo not change historical credit merely because a current Manager requests it. Apply the\napproved correction policy.\nSYSTEM COMMIT\nAppend dispute decision and linked adjustment; retain original calculation.\nREPORTING CONSEQUENCE\nReports show dispute status, corrected version and impact on entitlement.\nIF IT CANNOT COMPLETE\nUnresolved policy ambiguity goes to the named scheme owner and remains pending.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n249\n"
+  },
+  "CFO-14": {
+    "screen_page": 251,
+    "spec_page": 252,
+    "spec_text": "CFO / PERIOD CLOSE\nCFO-14 Close a reporting period\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n252\nUSER ACTION\n01\nRun the close checklist and inspect unresolved differences.\n02\nConfirm approved exceptions and independent review.\n03\nCertify the period and lock governed finance writes.\nBEFORE IT CAN PROCEED\nRequired reconciliations and approvals must pass. Close authority is explicit and cannot be\ninferred from read access.\nSYSTEM COMMIT\nCreate immutable close version, cutoff and audit. Publish certified reporting state.\nREPORTING CONSEQUENCE\nLeadership PDF packs cite the close version. Operational late events remain distinguishable.\nIF IT CANNOT COMPLETE\nFailed checklist blocks close and assigns correction owners; it does not silently ignore material\ngaps.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n251\n"
+  },
+  "CFO-15": {
+    "screen_page": 253,
+    "spec_page": 254,
+    "spec_text": "CFO / PERIOD CLOSE\nCFO-15 Request a controlled period reopening\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n254\nUSER ACTION\n01\nCreate a reopening request with impact assessment.\n02\nObtain the independent approval defined in policy.\n03\nApply approved corrections and reclose as a new version.\nBEFORE IT CAN PROCEED\nNever overwrite the original close or distributed report. Default to dated adjustments where policy\nrequires them.\nSYSTEM COMMIT\nRecord unlock window, authorised actors, corrections and new close version.\nREPORTING CONSEQUENCE\nShow original and restated versions with the reason for change.\nIF IT CANNOT COMPLETE\nUnapproved reopening remains blocked even for a finance administrator.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n253\n"
+  },
+  "CFO-16": {
+    "screen_page": 255,
+    "spec_page": 256,
+    "spec_text": "CFO / REPORTS & CONTROLS\nCFO-16 Review budget and cost performance\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n256\nUSER ACTION\n01\nCompare approved budget, committed costs and actual\ncosts.\n02\nInspect material variance and source completeness.\n03\nRecord a finance decision or request a validated correction.\nBEFORE IT CAN PROCEED\nShow margin/ROI only where cost allocation and revenue basis are approved. This module is\ndependent on a valid cost feed.\nSYSTEM COMMIT\nStore budget versions, actual-source references and finance decisions.\nREPORTING CONSEQUENCE\nSeparate proposed, approved, committed and actual amounts.\nIF IT CANNOT COMPLETE\nMissing source data shows incomplete rather than zero expense or inflated margin.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n255\n"
+  },
+  "CFO-17": {
+    "screen_page": 257,
+    "spec_page": 258,
+    "spec_text": "CFO / REPORTS & CONTROLS\nCFO-17 Approve finance assumptions in the forecast\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n258\nUSER ACTION\n01\nReview commercial estimates and finance assumptions.\n02\nConcur with the defined basis or return corrections.\n03\nAttach finance review status to the executive forecast.\nBEFORE IT CAN PROCEED\nFinance concurrence does not change sales pipeline stages or grant sales access beyond\nexisting scope.\nSYSTEM COMMIT\nVersion finance review against the exact forecast submission.\nREPORTING CONSEQUENCE\nCEO sees forecast value and finance-review state separately.\nIF IT CANNOT COMPLETE\nLater forecast edits invalidate prior concurrence when material finance assumptions change.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n257\n"
+  },
+  "CFO-18": {
+    "screen_page": 259,
+    "spec_page": 260,
+    "spec_text": "CFO / REPORTS & CONTROLS\nCFO-18 Generate a certified finance pack\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n260\nUSER ACTION\n01\nChoose the period and close version.\n02\nPreview ledger reconciliation and recipient-appropriate\ndetail.\n03\nGenerate the protected PDF and approved recurring\nschedule.\nBEFORE IT CAN PROCEED\nEvery total uses consistent currency, date basis and source versions. Recheck export scope and\naudience.\nSYSTEM COMMIT\nCreate audited export with certification state, watermark, recipient and expiry.\nREPORTING CONSEQUENCE\nInclude recognition, cash, receivable and adjustment bridges with unresolved exceptions.\nIF IT CANNOT COMPLETE\nAn open period must be labelled provisional. Reopening generates a new report version.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n259\n"
+  },
+  "CFO-19": {
+    "screen_page": 261,
+    "spec_page": 262,
+    "spec_text": "CFO / REPORTS & CONTROLS\nCFO-19 Propose finance approval limits and policies\nCFO / Company finance / illustrated in the preceding screen\nFINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n262\nUSER ACTION\n01\nDraft limits, recognition triggers or incentive policy changes.\n02\nPreview affected workflows and conflicts of interest.\n03\nSubmit for independent approval and Admin publication.\nBEFORE IT CAN PROCEED\nPolicy authors cannot unilaterally grant themselves unlimited authority. Unset limits default to no\napproval.\nSYSTEM COMMIT\nVersion approved policy and activate at the agreed date with audit.\nREPORTING CONSEQUENCE\nTransactions retain the policy version used for their decision.\nIF IT CANNOT COMPLETE\nRejected changes leave existing policy active. Historical entries are never recalculated silently.\nImplementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.\n",
+    "screen_text": "FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026\n261\n"
+  }
+}

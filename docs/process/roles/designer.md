@@ -5,6 +5,8 @@ specs and verdicts to the Builder; never edits files.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read the task packet, `AGENTS.md`, then
 `.agents/skills/design-taste-frontend/SKILL.md` once.
 

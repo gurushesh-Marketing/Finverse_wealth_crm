@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-data-analyst.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and relevant reporting requirements in `docs/product/`.
 - Applicable installed skills: `.agents/skills/finverse-reporting-contract/SKILL.md` (KPI formulas, grains, historical attribution, roll-up reconciliation).
 - Absent skills: `domain-modeling` (apply core role discipline; do not install skill packs).

@@ -88,7 +88,7 @@ async function cleanupTestData() {
   ]);
   await db.query(`DELETE FROM overdue_escalations WHERE id = $1`, [TEST_ESCALATION_ID]);
   await db.query(`DELETE FROM lead_tasks WHERE id = $1`, [TEST_TASK_ID]);
-  await db.query(`DELETE FROM team_forecasts WHERE id = $1`, [TEST_FORECAST_ID]);
+  await db.query(`DELETE FROM team_forecasts WHERE id = $1 OR id LIKE 'FCST-TEST-%' OR (team_id = 'TEAM-WEALTH-ALPHA' AND period_label = 'October' AND category = 'commit')`, [TEST_FORECAST_ID]);
   await db.query(`DELETE FROM reviews WHERE reviewer_employee_id = 'EMP-007' AND period = $1`, [`Rev-${RUN}`]);
   await db.query(`DELETE FROM report_schedules WHERE dedupe_key LIKE $1`, [`%${RUN.toLowerCase()}%`]);
   await db.query(`DELETE FROM lead_ownership_events WHERE lead_id IN ($1, $2)`, [TEST_LEAD_ID, TEST_FOREIGN_LEAD_ID]);
@@ -98,6 +98,9 @@ async function cleanupTestData() {
 before(async () => {
   assertTestDatabaseGuard(env.DATABASE_URL);
   db = new Pool({ connectionString: env.DATABASE_URL });
+
+  // Clean up any stale fixtures before starting
+  await cleanupTestData();
 
   // Create isolated seed fixtures for test
   await db.query(`
@@ -174,8 +177,13 @@ before(async () => {
 
 after(async () => {
   await cleanupTestData();
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   if (db) await db.end();
-  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  const { pool: apiPool } = await import('../src/repo/db');
+  await apiPool.end();
 });
 
 // ─── Test Case 1: Role Access Gate ───

@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-frontend-builder.md` and `builder.md`
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the assigned task packet.
 - Applicable installed skills: `.agents/skills/ponytail/SKILL.md` (minimal code changes), `.agents/skills/tdd/SKILL.md` (test-driven UI / regressions), `.agents/skills/design-taste-frontend/SKILL.md` (dashboard state machine, accessibility, brand palette).
 - Absent skills: `frontend-patterns` (apply clean React/Vite conventions; do not install skill packs).

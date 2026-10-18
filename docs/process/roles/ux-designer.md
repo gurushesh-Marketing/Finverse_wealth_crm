@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-ux-designer.md` and `designer.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and `docs/product/FRONTEND_EXECUTION.md`.
 - Applicable installed skills: `.agents/skills/design-taste-frontend/SKILL.md` (dashboard interaction states, hierarchy, and keyboard focus).
 - Absent skills: none.

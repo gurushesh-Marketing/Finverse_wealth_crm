@@ -13,6 +13,9 @@ import { createRegionalRouter } from './routes/regional-manager';
 import { createNationalRouter } from './routes/national-manager';
 import { createCeoRouter } from './routes/ceo';
 import { createCfoRouter } from './routes/cfo';
+import { createSuperadminRouter } from './routes/superadmin';
+import { createHrRouter } from './routes/hr';
+import { dataEntryRouter } from './routes/data-entry';
 
 // Routing model:
 // - Development: Vite dev server proxies /api to http://localhost:4000 (one origin per browser).
@@ -39,6 +42,9 @@ export function createApp(): Express {
   app.use('/api/national', createNationalRouter());
   app.use('/api/ceo', createCeoRouter());
   app.use('/api/cfo', createCfoRouter());
+  app.use('/api/superadmin', createSuperadminRouter());
+  app.use('/api/hr', createHrRouter());
+  app.use('/api/data-entry', dataEntryRouter());
   app.use('/api', (_req, res) => {
     res.status(404).json(errorBody('NOT_FOUND', 'API route not found.'));
   });

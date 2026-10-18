@@ -1,0 +1,472 @@
+=== PAGE 4 ===
+ROLE MAP
+Ten workspaces, no cross-role menu.
+Sales hierarchy is repeated in each of the four verticals. Company functions use their own explicit grants.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+004
+SC
+Sales caller
+Own assigned prospects
+TL
+Team leader
+Granted teams
+MG
+Manager
+Assigned team leads
+RM
+Regional manager
+Assigned region
+NM
+National manager
+One national vertical
+CEO
+CEO
+Company outcomes
+CFO
+CFO
+Company finance
+DE
+Data Entry
+Granted intake
+HR
+HR
+People lifecycle
+SA
+Super Admin
+Identity and access
+Caller → Team Lead → Manager → Regional Manager → National Manager → CEO. CFO receives finance facts through a separate grant.
+
+
+=== PAGE 5 ===
+VERTICAL SYSTEM
+Four verticals, one familiar shell.
+The layout stays coherent; pipeline terms, queues, evidence, KPIs and customer context change with the assigned vertical.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+005
+01
+Wealth
+ILLUSTRATIVE PIPELINE
+New → Discovery → Suitability →
+Proposal → Onboarding
+02
+Banking
+ILLUSTRATIVE PIPELINE
+New → Eligibility → Documents →
+Sanction → Disbursal
+03
+Markets / Trading
+ILLUSTRATIVE PIPELINE
+New → KYC → Account opened →
+Funded → Active
+04
+Real Estate
+ILLUSTRATIVE PIPELINE
+New → Qualified → Site visit →
+Booking → Registration
+The four vertical names are confirmed. Product definitions, stage gates and revenue triggers remain illustrative until approved.
+
+
+=== PAGE 6 ===
+ROLE WORKSPACE
+Sales caller: a home for that job.
+Own assigned prospects / 28 defined actions / synthetic presentation data
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+006
+Coded screen capture. Navigation contains only modules for this role; production authorization must enforce the same boundary.
+
+
+=== PAGE 7 ===
+ROLE WORKSPACE
+Sales caller: what sits below the fold.
+The lower work area changes by role: pipeline, portfolio, finance bridge, intake, people lifecycle or access controls.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+007
+Second viewport from the same coded role workspace. Synthetic records show the intended density and visual hierarchy.
+
+
+=== PAGE 8 ===
+ACTION INDEX
+Sales caller: complete action inventory.
+28 workflow screens. Open the following pages for a full-size interface and its execution contract.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+008
+SC-01
+Start the day and prioritise work
+SC-02
+Filter, search and save a lead view
+SC-03
+Open a prospect and inspect the full record
+SC-04
+Correct prospect information
+SC-05
+Create a permitted self-sourced enquiry
+SC-06
+Place a voice call
+SC-07
+Complete call wrap-up and next action
+SC-08
+Record a manual call with clear evidence status
+SC-09
+Send an approved WhatsApp message
+SC-10
+Handle an inbound reply or missed call
+SC-11
+Schedule a follow-up
+SC-12
+Reschedule a promised callback
+SC-13
+Complete, cancel or reopen a task
+SC-14
+Book a prospect meeting or visit
+SC-15
+Qualify the opportunity
+SC-16
+Move an opportunity in the pipeline
+SC-17
+Prepare and send a proposal
+SC-18
+Request documents securely
+SC-19
+Upload, replace or inspect evidence
+SC-20
+Submit a conversion for approval
+SC-21
+Mark a lead lost with a useful reason
+SC-22
+Request a lost opportunity to be reopened
+SC-23
+Request a handoff or cross-vertical referral
+SC-24
+Record an opt-out or contact complaint
+SC-25
+Inspect personal performance and its calculation
+SC-26
+Prepare for and acknowledge a one-to-one
+SC-27
+Generate a personal meeting PDF
+SC-28
+Raise a blocker or request a metric correction
+
+
+=== PAGE 35 ===
+ACTION INDEX
+Super Admin: complete action inventory.
+11 workflow screens. Open the following pages for a full-size interface and its execution contract.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+035
+SA-01
+Create an account and activation invitation
+SA-02
+Grant a role with precise organisation scope
+SA-03
+Grant a second team or vertical in the same role
+SA-04
+Create or restructure the reporting hierarchy
+SA-05
+Activate a transfer or promotion
+SA-06
+Disable access and complete offboarding
+SA-07
+Reset account access safely
+SA-08
+Publish an approved rule version
+SA-09
+Investigate an access or data-change incident
+SA-10
+Recover a failed integration or report job
+SA-11
+Review expiring access and temporary delegation
+
+
+=== PAGE 36 ===
+VERTICAL GALLERY
+The same sales role, four different contexts.
+Representative coded homes for each vertical; every sales role uses the same scope rule and vertical-adapted terminology.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+036
+Wealth
+Banking
+Markets / Trading
+Real Estate
+
+
+=== PAGE 43 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+043
+
+
+=== PAGE 44 ===
+SC / MY DAY
+SC-01 Start the day and prioritise work
+Sales caller / Own assigned prospects / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+044
+USER ACTION
+01
+Review overdue, promised callbacks and new lead
+deadlines.
+02
+Open a priority row to enter that prospect record.
+03
+Mark availability for allocation; this never changes the login
+role.
+BEFORE IT CAN PROCEED
+Current active assignment is mandatory. Availability uses approved hours and absence status; it
+does not change ownership.
+SYSTEM COMMIT
+Load own tasks, lead counts and reminders with an as-of timestamp. Record availability changes
+with effective time.
+REPORTING CONSEQUENCE
+My day shows operational workload. Personal performance keeps the historical team and role for
+each event.
+IF IT CANNOT COMPLETE
+No active assignment: show access pending. A delayed provider shows a stale-data badge, not
+zero calls.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 45 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+045
+
+
+=== PAGE 46 ===
+SC / LEAD INBOX
+SC-02 Filter, search and save a lead view
+Sales caller / Own assigned prospects / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+046
+USER ACTION
+01
+Choose stage, due date, source and product filters.
+02
+Select Apply filters; view only owned results and permitted
+contact fields.
+03
+Save view with a name or Reset to the default inbox.
+BEFORE IT CAN PROCEED
+Search, counts and suggestions must obey ownership scope. Saved views store filters, never a
+reusable copy of customer data.
+SYSTEM COMMIT
+Run a paginated scoped query. Store the employee-specific view definition and reapply current
+permissions each time.
+REPORTING CONSEQUENCE
+Changing a filter changes the displayed slice only. It never changes lead attribution or report
+definitions.
+IF IT CANNOT COMPLETE
+No match: show an empty state and Clear filters. Another caller lead ID returns no exposed
+customer information.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 47 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+047
+
+
+=== PAGE 48 ===
+SC / LEAD INBOX
+SC-03 Open a prospect and inspect the full record
+Sales caller / Own assigned prospects / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+048
+USER ACTION
+01
+Open a lead from the inbox or a valid notification.
+02
+Use Summary, Timeline, Tasks, Documents and Outcome
+tabs.
+03
+Select Call, WhatsApp or Add activity from the prospect
+header.
+BEFORE IT CAN PROCEED
+The opportunity must belong to the current permitted workload. Contact links expose only
+enquiries the caller may see.
+SYSTEM COMMIT
+Fetch opportunity and scoped related records. Show provenance, ownership history, permissions
+and outstanding tasks.
+REPORTING CONSEQUENCE
+Viewing a record is not a contact activity and adds no sales credit. Sensitive document access is
+separately audited.
+IF IT CANNOT COMPLETE
+Reassigned while open: show a read-only access-changed message, clear sensitive fields and
+return to the inbox.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 88 ===
+SC / LEAD INBOX
+SC-23 Request a handoff or cross-vertical referral
+Sales caller / Own assigned prospects / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+088
+USER ACTION
+01
+Select Request handoff or Refer enquiry.
+02
+Provide reason, approved destination and customer
+permission.
+03
+Submit; keep working only on the current authorised
+responsibility until acceptance.
+BEFORE IT CAN PROCEED
+Caller cannot browse destination staff or vertical data. Cross-vertical referral creates a scoped
+linked enquiry, not shared ownership.
+SYSTEM COMMIT
+Notify receiving authority, record accept/decline and handoff deadline. Move tasks only for an
+approved same-enquiry transfer.
+REPORTING CONSEQUENCE
+Earlier activities stay with the original actor. Referral credit, if used, is separately configured and
+cannot duplicate revenue.
+IF IT CANNOT COMPLETE
+Declined referral returns with reason. The sender sees handoff status, not the receiving vertical
+workspace.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 89 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+089
+
+
+=== PAGE 134 ===
+TL / QUALITY & APPROVALS
+TL-18 Approve a documented activity correction
+Team leader / Granted teams / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+134
+USER ACTION
+01
+Compare original activity, provider evidence and employee
+explanation.
+02
+Approve an append-only correction within authority or return
+with reason.
+03
+Notify the employee and flag affected report versions.
+BEFORE IT CAN PROCEED
+Provider truth cannot be overridden without supporting evidence. Closed finance facts use
+finance adjustments instead.
+SYSTEM COMMIT
+Append correction with reviewer and original fact reference; trigger permitted metric
+recomputation.
+REPORTING CONSEQUENCE
+Historical snapshots retain their original version and show the approved revised version.
+IF IT CANNOT COMPLETE
+Self-submitted correction goes to Manager. Never delete an unfavourable activity to improve a
+scorecard.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 135 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+135
+
+
+=== PAGE 316 ===
+SHARED LOGIC
+Rules that survive every screen. 03
+These contracts must be implemented in the service layer and tested across UI, API, export and scheduled jobs.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+316
+Core lead state machine
+Not contacted -> Contacted -> Follow-up -> Pending conversion -> Converted. Contacted may submit Pending conversion
+directly if product evidence is complete. Eligible open states may become Lost with reason. Reopen requires approval.
+No-answer attempts remain uncontacted. Calls and messages are activities, not pipeline stages. Converted cancellation uses an
+adjustment/handoff, not silent stage deletion.
+Approval and delegation rules
+Default sales conversion reviewer is scoped TL; TL self-submissions go to Manager. Cross-team work transfers route to
+Manager, cross-Manager to RM, cross-region to NM, all within permitted scope. Finance decisions require explicit finance
+authority. Approvers cannot approve their own requests. Unset limits block approval. Absence uses dated delegation. Timeout
+escalates, never auto-approves.
+Metric and attribution contract
+Store immutable employee, assignment, event time, vertical and hierarchy context. Count unique provider IDs for verified
+activity. Recompute rates from summed numerators/denominators; do not average percentages. Cohort conversion uses the
+same eligible allocation cohort and observation cutoff. Default win credit locks to the approved closing owner; approved splits
+sum to 100%. Cash date and sales credit basis remain separate.
+
+
+=== PAGE 317 ===
+SHARED LOGIC
+Rules that survive every screen. 04
+These contracts must be implemented in the service layer and tested across UI, API, export and scheduled jobs.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+317
+Automatic periods and report
+versions
+Proposed calendar: Asia/Kolkata, Monday weeks and April-March fiscal year. Support daily, weekly, monthly, quarterly,
+half-yearly and yearly reports. Scheduler creates completed-period snapshots after each boundary, proposed 00:15 local time,
+with readiness checks and safe retry. Live/MTD views are provisional. Show cutoff, timezone, definition version, source delay
+and finance close state. Late corrections produce a revised version.
+Four configurable verticals
+Wealth, Banking, Markets / Trading and Real Estate remain placeholders until named. Each needs products, hierarchy,
+stage/evidence rules, revenue trigger, targets, routing, templates and eligibility. The same-role interface adapts allowed fields
+and rules; it never mixes unrelated vertical records. Shared identity matching does not expose restricted opportunities.
+Cross-vertical referrals require minimal context, permission and receiving acceptance.
+Execution architecture
+Browser renders a server-authorised module manifest. API authenticates and authorises each action. Domain service validates
+workflow and commits facts plus an outbox event in one transaction. Workers process reminders, imports, providers and PDFs
+idempotently. Relational data includes assignments, scopes, opportunities, ownership, activities, tasks, approvals, ledgers and
+snapshots. Private files require current download permission.
+
+
+=== PAGE 318 ===
+SHARED LOGIC
+Rules that survive every screen. 05
+These contracts must be implemented in the service layer and tested across UI, API, export and scheduled jobs.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+318
+Acceptance scenarios
+Test wrong-role URL, other-caller lead ID, other-vertical search, removed team grant, promotion in an open session, exit with
+pending PDF, replacement employee, repeated webhook, concurrent assignment, duplicate import, refund after close and
+midnight/quarter boundaries. Require correct UI state, server denial or business result, audit event and report impact for every
+case.
+
+
+=== PAGE 319 ===
+EXECUTION ROADMAP
+Build in accountable stages.
+A pragmatic sequence that validates authority and facts before scaling screens across teams and verticals.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+319
+01
+Identity and grants
+Employee, role, hierarchy, vertical/team intervals, login, deny-by-default APIs.
+02
+Lead work
+Website and intake sources, validation, routing, caller queue, conversation and follow-up.
+03
+Leadership
+Allocation, approvals, coaching, targets, forecasts and bounded drill-down.
+04
+Finance and reporting
+Revenue events, reconciliation, immutable facts, period snapshots, PDFs and review packs.
+05
+Vertical expansion
+Configure each vertical’s products, gates, templates, revenue rules and UAT scenarios.
+
+
+=== PAGE 320 ===
+CLIENT DECISIONS
+Business rules still to approve.
+Examples in this deck are clearly illustrative; these decisions define the production behaviour.
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+320
+Products and stages
+Name products, stage evidence, conversion gates and lost/reopen policy in each
+vertical.
+Commercial events
+Define sales credit, recognised revenue, invoices, cash, reversals and incentive
+eligibility.
+Approvals and limits
+Set authority thresholds, delegates, escalation windows and independent reviewer
+requirements.
+Targets and periods
+Confirm timezone, fiscal year, period close, target allocation and revised report
+policy.
+Providers and consent
+Select calling, WhatsApp, email and document vendors; confirm consent and
+retention rules.
+Deployment and data
+Confirm identity provider, website integration, import format, data migration and
+hosting.

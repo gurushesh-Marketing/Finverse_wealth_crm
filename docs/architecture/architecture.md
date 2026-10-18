@@ -65,6 +65,27 @@ Finverse CRM v2 operates a unified multi-vertical architecture across four disti
 - **Cross-Vertical Referral Handoff Protocol (`SC-23` → `NM-08`):**
   An advisor in Wealth referring a client to Commercial Banking initiates a structured referral (`cross_vertical_referrals`). The referral contains only consented contact details and business rationale. It enters the destination vertical's National Manager queue in status `pending`. Upon explicit acceptance by the destination NM, the referral is published into the destination vertical's allocation pool.
 
+### 2.2 Reusable Foundations & Multi-Vertical Extension Strategy
+
+Finverse CRM v2 executes a strict **Reuse-First, Differentiate-Only** architectural policy across all 4 commercial divisions (`wealth`, `banking`, `markets`, `real-estate`):
+
+1. **Foundational Architecture Reuse:**
+   - The shared CRM foundation provides: unified institutional authentication, dynamic assignment and scope resolution, the 6-zone workspace shell, activity timelines, document storage, task schedulers, communication logging, outbox event pipelines, OCC locking (`record_version`), and standard error protocols.
+   - **Zero Workspace Duplication:** Existing implementations in `apps/web/src/pages/`, `apps/api/src/repo/`, and `packages/contracts/src/` must be inspected before authoring new code. Builders must **never** fork or copy-paste entire Wealth workspaces or reimplement stabilized foundational capabilities.
+
+2. **Vertical-Specific Domain Differences Only:**
+   - Implementation for Banking, Markets, and Real Estate is strictly confined to verified domain divergences:
+     * **Pipeline State Machines:** Vertical lifecycles (e.g. Banking: `New` $\to$ `Eligibility` $\to$ `Documents` $\to$ `Sanction` $\to$ `Disbursal`; Markets: `New` $\to$ `KYC` $\to$ `RiskProfiling` $\to$ `DematTradingOpened` $\to$ `FundedFirstTrade`; Real Estate: `New` $\to$ `Requirement` $\to$ `SiteVisit` $\to$ `EOI_Booking` $\to$ `Registration`).
+     * **Product & Service Catalogs:** Banking loans/facilities, Markets trading/demat accounts, Real Estate property/inventory classes.
+     * **Intake Sources & Channels:** Specialized vertical intake channels and attribution.
+     * **Regulatory & Compliance Checklists:** Underwriting/CIBIL/collateral checks for Banking, SEBI KYC/suitability for Markets, RERA compliance for Real Estate.
+     * **Specialized Domain Actions & Loss Reasons:** Credit rejections, site-visit management, settlement/margin monitoring.
+
+3. **Visual Grounding & Traceability Invariant:**
+   - **Action Deck Visual Priority:** Before authoring or modifying any screen, retrieve the relevant Graphify context and visually inspect the original Action Deck PDF page (`docs/reference/NEW-Finverse_Wealth_CRM_Premium_UIUX_Action_Deck.pdf`). Preserve its exact visual hierarchy, fields, controls, states, and micro-interactions. Graph summaries assist navigation but **never** replace visual inspection of the PDF.
+   - **Mandatory Traceability Chain:** Every action and role implementation must document the full lineage:
+     `Action Deck page → detailed requirements & visual reference → existing reusable implementation → vertical-specific differences → verification evidence → remaining gaps`.
+
 ---
 
 ## 3. Security, Identity & Authorization Engine
@@ -269,7 +290,7 @@ Feature development and verification proceed strictly in order:
    - *Invariant:* Historical lead ownership, activity ledgers, and performance credits are permanently preserved across personnel transfers, promotions, or departures.
 4. **Data Entry (`DE-01..DE-07`):** Batch intake capture/import, schema mapping, rejected-row correction, deduplication review, permitted batch publication, provenance audit receipts, and intake quality metrics.
    - *Routing Chain:* `DE-05` (Batch Publication) → `TL-02` / `TL-03` (Team Allocation Pool). Zero arbitrary lead ownership granted to Data Entry operators. Zero duplicate lead generation on repeated publish attempts. Held/rejected rows remain excluded and independently recoverable.
-5. **First Production Release Gate:** Integrated daily operational verification across horizontal and vertical workflows, negative scenario testing, production operations handover for Dhanan, and release package certification.
+5. **First Production Release Gate:** Integrated daily operational verification across horizontal and vertical workflows, negative scenario testing, project production operations handover, and release package certification.
 
 ### 9.2 Later Vertical Release Architecture (Multi-Vertical Expansion)
 Subsequent business verticals—`banking` (Corporate/Commercial Banking), `markets` (Markets & Securities Trading), and `real-estate` (Real Estate Advisory)—are introduced into the **same deployed CRM instance**:

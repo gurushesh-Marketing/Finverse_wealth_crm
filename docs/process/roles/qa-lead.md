@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-qa-lead.md` and `qa.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the assigned milestone action catalogue.
 - Applicable installed skills: `.agents/skills/finverse-qa-execution/SKILL.md` (evidence assessment and PASS/FAIL/NOT RUN methodology), `.agents/skills/finverse-access-contract/SKILL.md` (boundary criteria), `.agents/skills/finverse-reporting-contract/SKILL.md` (KPI verification criteria).
 - Absent skills: none.

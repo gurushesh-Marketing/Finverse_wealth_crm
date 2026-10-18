@@ -81,32 +81,53 @@ for ev in evidence_nodes:
             violations.append(f"{ev_id}: Verified evidence node lacks PASS execution or run date.")
 
 # Invariant 4: Verified nodes must be backed by a fresh execution record matching live input fingerprints
-verified_actions = [a for a in action_nodes if a.get('current_revision_verified', False) is True]
-if verified_actions:
-    rec_file = ROOT_DIR / "evidence" / "manager_test_execution_record.json"
+verified_mg = [a for a in action_nodes if a.get('current_revision_verified', False) is True and a.get('id', '').startswith('action_MG')]
+verified_rm = [a for a in action_nodes if a.get('current_revision_verified', False) is True and a.get('id', '').startswith('action_RM')]
+verified_nm = [a for a in action_nodes if a.get('current_revision_verified', False) is True and a.get('id', '').startswith('action_NM')]
+verified_ceo = [a for a in action_nodes if a.get('current_revision_verified', False) is True and a.get('id', '').startswith('action_CEO')]
+verified_cfo = [a for a in action_nodes if a.get('current_revision_verified', False) is True and a.get('id', '').startswith('action_CFO')]
+
+records_to_check = []
+if verified_mg:
+    from scripts.record_test_execution import get_live_fingerprints as get_mg_live_fps
+    records_to_check.append(("manager_test_execution_record.json", get_mg_live_fps, "MG"))
+if verified_rm:
+    from scripts.record_regional_test_execution import get_live_fingerprints as get_rm_live_fps
+    records_to_check.append(("regional_test_execution_record.json", get_rm_live_fps, "RM"))
+if verified_nm:
+    from scripts.record_national_test_execution import get_live_fingerprints as get_nm_live_fps
+    records_to_check.append(("national_test_execution_record.json", get_nm_live_fps, "NM"))
+if verified_ceo:
+    from scripts.record_ceo_test_execution import get_live_fingerprints as get_ceo_live_fps
+    records_to_check.append(("ceo_test_execution_record.json", get_ceo_live_fps, "CEO"))
+if verified_cfo:
+    from scripts.record_cfo_test_execution import get_live_fingerprints as get_cfo_live_fps
+    records_to_check.append(("cfo_test_execution_record.json", get_cfo_live_fps, "CFO"))
+
+for rec_filename, get_live_fn, role_code in records_to_check:
+    rec_file = ROOT_DIR / "evidence" / rec_filename
     if not rec_file.exists():
-        violations.append(f"Execution record '{rec_file}' missing but {len(verified_actions)} actions claim CURRENT_REVISION_VERIFIED.")
+        violations.append(f"Execution record '{rec_file}' missing for verified {role_code} actions.")
     else:
         try:
-            from scripts.record_test_execution import get_live_fingerprints
             rec_data = json.loads(rec_file.read_text(encoding='utf-8'))
-            live_fps = get_live_fingerprints()
+            live_fps = get_live_fn()
             recorded_fps = rec_data.get('fingerprints', {})
             for fp_key, live_val in live_fps.items():
                 rec_val = recorded_fps.get(fp_key)
                 if live_val != rec_val:
                     violations.append(
-                        f"Execution record fingerprint mismatch for '{fp_key}': recorded {str(rec_val)[:8]}... != live {str(live_val)[:8]}... (Evidence is STALE)."
+                        f"Execution record ({role_code}) fingerprint mismatch for '{fp_key}': recorded {str(rec_val)[:8]}... != live {str(live_val)[:8]}... (Evidence is STALE)."
                     )
             if rec_data.get('exit_code') != 0:
-                violations.append(f"Execution record exit_code is {rec_data.get('exit_code')} (expected 0).")
+                violations.append(f"Execution record ({role_code}) exit_code is {rec_data.get('exit_code')} (expected 0).")
             if rec_data.get('overall_status') != 'PASS':
-                violations.append(f"Execution record overall_status is '{rec_data.get('overall_status')}' (expected 'PASS').")
+                violations.append(f"Execution record ({role_code}) overall_status is '{rec_data.get('overall_status')}' (expected 'PASS').")
             runner_res = rec_data.get('test_runner_results', {})
             if runner_res.get('fail', 0) > 0 or runner_res.get('pass', 0) == 0:
-                violations.append(f"Execution record runner results invalid: {runner_res}.")
+                violations.append(f"Execution record ({role_code}) runner results invalid: {runner_res}.")
         except Exception as e:
-            violations.append(f"Failed to validate execution record: {e}")
+            violations.append(f"Failed to validate execution record ({role_code}): {e}")
 
 if violations:
     print("\nFAIL: Found verification evidence violations:")

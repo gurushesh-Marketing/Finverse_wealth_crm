@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-backend-builder.md` and `builder.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the assigned task packet.
 - Applicable installed skills: `.agents/skills/postgres-patterns/SKILL.md` (parameterised SQL, schema design, transactions), `.agents/skills/tdd/SKILL.md` (contract test suites), `.agents/skills/security-review/SKILL.md` (server-side authorization and validation), `.agents/skills/ponytail/SKILL.md` (minimal working implementation).
 - Absent skills: `backend-patterns`, `domain-modeling` (apply core role discipline; do not install skill packs).

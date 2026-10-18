@@ -21,3 +21,6 @@ logs/
 .maintenance/
 __pycache__/
 *.pyc
+graphify-out/cache/
+graphify-requirements/cache/
+graphify-requirements/extraction_cache.json

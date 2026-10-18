@@ -15,13 +15,13 @@ The Finverse CRM v2 persistence model is engineered directly in PostgreSQL using
 1. **Relational Integrity Over App Logic:** Foreign keys (`ON DELETE RESTRICT` by default, or cascading where explicitly designated), check constraints, not-null constraints, and unique compound indexes enforce business rules at the persistence layer.
 2. **Strict Prohibition of Hard Deletions (`[Deck P005]`):** Transaction records, customer interaction timelines, financial ledgers, and audit events are permanent. Deletions use soft-deactivations or state transitions.
 3. **Partitioned Multiversion Concurrency:** High-velocity tables (`leads` via `record_version`, `reviews` via `snapshot_version`) enforce optimistic concurrency locking.
-4. **Distinction Between Implemented vs Planned Schema:** This document explicitly distinguishes between schemas currently active in SQL migrations `0001` through `0013` versus planned future schemas for horizontal roles (`DE`, `HR`, `SA`) and vertical expansions.
+4. **Distinction Between Implemented vs Planned Schema:** This document explicitly distinguishes between schemas currently active in SQL migrations `0001` through `0014` versus planned future schemas for horizontal roles (`DE`, `HR`, `SA`) and vertical expansions.
 5. **No Invented Policies:** Commercial policies, accounting standards, vendor integrations, and incentive holdback percentages are not hardcoded as binding deck requirements; they are client decisions (`[Deck P320]`).
 6. **Preservation of Historical Ownership & Performance:** Relational schemas enforce immutable attribution across personnel changes. When an employee transfers, is promoted, or departs, historical lead ownership events (`lead_ownership_events`), call recordings, converted deals (`outcome_requests`), and financial credits remain anchored to the historical employee ID; only open, in-flight tasks and active assignments transition to successors.
 
 ---
 
-## 2. Actual Implemented Schema (Migrations 0001 to 0013)
+## 2. Actual Implemented Schema (Migrations 0001 to 0014)
 
 ### 2.1 Core Organizational & Frontline Foundation (`0001_init.sql`)
 
@@ -30,7 +30,7 @@ The Finverse CRM v2 persistence model is engineered directly in PostgreSQL using
 | `teams` | Organizational teams | `id text`, `vertical text`, `display_name text`, `parent_team_id text`, `region_id text` *(added in 0010)* | PK: `id`. FK: `parent_team_id -> teams(id)`, `region_id -> regions(id)`. |
 | `employees` | System identity directory | `id text`, `email text`, `password_hash text`, `display_name text`, `status text` | PK: `id`. Unique: `email`. Status check: `active, suspended, offboarded`. |
 | `assignments` | Effective-dated scope grants | `id text`, `employee_id text`, `role text`, `vertical text`, `team_id text`, `effective_from date`, `effective_to date` | PK: `id`. FK: `employee_id -> employees(id)`, `team_id -> teams(id)`. Role check: `SC, TL, MG, RM, NM, CEO, CFO, DE, HR, SA`. |
-| `leads` | Master prospect entity | `id text`, `vertical text`, `display_name text`, `email text`, `phone text`, `preferred_language text`, `product text`, `source text`, `stage text`, `owner_employee_id text`, `team_id text`, `record_version int`, `created_at timestamptz`, `updated_at timestamptz` | PK: `id`. FK: `owner_employee_id -> employees(id)`, `team_id -> teams(id)`. Stage check: `new, not-contacted, contacted, follow-up, qualified, proposal-submitted, converted, lost`. |
+| `leads` | Master prospect entity | `id text`, `vertical text`, `display_name text`, `email text`, `phone text`, `preferred_language text`, `product text`, `source text`, `stage text`, `owner_employee_id text`, `team_id text`, `record_version int`, `created_at timestamptz`, `updated_at timestamptz` | PK: `id`. FK: `owner_employee_id -> employees(id)`, `team_id -> teams(id)`. Stage check: `new, not-contacted, contacted, follow-up, qualified, converted, lost`, expanded in `0023_banking_stages.sql` for Commercial Banking: `eligibility, documents, sanction, disbursal`. |
 | `lead_tasks` | Operational callbacks & follow-ups | `id text`, `lead_id text`, `creator_employee_id text`, `due_at timestamptz`, `task_type text`, `title text`, `status text`, `outcome text`, `original_due_at timestamptz` *(0003)*, `deferral_count int` *(0003)*, `created_at timestamptz`, `updated_at timestamptz` | PK: `id`. FK: `lead_id -> leads(id)`, `creator_employee_id -> employees(id)`. Status check: `pending, completed, cancelled`. |
 | `lead_events` | Immutable timeline audit fact ledger | `id text`, `lead_id text`, `action_type text`, `metadata jsonb`, `actor_role text` *(0002)*, `actor_team_id text` *(0002)*, `assignment_id text` *(0002)*, `created_at timestamptz` | PK: `id`. FK: `lead_id -> leads(id)`. Append-only. |
 | `sessions` | Server-managed session store | `id text`, `employee_id text`, `expires_at timestamptz`, `created_at timestamptz` | PK: `id`. FK: `employee_id -> employees(id)`. |
@@ -254,6 +254,9 @@ CREATE TABLE audit_incidents (
 | `sales_finance_handoffs` | `0013_cfo_workflows.sql` | CFO / Revenue | Bridge from TL conversion approval to statutory finance verification. |
 | `finance_ledger_entries` | `0013_cfo_workflows.sql` | CFO / Ledger | Permanent general ledger entries (revenue recognition, receipts, reversals). |
 | `finance_reconciliations` | `0013_cfo_workflows.sql` | CFO / Controls | Period 3-way reconciliation freeze (CRM Sales == Recognised Revenue == Cash Receipts). |
-| `intake_batches` | *Planned (0014)* | DE / Ingestion | Staging intake file lifecycle; atomic publish to leads. |
-| `leave_records` | *Planned (0015)* | HR / Availability | Leave intervals dampening algorithmic lead allocation. |
-| `system_rules` | *Planned (0016)* | SA / Config | Versioned business parameters; audited rule releases. |
+| `intake_sources` | `0022_data_entry_workflows.sql` | DE / Sources | Registered intake sources; permitted verticals/products; legal consent basis; suspension status. |
+| `intake_batches` | `0022_data_entry_workflows.sql` | DE / Ingestion | Staged batch intake lifecycle; SHA-256 idempotency; atomic publish to leads. |
+| `intake_rows` | `0022_data_entry_workflows.sql` | DE / Validation | Line-by-line validation, lineage preservation (`raw_payload`), correction history, duplicate holding. |
+| `intake_export_audits` | `0022_data_entry_workflows.sql` | DE / Audit | Audited intake quality CSV worklist exports with user, period, and filter logging. |
+| `leave_records` | `0015` / `0020_hr_workflows.sql` | HR / Availability | Leave intervals dampening algorithmic lead allocation. |
+| `system_rules` | `0019_superadmin_workflows.sql` | SA / Config | Versioned business parameters; audited rule releases. |

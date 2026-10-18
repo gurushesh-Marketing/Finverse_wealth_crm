@@ -183,13 +183,13 @@ export async function getCompanyOperatingPicture(
     {
       vertical: 'markets',
       name: 'Markets & Trading',
-      targetRevenueInr: 20000000,
-      deliveredRevenueInr: 0,
-      targetWins: 100,
-      deliveredWins: 0,
-      attainmentPace: 0,
-      status: 'expansion_mandate',
-      nmName: 'Ananya Roy (Designate)',
+      targetRevenueInr: 25000000,
+      deliveredRevenueInr: 12500000,
+      targetWins: 400,
+      deliveredWins: 185,
+      attainmentPace: 46,
+      status: 'on-track',
+      nmName: 'Sanjay Singhania',
     },
     {
       vertical: 'real-estate',
@@ -203,6 +203,10 @@ export async function getCompanyOperatingPicture(
       nmName: 'Aditya Singhania',
     },
   ];
+
+  const displayedContributions = (focusVertical && focusVertical !== 'all')
+    ? verticalContributions.filter((v) => v.vertical === focusVertical || (focusVertical === 'real_estate' && v.vertical === 'real-estate'))
+    : verticalContributions;
 
   return {
     period,
@@ -226,7 +230,7 @@ export async function getCompanyOperatingPicture(
       criticalRisksCount: riskRows[0]?.critical_risks || 0,
       inProgressCommitmentsCount: commitRows[0]?.in_progress_commits || 0,
     },
-    verticalContributions,
+    verticalContributions: displayedContributions,
   };
 }
 
@@ -411,22 +415,30 @@ export async function approveCompanyTarget(scope: Scope, input: ApproveCompanyTa
 
     // 2. Cascade down to national_targets for in-scope verticals
     for (const alloc of input.verticalAllocations) {
-      if (alloc.vertical === 'wealth') {
-        await client.query(
-          `INSERT INTO national_targets (
-             id, nm_employee_id, vertical, period_label, metric, approved_ceo_target,
-             unallocated_remainder, regional_allocations, status, version
-           ) VALUES ($1, $2, 'wealth', $3, 'approved-wins', $4, $4, '[]', 'published', 1)
-           ON CONFLICT (vertical, period_label, metric, version) DO UPDATE SET
-             approved_ceo_target = EXCLUDED.approved_ceo_target`,
-          [
-            id('NT'),
-            alloc.nmEmployeeId || 'EMP-009',
-            input.periodLabel,
-            alloc.winsTarget,
-          ]
-        );
-      }
+      const v = alloc.vertical === 'real-estate' ? 'real_estate' : alloc.vertical;
+      const defaultNm =
+        v === 'banking'
+          ? 'EMP-010'
+          : v === 'markets'
+          ? 'EMP-025'
+          : v === 'real_estate'
+          ? 'EMP-026'
+          : 'EMP-009';
+      await client.query(
+        `INSERT INTO national_targets (
+           id, nm_employee_id, vertical, period_label, metric, approved_ceo_target,
+           unallocated_remainder, regional_allocations, status, version
+         ) VALUES ($1, $2, $3, $4, 'approved-wins', $5, $5, '[]', 'published', 1)
+         ON CONFLICT (vertical, period_label, metric, version) DO UPDATE SET
+           approved_ceo_target = EXCLUDED.approved_ceo_target`,
+        [
+          id('NT'),
+          alloc.nmEmployeeId || defaultNm,
+          v,
+          input.periodLabel,
+          alloc.winsTarget,
+        ]
+      );
     }
 
     await client.query('COMMIT');

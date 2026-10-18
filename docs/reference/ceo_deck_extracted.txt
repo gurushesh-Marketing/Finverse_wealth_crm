@@ -1,0 +1,286 @@
+============================== P204 ==============================
+CEO / EXECUTIVE OVERVIEW
+CEO-01 Inspect the company operating picture
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+204
+USER ACTION
+01
+Inspect attainment, pipeline, forecast confidence and critical
+decisions.
+02
+Open a vertical contribution within the executive workspace.
+03
+Assign a named strategic action or leadership review.
+BEFORE IT CAN PROCEED
+Company aggregation is an explicit scope grant. It does not grant another role interface or
+unrestricted customer/HR access.
+SYSTEM COMMIT
+Aggregate reconciled vertical facts with clear freshness and finance close status.
+REPORTING CONSEQUENCE
+Separate approved won value, recognised revenue and cash throughout the executive view.
+IF IT CANNOT COMPLETE
+Unreconciled or missing vertical data is visibly flagged and excluded from certified totals as
+appropriate.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P206 ==============================
+CEO / VERTICAL PERFORMANCE
+CEO-02 Compare verticals fairly
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+206
+USER ACTION
+01
+Choose comparable measures and observation periods.
+02
+Inspect target pace, growth and operating constraints by
+vertical.
+03
+Record decisions with the supporting comparison snapshot.
+BEFORE IT CAN PROCEED
+Do not rank different products by raw lead count alone. Separate differing sales cycles, margins
+and data maturity.
+SYSTEM COMMIT
+Store selected context and attach it to executive decisions.
+REPORTING CONSEQUENCE
+Show basis, denominators, currencies and FX versions on comparative financial measures.
+IF IT CANNOT COMPLETE
+Incomparable or incomplete data shows a labelled limitation rather than an invented rank.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P208 ==============================
+CEO / VERTICAL PERFORMANCE
+CEO-03 Review a national manager contribution
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+208
+USER ACTION
+01
+Open the NM contribution from the company view.
+02
+Review results, risks, accepted forecasts and action delivery.
+03
+Schedule a leadership review or request clarification.
+BEFORE IT CAN PROCEED
+Executive drill-down is a CEO view. Lower-level customer evidence remains separately
+permissioned.
+SYSTEM COMMIT
+Serve authorised national summaries and action references.
+REPORTING CONSEQUENCE
+Historical responsibility follows the NM assignment at event time.
+IF IT CANNOT COMPLETE
+An NM replacement sees a new personal record; the vertical retains organisational history.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P210 ==============================
+CEO / STRATEGY & TARGETS
+CEO-04 Approve company and vertical targets
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+210
+USER ACTION
+01
+Review bottom-up capacity and the proposed company plan.
+02
+Approve targets and reconcile vertical allocations.
+03
+Publish the signed target version for NM cascade.
+BEFORE IT CAN PROCEED
+Define metric, currency, period and owner. Company total equals allocations plus a visible
+reserved/unallocated amount.
+SYSTEM COMMIT
+Lock approved version, effective dates and audit. Notify NMs and relevant finance owners.
+REPORTING CONSEQUENCE
+Future attainment uses the signed target version. Mid-cycle changes require a visible revision.
+IF IT CANNOT COMPLETE
+Unresolved finance basis or inconsistent allocations block final approval.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P212 ==============================
+CEO / FORECAST & GROWTH
+CEO-05 Review the consolidated company forecast
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+212
+USER ACTION
+01
+Inspect national submissions and consolidation gaps.
+02
+Review executive adjustments separately from bottom-up
+totals.
+03
+Freeze the executive forecast for the leadership meeting.
+BEFORE IT CAN PROCEED
+Deduplicate linked revenue and avoid counting referrals twice. Use consistent expected-revenue
+definitions.
+SYSTEM COMMIT
+Store final forecast, source versions and adjustment rationale.
+REPORTING CONSEQUENCE
+Track original forecast accuracy, revisions and realised outcomes by period.
+IF IT CANNOT COMPLETE
+Unaccepted or late submissions remain visible rather than silently replaced.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P214 ==============================
+CEO / STRATEGY & TARGETS
+CEO-06 Approve a growth or capacity initiative
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+214
+USER ACTION
+01
+Review expected outcome, capacity assumptions and
+dependencies.
+02
+Approve strategic direction within authority and request
+finance concurrence where needed.
+03
+Assign milestones and review dates.
+BEFORE IT CAN PROCEED
+Strategic approval is separate from finance funding approval and employee access provisioning.
+SYSTEM COMMIT
+Create linked executive decision, finance decision and implementation tasks.
+REPORTING CONSEQUENCE
+Track approved plan against actual milestones and measured outcome, not only planned benefits.
+IF IT CANNOT COMPLETE
+Budget not approved: keep initiative conditionally approved and block dependent spending
+commitments.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P216 ==============================
+CEO / DECISIONS & RISKS
+CEO-07 Resolve a cross-vertical priority conflict
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+216
+USER ACTION
+01
+Review both NM proposals and customer/service impact.
+02
+Record the priority, limits and follow-up commitments.
+03
+Notify affected NMs and route access changes through
+Admin if needed.
+BEFORE IT CAN PROCEED
+A commercial priority does not automatically share customer data or employee permissions
+across verticals.
+SYSTEM COMMIT
+Version decision and create scoped work requests rather than broad shared access.
+REPORTING CONSEQUENCE
+Track implementation and exception resolution against the original decision.
+IF IT CANNOT COMPLETE
+If policy or finance approval is required, keep the action pending until that independent decision is
+complete.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P218 ==============================
+CEO / DECISIONS & RISKS
+CEO-08 Review a critical complaint or operating risk
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+218
+USER ACTION
+01
+Inspect the executive risk summary and previous decisions.
+02
+Set accountable owner, priority and due date.
+03
+Escalate specialist decisions to finance or policy owners
+where appropriate.
+BEFORE IT CAN PROCEED
+Show only the minimum required personal/customer information. Preserve evidence and
+suppression controls.
+SYSTEM COMMIT
+Log executive decision and escalation chain; notify affected owners.
+REPORTING CONSEQUENCE
+Risk dashboard tracks overdue decisions and verified resolution, not only ticket closure.
+IF IT CANNOT COMPLETE
+A sensitive incident may require a restricted case grant; seniority alone cannot bypass that
+boundary.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P220 ==============================
+CEO / LEADERSHIP REVIEWS
+CEO-09 Conduct an NM leadership review
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+220
+USER ACTION
+01
+Prepare a frozen vertical scorecard and prior commitments.
+02
+Record leadership feedback, support and measurable
+actions.
+03
+Complete the review and request acknowledgement.
+BEFORE IT CAN PROCEED
+Use historical assignment attribution. Keep confidential reviewer notes separate from shared
+actions.
+SYSTEM COMMIT
+Version review and route commitments to named owners.
+REPORTING CONSEQUENCE
+Track commitments and leadership review cadence independently of revenue measures.
+IF IT CANNOT COMPLETE
+A disputed finance number remains linked to the CFO-certified version and correction process.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P222 ==============================
+CEO / MEETING PACKS
+CEO-10 Create the executive or board meeting pack
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+222
+USER ACTION
+01
+Choose certified snapshots and recipient-appropriate detail.
+02
+Preview the executive narrative, charts and decision list.
+03
+Generate an audited PDF with protected download and
+expiry.
+BEFORE IT CAN PROCEED
+Board access is not assumed as a user role. External recipients require an explicitly approved
+sharing process.
+SYSTEM COMMIT
+Store report version, audience, redactions and download audit.
+REPORTING CONSEQUENCE
+Every chart carries its metric basis, cutoff and finance state.
+IF IT CANNOT COMPLETE
+If a section is provisional, label it clearly instead of mixing it into certified results.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+============================== P224 ==============================
+CEO / MY ACTIONS
+CEO-11 Follow through on executive commitments
+CEO / Company outcomes / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+224
+USER ACTION
+01
+Review decisions requiring action and overdue
+commitments.
+02
+Update own actions or request evidence from the
+accountable leader.
+03
+Close only after recording the actual outcome.
+BEFORE IT CAN PROCEED
+Delegating an action does not delegate a role, approval limit or dashboard access.
+SYSTEM COMMIT
+Append action changes, evidence and notifications with due-time history.
+REPORTING CONSEQUENCE
+Measure commitment completion and decision latency separately from sales attainment.
+IF IT CANNOT COMPLETE
+Overdue delegated actions return to the accountable sponsor for intervention.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.

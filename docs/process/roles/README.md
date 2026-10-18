@@ -1,8 +1,10 @@
 # Development roles — Antigravity IDE setup (tool-specific)
 
-Shared product rules and progress stay in `AGENTS.md` and `docs/process/`
-(`STATUS.md`, `COVERAGE_MATRIX.md`, `BUILD_LOG.md`). This folder only holds
-role instructions for running the team in the Antigravity IDE.
+Shared product rules, the single authoritative delivery standard, and progress stay in `AGENTS.md`,
+[`docs/process/implementation-plan.md`](../implementation-plan.md), and `docs/process/`
+(`STATUS.md`, `COVERAGE_MATRIX.md`, `BUILD_LOG.md`). All roles must strictly follow
+the canonical workflow defined in `docs/process/implementation-plan.md`. This folder
+only holds role instructions for running the team in the Antigravity IDE.
 
 > **These are role instructions, not registered subagents.** The installed
 > Antigravity IDE (checked 2026-10-04) documents rules, skills, plugins, hooks

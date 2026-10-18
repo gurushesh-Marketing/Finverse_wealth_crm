@@ -69,7 +69,7 @@ export function managerRouter(): Router {
   // Role gate: only MG can access manager endpoints
   router.use((req: AuthedRequest, res, next) => {
     if (req.auth?.session.role !== 'MG') {
-      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Wealth Manager role required.' } });
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Manager role required.' } });
       return;
     }
     next();
@@ -235,7 +235,7 @@ export function managerRouter(): Router {
       return;
     }
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="Finverse-Wealth-Manager-Pack-${req.params.id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="Finverse-Manager-Pack-${req.params.id}.pdf"`);
     createReadStream(absPath).pipe(res);
   }));
 

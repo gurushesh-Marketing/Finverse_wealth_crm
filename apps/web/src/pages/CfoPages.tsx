@@ -19,6 +19,7 @@ import {
   AgeingBucketsSummary,
 } from '@finverse/contracts';
 import { cfoApi } from '../lib/cfo-api';
+import { useSession } from '../lib/session';
 import { Card, CardHeader, CardContent, CardTitle, PageHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import {
@@ -89,7 +90,7 @@ export function CfoOverviewPage() {
     setSubmitting(true);
     try {
       await cfoApi.freezeReconciliation({
-        periodId: 'PER-2026-Q1',
+        periodId: period,
         explanationNotes,
       });
       setShowFreezeModal(false);
@@ -362,21 +363,33 @@ export function CfoOverviewPage() {
 // CFO-02, CFO-03, CFO-11: Revenue Recognition & Sales Handoffs
 // =========================================================================
 export function CfoRecognitionPage() {
+  const { session } = useSession();
   const [handoffs, setHandoffs] = useState<CfoHandoffItem[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [periods, setPeriods] = useState<ReportingPeriod[]>([]);
   const [loading, setLoading] = useState(true);
+  const [conflictError, setConflictError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // Modals
   const [showRecModal, setShowRecModal] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
+  const [selectedOriginalEntry, setSelectedOriginalEntry] = useState<LedgerEntry | null>(null);
 
-  // Recognition form
+  // Recognition prepare form
+  const [recPeriodId, setRecPeriodId] = useState('');
+  const [recVertical, setRecVertical] = useState<'wealth' | 'banking'>('wealth');
   const [recGross, setRecGross] = useState(500000);
   const [recTax, setRecTax] = useState(90000);
   const [recAccount, setRecAccount] = useState('4001-WEALTH-PMS');
+  const [recPolicyCode, setRecPolicyCode] = useState('REV-2026-V1');
+  const [recSourceType, setRecSourceType] = useState('invoice');
+  const [recSourceId, setRecSourceId] = useState('INV-2026-001');
   const [recDesc, setRecDesc] = useState('Recognised Discretionary PMS Advisory Fee Q1');
 
-  // Credit Note form
-  const [cnAmount, setCnAmount] = useState(50000);
+  // Credit Note prepare form
+  const [cnCreditAmount, setCnCreditAmount] = useState(50000);
+  const [cnPolicyCode, setCnPolicyCode] = useState('REV-2026-V1');
   const [cnReason, setCnReason] = useState('Client renegotiated advisory concession approved under DoA');
 
   useEffect(() => {
@@ -386,12 +399,17 @@ export function CfoRecognitionPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [hData, lData] = await Promise.all([
+      const [hData, lData, pData] = await Promise.all([
         cfoApi.getHandoffs(),
         cfoApi.getLedger(),
+        cfoApi.getPeriods(),
       ]);
       setHandoffs(hData.handoffs);
       setLedger(lData.entries);
+      setPeriods(pData.periods);
+      if (pData.periods.length > 0 && !recPeriodId) {
+        setRecPeriodId(pData.periods[0].id);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -403,62 +421,128 @@ export function CfoRecognitionPage() {
     const notes = decision === 'returned_deficiencies' ? prompt('Enter deficiency notes:') || undefined : undefined;
     try {
       await cfoApi.verifyHandoff(id, { decision, deficiencyNotes: notes });
-      loadData();
+      await loadData();
     } catch (err: any) {
       alert(err.message);
     }
   }
 
-  async function handlePostRecognition(e: React.FormEvent) {
+  async function handlePrepareRecognition(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await cfoApi.postRecognition({
-        periodId: 'PER-2026-Q1',
-        vertical: 'wealth',
+      await cfoApi.prepareRecognition({
+        periodId: recPeriodId || (periods[0]?.id || 'PER-2026-Q1'),
+        vertical: recVertical,
         grossAmount: Number(recGross),
         taxAmount: Number(recTax),
-        policyCode: 'REV-2026-V1',
-        sourceReferenceType: 'invoice',
-        sourceReferenceId: 'INV-2026-MANUAL',
+        policyCode: recPolicyCode,
+        sourceReferenceType: recSourceType,
+        sourceReferenceId: recSourceId,
         accountCode: recAccount,
         description: recDesc,
       });
       setShowRecModal(false);
-      loadData();
+      setActionMessage('Revenue entry prepared and queued for independent approval.');
+      setConflictError(null);
+      await loadData();
     } catch (err: any) {
       alert(err.message);
     }
   }
 
-  async function handlePostCreditNote(e: React.FormEvent) {
+  async function handlePrepareCreditNote(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedEntry) return;
+    if (!selectedOriginalEntry) return;
     try {
-      await cfoApi.postCreditNote({
-        originalEntryId: selectedEntry.id,
-        creditAmount: Number(cnAmount),
-        policyCode: 'REV-2026-V1',
+      await cfoApi.prepareCreditNote({
+        originalEntryId: selectedOriginalEntry.id,
+        creditAmount: Number(cnCreditAmount),
+        policyCode: cnPolicyCode,
         reversalReason: cnReason,
       });
       setShowCreditModal(false);
-      setSelectedEntry(null);
-      loadData();
+      setSelectedOriginalEntry(null);
+      setActionMessage('Credit note reversal prepared and queued for independent approval.');
+      setConflictError(null);
+      await loadData();
     } catch (err: any) {
       alert(err.message);
     }
   }
+
+  async function handleApproveEntry(entry: LedgerEntry) {
+    try {
+      if (entry.entryType === 'credit_note_reversal') {
+        await cfoApi.approveCreditNote(entry.id, { expectedRecordVersion: entry.recordVersion });
+      } else {
+        await cfoApi.approveRecognition(entry.id, { expectedRecordVersion: entry.recordVersion });
+      }
+      setConflictError(null);
+      setActionMessage(`Entry ${entry.entryCode} approved and posted to immutable ledger.`);
+      await loadData();
+    } catch (err: any) {
+      if (
+        err.message?.includes('409') ||
+        err.message?.includes('conflict') ||
+        err.message?.includes('Conflict') ||
+        err.message?.includes('version') ||
+        err.message?.includes('stale')
+      ) {
+        setConflictError(
+          `Version Conflict [OCC 409]: Entry ${entry.entryCode} was concurrently updated or certified. Latest ledger state reloaded.`
+        );
+        await loadData();
+      } else {
+        alert(err.message);
+      }
+    }
+  }
+
+  const pendingEntries = ledger.filter((e) => e.status === 'pending_approval');
+  const postedEntries = ledger.filter((e) => e.status === 'posted' || e.status === 'reversed');
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <PageHeader
-          title="Revenue Recognition & Sales Handoffs (CFO-02, CFO-03, CFO-11)"
-          subtitle="Independent verification of sales wins, statutory revenue recognition, and negative credit reversals."
+          title="Revenue Recognition & Dual-Control Approvals (CFO-02, CFO-03, CFO-11)"
+          subtitle="Four-eyes preparation and independent approval for revenue recognition and credit notes."
         />
         <Button variant="default" size="sm" onClick={() => setShowRecModal(true)}>
-          <Plus className="w-4 h-4 mr-1.5" /> Post Revenue Entry (CFO-03)
+          <Plus className="w-4 h-4 mr-1.5" /> Prepare Revenue Entry (CFO-03)
         </Button>
       </div>
+
+      {/* Notifications / Conflict Banners */}
+      {conflictError && (
+        <div className="p-4 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{conflictError}</span>
+          </div>
+          <button
+            onClick={() => setConflictError(null)}
+            className="text-amber-800 font-bold hover:underline ml-4"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {actionMessage && (
+        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{actionMessage}</span>
+          </div>
+          <button
+            onClick={() => setActionMessage(null)}
+            className="text-emerald-800 font-bold hover:underline ml-4"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* CFO-02: Sales to Finance Handoffs */}
       <Card>
@@ -542,10 +626,112 @@ export function CfoRecognitionPage() {
         </CardContent>
       </Card>
 
-      {/* CFO-03 & CFO-11: Posted Revenue & Credit Notes */}
+      {/* CFO-03 & CFO-11: Dual-Control Pending Approvals Queue */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-bold">Finance Revenue Ledger & Credit Note Reversals (CFO-03, CFO-11)</CardTitle>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="text-base font-bold">
+                Pending Finance Approvals Queue (Dual-Control Four-Eyes Gate)
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Submitted entries awaiting independent reviewer approval. Self-approval is strictly forbidden under segregation of duties policy [Deck P230].
+              </p>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+              {pendingEntries.length} Pending
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {pendingEntries.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No entries currently awaiting approval.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr>
+                    <th className="p-2">Entry Code</th>
+                    <th className="p-2">Type</th>
+                    <th className="p-2">Period</th>
+                    <th className="p-2">Preparer</th>
+                    <th className="p-2">Source / Evidence</th>
+                    <th className="p-2">Amounts</th>
+                    <th className="p-2">Policy</th>
+                    <th className="p-2">Version</th>
+                    <th className="p-2 text-right">Approval Control</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {pendingEntries.map((e) => {
+                    const isSelfPrepared = session?.employeeId === e.preparedByEmployeeId;
+                    return (
+                      <tr key={e.id}>
+                        <td className="p-2 font-mono font-bold text-primary">{e.entryCode}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            e.entryType === 'credit_note_reversal'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-primary/10 text-primary'
+                          }`}>
+                            {e.entryType.replace(/_/g, ' ').toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="p-2 font-mono">{e.periodId}</td>
+                        <td className="p-2">
+                          <span className="font-semibold text-foreground">
+                            {e.preparedByName || e.preparedByEmployeeId}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <div className="font-mono text-[11px] text-foreground">
+                            {e.sourceReferenceType.toUpperCase()}: {e.sourceReferenceId}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate max-w-[200px]" title={e.description}>
+                            {e.description}
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="font-bold text-foreground">Net: {formatInr(e.netAmount)}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Gross: {formatInr(e.grossAmount)} · Tax: {formatInr(e.taxAmount)}
+                          </div>
+                        </td>
+                        <td className="p-2 font-mono text-[11px]">{e.policyCode}</td>
+                        <td className="p-2 font-mono text-[11px]">v{e.recordVersion}</td>
+                        <td className="p-2 text-right">
+                          {isSelfPrepared ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300"
+                              title="Self-approval forbidden by dual control policy [Deck P230]"
+                            >
+                              <Lock className="w-3 h-3" /> Self-Approval Forbidden [Deck P230]
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 font-semibold"
+                              onClick={() => handleApproveEntry(e)}
+                            >
+                              Approve Entry ({e.entryType === 'credit_note_reversal' ? 'CFO-11' : 'CFO-03'})
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* CFO-03 & CFO-11: Posted Revenue & Credit Notes Ledger */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-bold">Finance Revenue Ledger (Posted / Immutable Register)</CardTitle>
           <p className="text-xs text-muted-foreground">
             Immutable audit register. Original entries are never overwritten; adjustments require linked credit note reversals.
           </p>
@@ -557,43 +743,62 @@ export function CfoRecognitionPage() {
                 <tr>
                   <th className="p-2">Entry Code</th>
                   <th className="p-2">Type</th>
+                  <th className="p-2">Period</th>
                   <th className="p-2">Account</th>
                   <th className="p-2">Net Amount</th>
                   <th className="p-2">Policy</th>
-                  <th className="p-2">Description</th>
+                  <th className="p-2">Preparer / Approver</th>
+                  <th className="p-2">Version</th>
+                  <th className="p-2">Status</th>
                   <th className="p-2 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {ledger.map((e) => (
+                {postedEntries.map((e) => (
                   <tr key={e.id}>
                     <td className="p-2 font-mono font-bold text-primary">{e.entryCode}</td>
                     <td className="p-2">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
                         e.isReversal ? 'bg-rose-100 text-rose-800' : 'bg-primary/10 text-primary'
                       }`}>
-                        {e.entryType.replace('_', ' ').toUpperCase()}
+                        {e.entryType.replace(/_/g, ' ').toUpperCase()}
                       </span>
                     </td>
+                    <td className="p-2 font-mono">{e.periodId}</td>
                     <td className="p-2 font-mono text-muted-foreground">{e.accountCode}</td>
                     <td className={`p-2 font-bold ${e.netAmount < 0 ? 'text-rose-600' : 'text-foreground'}`}>
                       {formatInr(e.netAmount)}
                     </td>
                     <td className="p-2 font-mono text-[11px]">{e.policyCode}</td>
-                    <td className="p-2 max-w-[220px] truncate text-muted-foreground">{e.description}</td>
+                    <td className="p-2 text-muted-foreground">
+                      <div>Prep: {e.preparedByName || e.preparedByEmployeeId}</div>
+                      <div>Appr: {e.approvedByName || e.approvedByEmployeeId || '—'}</div>
+                    </td>
+                    <td className="p-2 font-mono text-[11px]">v{e.recordVersion}</td>
+                    <td className="p-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        e.status === 'posted'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : e.status === 'reversed'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {e.status.toUpperCase()}
+                      </span>
+                    </td>
                     <td className="p-2 text-right">
-                      {!e.isReversal && e.entryType === 'revenue_recognition' && (
+                      {!e.isReversal && e.entryType === 'revenue_recognition' && e.status === 'posted' && (
                         <Button
                           size="sm"
                           variant="outline"
                           className="text-xs h-7 text-rose-600"
                           onClick={() => {
-                            setSelectedEntry(e);
-                            setCnAmount(Math.min(50000, e.netAmount));
+                            setSelectedOriginalEntry(e);
+                            setCnCreditAmount(Math.min(50000, e.netAmount));
                             setShowCreditModal(true);
                           }}
                         >
-                          Credit Note (CFO-11)
+                          Prepare Credit Note (CFO-11)
                         </Button>
                       )}
                     </td>
@@ -605,18 +810,50 @@ export function CfoRecognitionPage() {
         </CardContent>
       </Card>
 
-      {/* Post Revenue Modal */}
+      {/* Prepare Revenue Recognition Modal */}
       {showRecModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
-            <h3 className="text-lg font-bold text-foreground">Post Revenue Recognition Entry (CFO-03)</h3>
-            <form onSubmit={handlePostRecognition} className="space-y-4">
+            <h3 className="text-lg font-bold text-foreground">Prepare Revenue Recognition Entry (CFO-03)</h3>
+            <p className="text-xs text-muted-foreground">
+              Entry will be submitted to the pending approvals queue and requires an independent reviewer before posting.
+            </p>
+            <form onSubmit={handlePrepareRecognition} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-foreground">Gross Advisory Fee (₹)</label>
+                  <label className="text-xs font-semibold text-foreground">Reporting Period</label>
+                  <select
+                    value={recPeriodId}
+                    onChange={(e) => setRecPeriodId(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    {periods.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.periodLabel} ({p.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Vertical</label>
+                  <select
+                    value={recVertical}
+                    onChange={(e) => setRecVertical(e.target.value as any)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="wealth">Wealth Management</option>
+                    <option value="banking">Banking & Lending</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Gross Fee (₹)</label>
                   <input
                     type="number"
                     required
+                    min={1}
                     value={recGross}
                     onChange={(e) => setRecGross(Number(e.target.value))}
                     className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
@@ -627,25 +864,68 @@ export function CfoRecognitionPage() {
                   <input
                     type="number"
                     required
+                    min={0}
                     value={recTax}
                     onChange={(e) => setRecTax(Number(e.target.value))}
                     className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-foreground">GL Account Code</label>
-                <select
-                  value={recAccount}
-                  onChange={(e) => setRecAccount(e.target.value)}
-                  className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
-                >
-                  <option value="4001-WEALTH-PMS">4001-WEALTH-PMS (Portfolio Management)</option>
-                  <option value="4002-WEALTH-MUTUAL">4002-WEALTH-MUTUAL (Distribution Trail)</option>
-                  <option value="4003-WEALTH-AIF">4003-WEALTH-AIF (Alternate Investment Funds)</option>
-                  <option value="4004-WEALTH-ESTATE">4004-WEALTH-ESTATE (Trust & Estate Planning)</option>
-                </select>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Source Reference Type</label>
+                  <select
+                    value={recSourceType}
+                    onChange={(e) => setRecSourceType(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="invoice">Invoice</option>
+                    <option value="mandate">Mandate Agreement</option>
+                    <option value="pms_fee_note">PMS Fee Note</option>
+                    <option value="sales_handoff">Sales Handoff</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Source Reference ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={recSourceId}
+                    onChange={(e) => setRecSourceId(e.target.value)}
+                    placeholder="e.g. INV-2026-001"
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-foreground">GL Account Code</label>
+                  <select
+                    value={recAccount}
+                    onChange={(e) => setRecAccount(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="4001-WEALTH-PMS">4001-WEALTH-PMS (Portfolio Management)</option>
+                    <option value="4002-WEALTH-MUTUAL">4002-WEALTH-MUTUAL (Distribution Trail)</option>
+                    <option value="4003-WEALTH-AIF">4003-WEALTH-AIF (Alternate Investment Funds)</option>
+                    <option value="4004-WEALTH-ESTATE">4004-WEALTH-ESTATE (Trust & Estate Planning)</option>
+                    <option value="4101-BANKING-COMM">4101-BANKING-COMM (Loan Origination)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Policy Code</label>
+                  <input
+                    type="text"
+                    required
+                    value={recPolicyCode}
+                    onChange={(e) => setRecPolicyCode(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-foreground">Description & Policy Evidence</label>
                 <textarea
@@ -656,12 +936,13 @@ export function CfoRecognitionPage() {
                   className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
                 />
               </div>
+
               <div className="flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowRecModal(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" variant="default">
-                  Post Immutable Entry
+                  Submit for Approval
                 </Button>
               </div>
             </form>
@@ -669,28 +950,43 @@ export function CfoRecognitionPage() {
         </div>
       )}
 
-      {/* Credit Note Modal */}
-      {showCreditModal && selectedEntry && (
+      {/* Prepare Credit Note Modal */}
+      {showCreditModal && selectedOriginalEntry && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
-            <h3 className="text-lg font-bold text-foreground">Approve Credit Note / Revenue Reversal (CFO-11)</h3>
+            <h3 className="text-lg font-bold text-foreground">Prepare Credit Note Reversal (CFO-11)</h3>
             <p className="text-xs text-muted-foreground">
-              Posting negative revenue adjustment linked to original entry <span className="font-mono font-bold text-primary">{selectedEntry.entryCode}</span>.
+              Preparing negative revenue adjustment linked to original entry{' '}
+              <span className="font-mono font-bold text-primary">{selectedOriginalEntry.entryCode}</span> (Net:{' '}
+              {formatInr(selectedOriginalEntry.netAmount)}). Requires independent approval.
             </p>
-            <form onSubmit={handlePostCreditNote} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-foreground">Reversal Amount (₹)</label>
-                <input
-                  type="number"
-                  required
-                  max={selectedEntry.netAmount}
-                  value={cnAmount}
-                  onChange={(e) => setCnAmount(Number(e.target.value))}
-                  className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
-                />
+            <form onSubmit={handlePrepareCreditNote} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Credit Amount (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={selectedOriginalEntry.netAmount}
+                    value={cnCreditAmount}
+                    onChange={(e) => setCnCreditAmount(Number(e.target.value))}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Policy Code</label>
+                  <input
+                    type="text"
+                    required
+                    value={cnPolicyCode}
+                    onChange={(e) => setCnPolicyCode(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-foreground">Business Justification & Concession Reason</label>
+                <label className="text-xs font-semibold text-foreground">Business Justification & Reversal Reason</label>
                 <textarea
                   required
                   rows={3}
@@ -704,7 +1000,7 @@ export function CfoRecognitionPage() {
                   Cancel
                 </Button>
                 <Button type="submit" variant="default" className="bg-rose-600 hover:bg-rose-700">
-                  Authorize Credit Note
+                  Submit Credit Note for Approval
                 </Button>
               </div>
             </form>
@@ -721,12 +1017,14 @@ export function CfoRecognitionPage() {
 export function CfoInvoicesPage() {
   const [invoices, setInvoices] = useState<ReceivableInvoice[]>([]);
   const [ageing, setAgeing] = useState<AgeingBucketsSummary | null>(null);
+  const [periods, setPeriods] = useState<ReportingPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<ReceivableInvoice | null>(null);
 
   // New Invoice Form
+  const [invPeriodId, setInvPeriodId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPan, setClientPan] = useState('');
   const [issueDate, setIssueDate] = useState('2026-10-01');
@@ -748,12 +1046,17 @@ export function CfoInvoicesPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [invData, ageData] = await Promise.all([
+      const [invData, ageData, perData] = await Promise.all([
         cfoApi.getInvoices(),
         cfoApi.getAgeingSummary(),
+        cfoApi.getPeriods(),
       ]);
       setInvoices(invData.invoices);
       setAgeing(ageData.summary);
+      setPeriods(perData.periods);
+      if (perData.periods.length > 0 && !invPeriodId) {
+        setInvPeriodId(perData.periods[0].id);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -765,7 +1068,7 @@ export function CfoInvoicesPage() {
     e.preventDefault();
     try {
       await cfoApi.createInvoice({
-        periodId: 'PER-2026-Q1',
+        periodId: invPeriodId || (periods[0]?.id || 'PER-2026-Q1'),
         clientName,
         clientPan: clientPan || undefined,
         vertical: 'wealth',
@@ -2539,11 +2842,30 @@ export function CfoPoliciesPage() {
                   <span className="font-mono text-xs font-bold text-primary mr-2">{p.policyCode}</span>
                   <CardTitle className="text-base font-bold mt-1">{p.title}</CardTitle>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
-                  v{p.version} · {p.status.toUpperCase()}
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    p.isDemoPolicy || !p.clientApproved
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {p.isDemoPolicy || !p.clientApproved
+                      ? 'DEMO / ILLUSTRATIVE [Deck P320 Category 3]'
+                      : 'CLIENT APPROVED · PRODUCTION ACTIVE'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    v{p.version} · {p.status.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-4">
+                <span>Effective Date: {p.effectiveDate}</span>
+                <span>
+                  Client Approval:{' '}
+                  {p.clientApproved
+                    ? `Approved (${p.approvedByName || 'Authorized'})`
+                    : 'Pending Finverse Confirmation [Deck P320]'}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Effective Date: {p.effectiveDate}</p>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
               <p className="text-foreground">{p.rulesSummary}</p>

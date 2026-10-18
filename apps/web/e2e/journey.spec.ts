@@ -30,9 +30,9 @@ async function logout(page: Page) {
 
 test('1 successful login lands on authorized workspace', async ({ page }) => {
   await loginOk(page, 'asha@finverse.demo');
-  await expect(page.getByRole('heading', { name: 'My day' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Your next conversation starts here/i })).toBeVisible();
   if (!isMobile()) {
-    await expect(page.getByText('Workspace / SC')).toBeVisible();
+    await expect(page.getByText('Personal Workspace')).toBeVisible();
   }
 });
 

@@ -5,6 +5,8 @@ Adapted from `.commandcode/agents/finverse-qa-tester.md` and `qa.md`.
 
 ## Before starting
 
+Adhere to the single authoritative delivery standard in docs/process/implementation-plan.md.
+
 Read `AGENTS.md`, `docs/process/STATUS.md`, and the test request packet.
 - Applicable installed skills: `.agents/skills/finverse-qa-execution/SKILL.md` (bounded command execution, artifact capture), `.agents/skills/diagnosing-bugs/SKILL.md` (defect reproduction discipline).
 - Absent skills: none.

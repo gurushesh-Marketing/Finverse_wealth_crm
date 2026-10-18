@@ -81,6 +81,29 @@ stateDiagram-v2
 - **Conversion Gate:** A lead cannot enter `pending_conversion` without uploaded client evidence (`SC-19`) and a valid proposal record (`SC-17`).
 - **Audit Immutability:** When marked `lost`, the lead enters a terminal read-only state. Reopening requires a fresh justification and explicit Team Lead adjudication (`TL-08`).
 
+### 2.2 Multi-Vertical Pipeline State Machines & Reusable Flow Architecture
+
+Finverse CRM v2 executes a unified workflow engine across four vertical divisions, preserving shared infrastructure while respecting domain-specific state transitions (`[Deck P005]`):
+
+1. **Commercial Banking Lifecycle (Deck P005, P036):**
+   - Sequential Progression: `New` $\to$ `Eligibility` $\to$ `Documents` $\to$ `Sanction` $\to$ `Disbursal` (terminal won) or `Lost`.
+   - Gate Preconditions: Moving to `Documents` requires verified financial documentation request; moving to `Sanction` requires completed credit assessment; moving to `Disbursal` requires TL conversion approval of sanction letter terms.
+   - Banking Loss Adjudication: Accepts domain-specific rejection codes (`Credit rejected`, `CIBIL / score below threshold`, `Insufficient collateral`, `Pricing / interest rate`).
+
+2. **Markets & Securities Lifecycle (Deck P005):**
+   - Sequential Progression: `New` $\to$ `KYC` $\to$ `RiskProfiling` $\to$ `DematTradingOpened` $\to$ `FundedFirstTrade` (terminal won) or `Lost`.
+   - Gate Preconditions: Advancing through KYC requires SEBI-compliant identity and address proofs; Demat opening requires depository participant verification; Funded trade requires ledger-cleared deposit.
+
+3. **Real Estate Advisory Lifecycle (Deck P005):**
+   - Sequential Progression: `New` $\to$ `Requirement` $\to$ `SiteVisit` $\to$ `EOI_Booking` $\to$ `Registration` (terminal won) or `Lost`.
+   - Gate Preconditions: Advancing to Site Visit requires scheduled location appointment; EOI Booking requires earnest money deposit receipt; Registration requires executed sale agreement.
+
+4. **Reusable Implementation & Traceability Invariant:**
+   - **Reuse Foundation First:** Workspaces, communication forms, task schedulers, activity feeds, audit ledgers, and document viewers are shared across all verticals. Do not recreate separate workspace stacks for Banking, Markets, or Real Estate.
+   - **Visual Grounding:** Before implementing or modifying any vertical screen, inspect the actual Action Deck PDF page visually. Graph summaries complement but do not substitute for the visual layout, fields, and micro-interactions of the deck.
+   - **Traceability Standard:**
+     `Action Deck page → detailed requirements & visual reference → existing reusable implementation → vertical-specific differences → verification evidence → remaining gaps`.
+
 ---
 
 ## 3. Tiered Sales-to-Executive Escalation & Handoff Flows

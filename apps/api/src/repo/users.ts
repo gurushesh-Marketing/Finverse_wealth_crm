@@ -119,9 +119,40 @@ const ROLE_ACTIONS: Record<Role, string[]> = {
     'finance.pack:export',
     'policy.propose:finance',
   ],
-  DE: [],
-  HR: [],
-  SA: [],
+  DE: [
+    'intake.read',
+    'intake.enquiry:create',
+    'intake.batch:upload',
+    'intake.row:correct',
+    'intake.duplicate:review',
+    'intake.batch:publish',
+    'intake.source:manage',
+    'intake.report:export',
+  ],
+  HR: [
+    'hr.overview:read',
+    'hr.employee:request',
+    'hr.transfer:request',
+    'hr.promotion:request',
+    'hr.exit:coordinate',
+    'hr.availability:manage',
+    'hr.training_review:manage',
+    'hr.report_pack:prepare',
+    'hr.request:read',
+  ],
+  SA: [
+    'superadmin.overview:read',
+    'user.account:provision',
+    'scope.grant:manage',
+    'organisation.hierarchy:manage',
+    'lifecycle.transition:activate',
+    'offboarding.access:revoke',
+    'user.recovery:reset',
+    'business_config.publish:manage',
+    'audit.investigate:manage',
+    'job.recover:manage',
+    'access.delegation:review',
+  ],
 };
 
 interface AssignmentRow {
@@ -152,7 +183,7 @@ const ORDER_ASSIGNMENTS = `ORDER BY a.effective_from DESC, a.id DESC`;
 const SELECT_BY_EMAIL = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND lower(e.email) = lower($1) ${ORDER_ASSIGNMENTS}`;
 const SELECT_BY_ID = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND e.id = $1 ${ORDER_ASSIGNMENTS}`;
 
-function buildContext(rows: EmployeeRow[]): AuthContext {
+async function buildContext(rows: EmployeeRow[]): Promise<AuthContext> {
   const latest = rows[0]!;
   const role = latest.role as Role;
   const roleRows = rows.filter((r) => r.role === latest.role);
@@ -161,10 +192,71 @@ function buildContext(rows: EmployeeRow[]): AuthContext {
   const verticals = [...new Set(roleRows.map((r) => r.vertical))] as Vertical[];
   const teams = [...new Set(roleRows.map((r) => r.team_id))];
   const effectiveFrom = roleRows.map((r) => r.effective_from).sort()[0]!;
+
+  // 1. Hierarchy-driven scope expansion (SA-04)
+  // Leaders inherit supervised units/verticals from active reporting hierarchy nodes
+  try {
+    const { rows: hierRows } = await pool.query<{ vertical: string; unit_name: string }>(
+      `WITH RECURSIVE hier AS (
+         SELECT id, unit_name, vertical, leader_employee_id, parent_node_id
+         FROM reporting_hierarchy_nodes
+         WHERE leader_employee_id = $1 AND status = 'active'
+         UNION ALL
+         SELECT c.id, c.unit_name, c.vertical, c.leader_employee_id, c.parent_node_id
+         FROM reporting_hierarchy_nodes c
+         JOIN hier p ON c.parent_node_id = p.id
+         WHERE c.status = 'active'
+       )
+       SELECT DISTINCT vertical, unit_name FROM hier`,
+      [latest.id]
+    );
+    for (const h of hierRows) {
+      if (h.vertical && !verticals.includes(h.vertical as Vertical)) {
+        verticals.push(h.vertical as Vertical);
+      }
+    }
+  } catch {
+    /* table may not exist in early tests */
+  }
+
+  // 2. Active Temporary Access Grants (SA-11)
+  // Bounded grants expand role actions, teams, and verticals until expiry/revocation
+  const tempActions: string[] = [];
+  try {
+    const { rows: tempGrants } = await pool.query<{
+      id: string;
+      target_role: string;
+      target_vertical: string;
+      target_team_id: string | null;
+      expires_at: string;
+    }>(
+      `SELECT id, target_role, target_vertical, target_team_id, expires_at
+       FROM temporary_access_grants
+       WHERE employee_id = $1
+         AND status IN ('active', 'renewed')
+         AND expires_at > NOW()`,
+      [latest.id]
+    );
+    for (const g of tempGrants) {
+      if (g.target_vertical && !verticals.includes(g.target_vertical as Vertical)) {
+        verticals.push(g.target_vertical as Vertical);
+      }
+      if (g.target_team_id && !teams.includes(g.target_team_id)) {
+        teams.push(g.target_team_id);
+      }
+      const roleActs = ROLE_ACTIONS[g.target_role as Role] || [];
+      tempActions.push(...roleActs);
+    }
+  } catch {
+    /* table may not exist in early tests */
+  }
+
+  const combinedActions = [...new Set([...(ROLE_ACTIONS[role] ?? []), ...tempActions])];
+
   const permissionVersion =
     'pv-' +
     createHash('sha1')
-      .update(roleRows.map((r) => r.assignment_id).sort().join(','))
+      .update(roleRows.map((r) => r.assignment_id).sort().join(',') + ':' + teams.sort().join(','))
       .digest('hex')
       .slice(0, 8);
 
@@ -175,7 +267,7 @@ function buildContext(rows: EmployeeRow[]): AuthContext {
     activeAssignmentId: latest.assignment_id,
     verticalGrants: verticals,
     teamGrants: teams,
-    allowedActions: ROLE_ACTIONS[role] ?? [],
+    allowedActions: combinedActions,
     effectiveFrom,
     permissionVersion,
   };

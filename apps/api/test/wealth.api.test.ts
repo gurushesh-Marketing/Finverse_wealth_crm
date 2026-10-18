@@ -7,6 +7,8 @@ import { Pool } from 'pg';
 import { createApp } from '../src/app';
 import { assertTestDatabaseGuard, env } from '../src/config';
 
+import { pool as apiPool } from '../src/repo/db';
+
 let server: Server;
 let base: string;
 let db: Pool;
@@ -53,9 +55,13 @@ before(async () => {
 });
 
 after(async () => {
-  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   await cleanupChain();
   await db.end();
+  await apiPool.end();
 });
 
 
@@ -411,7 +417,7 @@ test('SC-01..SC-28 acceptance', async () => {
 
   // SC-28 help/correction requests
   const helpBad = await call('POST', `/leads/${chainE}/help`, {
-    json: { requestType: 'metric-correction', recordReference: 'FV-1004', expectedCorrection: 'x y z' }, cookie: asha,
+    json: { requestType: 'metric-correction', recordReference: 'FV-2001', expectedCorrection: 'x y z' }, cookie: asha,
   });
   assert.equal(helpBad.status, 422);
   const help = await call('POST', `/leads/${chainE}/help`, {

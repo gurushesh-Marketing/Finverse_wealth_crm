@@ -59,6 +59,21 @@ Across all ten workspaces and four verticals, every screen adheres to a standard
    - Houses entity timeline, attached KYC evidence, task history, and decision forms.
    - Sticky footer houses exactly **ONE** solid `#113F3D` primary action button.
 
+### 1.3 Visual Grounding, Reusable Component Foundations & Traceability Standard
+
+1. **Foundational Component Reuse:**
+   - All presentation logic builds directly upon the proven component suite in `apps/web/src/components/ui/` (`card`, `badge`, `button`, `input`, `select`, `panel`, `states`, `drawer`, `tabs`) and `WorkspaceShell`.
+   - Workspaces across all 4 verticals (`wealth`, `banking`, `markets`, `real-estate`) share the same core design system tokens (Deep Forest `#113F3D`, Mint Accent `#6FA8A2`, Crisp White/Light Gray backgrounds, Manrope/Inter/JetBrains Mono typography).
+   - Builders must **never** fork or duplicate entire page suites; pages must be adapted through parameterized vertical context, typed props, and dynamic route configuration.
+
+2. **Visual Inspection Requirement (PDF Grounding):**
+   - Before authoring or styling any vertical screen, developers must retrieve the corresponding Graphify action node and **visually inspect the original Action Deck PDF page** (`docs/reference/NEW-Finverse_Wealth_CRM_Premium_UIUX_Action_Deck.pdf`).
+   - Designers and builders must preserve the PDF's authentic field labels, visual hierarchy, card arrangements, input controls, empty states, and micro-interactions. Graphify knowledge summaries guide scope but **never** replace visual inspection of the source PDF.
+
+3. **Mandatory Action Traceability:**
+   - Every role, view, and action implementation must maintain end-to-end traceability:
+     `Action Deck page → detailed requirements & visual reference → existing reusable implementation → vertical-specific differences → verification evidence → remaining gaps`.
+
 ---
 
 ## 2. Micro-Interactions & State Transition Flows

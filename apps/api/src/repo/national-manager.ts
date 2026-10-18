@@ -28,63 +28,74 @@ function id(prefix: string): string {
 
 export function assertNm(scope: Scope): void {
   if (scope.role !== 'NM') {
-    throw forbidden('Wealth National Manager workspace only.');
+    throw forbidden('National Manager workspace only.');
   }
+}
+
+function getVertical(scope: Scope): string {
+  return scope.verticals[0] || 'wealth';
 }
 
 // ─── Scope queries ───
 
 export async function getNationalScope(scope: Scope) {
   assertNm(scope);
+  const vertical = getVertical(scope);
 
   // All regions in vertical
   const { rows: regions } = await pool.query(
     `SELECT r.id, r.name, r.vertical, count(DISTINCT t.id)::int AS team_count
        FROM regions r
   LEFT JOIN teams t ON t.region_id = r.id
-      WHERE r.vertical = 'wealth'
+      WHERE r.vertical = $1
       GROUP BY r.id, r.name, r.vertical
-      ORDER BY r.name`
+      ORDER BY r.name`,
+    [vertical]
   );
 
   // All teams in vertical
   const { rows: teams } = await pool.query(
-    `SELECT t.id, t.name, t.vertical, COALESCE(t.region_id, 'REGION-SOUTH') AS region_id,
-            COALESCE(r.name, 'South Region') AS region_name
+    `SELECT t.id, t.name, t.vertical, t.region_id,
+            COALESCE(r.name, 'Unassigned Region') AS region_name
        FROM teams t
   LEFT JOIN regions r ON r.id = t.region_id
-      WHERE t.vertical = 'wealth'
-      ORDER BY t.name`
+      WHERE t.vertical = $1
+      ORDER BY t.name`,
+    [vertical]
   );
 
   // Regional Managers (RMs) in vertical
   const { rows: rms } = await pool.query(
     `SELECT DISTINCT e.id, e.display_name, e.email,
-            'REGION-SOUTH' AS assigned_region_id,
-            'South Region' AS assigned_region_name
+            COALESCE(t.region_id, r.id) AS assigned_region_id,
+            COALESCE(r.name, 'Regional Office') AS assigned_region_name
        FROM assignments a
        JOIN employees e ON e.id = a.employee_id
-      WHERE a.vertical = 'wealth' AND a.role = 'RM'
+  LEFT JOIN teams t ON t.id = a.team_id
+  LEFT JOIN regions r ON r.id = t.region_id
+      WHERE a.vertical = $1 AND a.role = 'RM'
         AND a.effective_from <= now()
         AND (a.effective_to IS NULL OR a.effective_to > now())
-      ORDER BY e.display_name`
+      ORDER BY e.display_name`,
+    [vertical]
   );
 
-  // Ensure West Region has representation for multi-region testing if needed
+  // Ensure regions have representation if RMs are unassigned or multi-region
   const enrichedRms = rms.map((rm, idx) => ({
     ...rm,
-    assigned_region_id: idx === 0 ? 'REGION-SOUTH' : 'REGION-WEST',
-    assigned_region_name: idx === 0 ? 'South Region' : 'West Region',
+    assigned_region_id: rm.assigned_region_id || (regions[idx % Math.max(1, regions.length)]?.id || (vertical === 'banking' ? 'REGION-BANKING-WEST' : 'REGION-SOUTH')),
+    assigned_region_name: rm.assigned_region_name || (regions[idx % Math.max(1, regions.length)]?.name || (vertical === 'banking' ? 'Commercial Banking West Zone' : 'South Region')),
   }));
 
   // Counts of Managers, TLs, and Callers across the vertical
   const { rows: countRows } = await pool.query(
     `SELECT a.role, count(DISTINCT a.employee_id)::int AS count
        FROM assignments a
-      WHERE a.vertical = 'wealth'
+      WHERE a.vertical = $1
         AND a.effective_from <= now()
         AND (a.effective_to IS NULL OR a.effective_to > now())
-      GROUP BY a.role`
+      GROUP BY a.role`,
+    [vertical]
   );
 
   const roleCounts: Record<string, number> = {};
@@ -93,7 +104,7 @@ export async function getNationalScope(scope: Scope) {
   }
 
   return {
-    vertical: 'wealth',
+    vertical,
     regions,
     teams,
     regionalManagers: enrichedRms,
@@ -113,35 +124,45 @@ export async function getNationalOverview(scope: Scope, period: NmPeriod = 'mont
   assertNm(scope);
   const natScope = await getNationalScope(scope);
 
+  const vertical = getVertical(scope);
+
   // 1. National Target & Overall Vertical Wins
   const { rows: targetRows } = await pool.query(
     `SELECT approved_ceo_target, unallocated_remainder, status, regional_allocations
        FROM national_targets
-      WHERE vertical = 'wealth' AND period_label = 'October'
-      ORDER BY version DESC LIMIT 1`
+      WHERE vertical = $1 AND period_label = 'October'
+      ORDER BY version DESC LIMIT 1`,
+    [vertical]
   );
   const target = targetRows[0] || {
-    approved_ceo_target: 500,
-    unallocated_remainder: 250,
+    approved_ceo_target: vertical === 'banking' ? 300 : 500,
+    unallocated_remainder: 150,
     status: 'draft',
     regional_allocations: [],
   };
 
   const { rows: winRows } = await pool.query(
-    `SELECT count(*)::int AS wins, COALESCE(sum((payload->>'value')::numeric), 0) AS win_value
-       FROM outcome_requests
-      WHERE type = 'conversion' AND status = 'approved'`
+    `SELECT count(DISTINCT o.id)::int AS outcome_wins, COALESCE(sum((o.payload->>'value')::numeric), 0) AS win_value
+       FROM outcome_requests o
+       JOIN leads l ON l.id = o.lead_id
+      WHERE o.type = 'conversion' AND o.status = 'approved' AND l.vertical = $1`,
+    [vertical]
   );
-  const achievedWins = winRows[0]?.wins || 0;
+  const { rows: stageWinRows } = await pool.query(
+    `SELECT count(*)::int AS stage_wins FROM leads WHERE vertical = $1 AND stage IN ('converted', 'disbursal', 'active-funded', 'registration')`,
+    [vertical]
+  );
+  const achievedWins = Math.max(winRows[0]?.outcome_wins || 0, stageWinRows[0]?.stage_wins || 0);
   const achievedValue = Number(winRows[0]?.win_value || 0);
   const attainmentPercent = Math.round((achievedWins / Number(target.approved_ceo_target)) * 100);
 
   // 2. Active pipeline count and value
   const { rows: pipelineRows } = await pool.query(
     `SELECT count(*)::int AS total_leads,
-            count(*) FILTER (WHERE stage IN ('contacted', 'follow-up', 'qualified'))::int AS active_pipeline
+            count(*) FILTER (WHERE stage NOT IN ('lost', 'closed_lost', 'converted', 'disbursal', 'active-funded', 'registration'))::int AS active_pipeline
        FROM leads
-      WHERE vertical = 'wealth'`
+      WHERE vertical = $1`,
+    [vertical]
   );
   const activePipelineLeads = pipelineRows[0]?.active_pipeline || 0;
 
@@ -158,16 +179,17 @@ export async function getNationalOverview(scope: Scope, period: NmPeriod = 'mont
   const { rows: escRows } = await pool.query(
     `SELECT count(*) FILTER (WHERE status != 'resolved')::int AS open_escalations
        FROM national_escalations
-      WHERE vertical = 'wealth'`
+      WHERE vertical = $1`,
+    [vertical]
   );
   const openEscalationsCount = escRows[0]?.open_escalations || 0;
 
-  // 5. Regional Breakdown (South vs West)
-  const regionalPerformance = natScope.regions.map((r) => {
-    const isSouth = r.id === 'REGION-SOUTH';
-    const regTarget = isSouth ? 250 : 150;
-    const regWins = isSouth ? achievedWins : 0;
-    const pace = Math.round((regWins / regTarget) * 100);
+  // 5. Regional Breakdown
+  const regionalPerformance = natScope.regions.map((r, idx) => {
+    const alloc = (target.regional_allocations as any[])?.find((a: any) => a.regionId === r.id);
+    const regTarget = alloc ? Number(alloc.targetWins) : Math.round(Number(target.approved_ceo_target) / Math.max(1, natScope.regions.length));
+    const regWins = idx === 0 ? achievedWins : 0;
+    const pace = regTarget > 0 ? Math.round((regWins / regTarget) * 100) : 0;
     return {
       regionId: r.id,
       regionName: r.name,
@@ -176,7 +198,7 @@ export async function getNationalOverview(scope: Scope, period: NmPeriod = 'mont
       achievedWins: regWins,
       attainmentPercent: pace,
       status: pace >= 80 ? 'on-track' : pace >= 50 ? 'at-risk' : 'lagging',
-      activePipelines: isSouth ? activePipelineLeads : 0,
+      activePipelines: idx === 0 ? activePipelineLeads : 0,
     };
   });
 
@@ -278,24 +300,23 @@ export async function getRegionalComparisons(scope: Scope, period = 'September')
   assertNm(scope);
   const natScope = await getNationalScope(scope);
 
-  // Compare South vs West
-  const comparisons = natScope.regions.map((reg) => {
-    const isSouth = reg.id === 'REGION-SOUTH';
+  const comparisons = natScope.regions.map((reg, idx) => {
+    const isPrimary = idx === 0;
     const rm = natScope.regionalManagers.find((r) => r.assigned_region_id === reg.id) || natScope.regionalManagers[0];
     return {
       regionId: reg.id,
       regionName: reg.name,
       regionalManager: rm ? { id: rm.id, name: rm.display_name, email: rm.email } : null,
-      targetWins: isSouth ? 250 : 150,
-      achievedWins: isSouth ? 8 : 0,
-      pipelineValueInr: isSouth ? 45000000 : 15000000,
-      conversionRate: isSouth ? 18.5 : 0.0,
-      activeLeads: isSouth ? 11 : 0,
-      callerCount: isSouth ? natScope.headcounts.callers : 0,
-      tlCount: isSouth ? natScope.headcounts.tls : 0,
-      openEscalations: isSouth ? 1 : 0,
-      speedToLeadMinutes: isSouth ? 14 : 0,
-      status: isSouth ? 'active' : 'developing',
+      targetWins: isPrimary ? 150 : 150,
+      achievedWins: isPrimary ? 8 : 0,
+      pipelineValueInr: isPrimary ? 45000000 : 15000000,
+      conversionRate: isPrimary ? 18.5 : 0.0,
+      activeLeads: isPrimary ? 11 : 0,
+      callerCount: isPrimary ? natScope.headcounts.callers : 0,
+      tlCount: isPrimary ? natScope.headcounts.tls : 0,
+      openEscalations: isPrimary ? 1 : 0,
+      speedToLeadMinutes: isPrimary ? 14 : 0,
+      status: isPrimary ? 'active' : 'developing',
     };
   });
 
@@ -309,19 +330,20 @@ export async function getRegionalComparisons(scope: Scope, period = 'September')
 
 export async function getNationalTarget(scope: Scope, periodLabel = 'October') {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const { rows } = await pool.query(
     `SELECT * FROM national_targets
-      WHERE vertical = 'wealth' AND period_label = $1
+      WHERE vertical = $1 AND period_label = $2
       ORDER BY version DESC LIMIT 1`,
-    [periodLabel]
+    [vertical, periodLabel]
   );
   if (rows.length === 0) {
     return {
       id: 'NT-DRAFT',
       periodLabel,
       metric: 'approved-wins',
-      approvedCeoTarget: 500,
-      unallocatedRemainder: 500,
+      approvedCeoTarget: vertical === 'banking' ? 300 : 500,
+      unallocatedRemainder: vertical === 'banking' ? 300 : 500,
       regionalAllocations: [],
       status: 'draft',
       version: 1,
@@ -337,6 +359,7 @@ export async function getNationalTarget(scope: Scope, periodLabel = 'October') {
 
 export async function allocateNationalTarget(scope: Scope, input: AllocateNationalTargetInput) {
   assertNm(scope);
+  const vertical = getVertical(scope);
 
   const sumAllocated = input.regionalAllocations.reduce((acc, curr) => acc + curr.targetWins, 0);
   if (sumAllocated > input.approvedCeoTarget) {
@@ -360,7 +383,7 @@ export async function allocateNationalTarget(scope: Scope, input: AllocateNation
       `INSERT INTO national_targets (
          id, nm_employee_id, vertical, period_label, metric, approved_ceo_target,
          unallocated_remainder, regional_allocations, status, version
-       ) VALUES ($1, $2, 'wealth', $3, $4, $5, $6, $7, $8, 1)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
        ON CONFLICT (vertical, period_label, metric, version) DO UPDATE SET
          approved_ceo_target = EXCLUDED.approved_ceo_target,
          unallocated_remainder = EXCLUDED.unallocated_remainder,
@@ -370,6 +393,7 @@ export async function allocateNationalTarget(scope: Scope, input: AllocateNation
       [
         targetId,
         scope.employeeId,
+        vertical,
         input.periodLabel,
         input.metric || 'approved-wins',
         input.approvedCeoTarget,
@@ -392,7 +416,7 @@ export async function allocateNationalTarget(scope: Scope, input: AllocateNation
              status = 'published'`,
           [
             id('RT'),
-            alloc.rmEmployeeId || 'EMP-008',
+            alloc.rmEmployeeId || (vertical === 'banking' ? 'EMP-019' : 'EMP-008'),
             alloc.regionId,
             input.periodLabel,
             alloc.targetWins,
@@ -415,38 +439,82 @@ export async function allocateNationalTarget(scope: Scope, input: AllocateNation
 
 export async function getNationalEconomics(scope: Scope, period = 'month-to-date') {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const natScope = await getNationalScope(scope);
 
   // Core metrics derived from real database leads and benchmarks
   const totalCallers = natScope.headcounts.callers || 1;
   const { rows: conversionRows } = await pool.query(
-    `SELECT count(*)::int AS wins, COALESCE(sum((payload->>'value')::numeric), 0) AS total_aum
-       FROM outcome_requests
-      WHERE type = 'conversion' AND status = 'approved'`
+    `SELECT count(DISTINCT o.id)::int AS wins, COALESCE(sum((o.payload->>'value')::numeric), 0) AS total_aum
+       FROM outcome_requests o
+       JOIN leads l ON l.id = o.lead_id
+      WHERE o.type = 'conversion' AND o.status = 'approved' AND l.vertical = $1`,
+    [vertical]
   );
   const totalAum = Number(conversionRows[0]?.total_aum || 0);
   const totalWins = conversionRows[0]?.wins || 0;
-  const avgTicketSize = totalWins > 0 ? Math.round(totalAum / totalWins) : 2500000;
+  const defaultAvgTicket = vertical === 'banking' ? 15000000 : vertical === 'markets' ? 1200000 : vertical === 'real_estate' ? 25000000 : 2500000;
+  const avgTicketSize = totalWins > 0 ? Math.round(totalAum / totalWins) : defaultAvgTicket;
 
-  return {
-    period,
-    economics: {
-      aumRunRateInr: totalAum > 0 ? totalAum * 12 : 540000000,
-      monthlyAumVelocityInr: totalAum > 0 ? totalAum : 45000000,
-      averageTicketSizeInr: avgTicketSize,
-      conversionPerFteWins: Number((totalWins / totalCallers).toFixed(1)),
-      estimatedBlendedCacInr: 12500,
-      channelEconomics: [
+  const channelEconomics = vertical === 'banking'
+    ? [
+        { channel: 'Corporate Direct Inbound', share: 40, cacInr: 9500, conversionRate: 24.5 },
+        { channel: 'Cross-Vertical Referral (Wealth)', share: 30, cacInr: 3400, conversionRate: 41.0 },
+        { channel: 'Commercial Branch Network', share: 20, cacInr: 12000, conversionRate: 18.2 },
+        { channel: 'Channel Partners & CA Network', share: 10, cacInr: 6500, conversionRate: 32.0 },
+      ]
+    : vertical === 'markets'
+    ? [
+        { channel: 'Digital Trading Desk Inbound', share: 45, cacInr: 6200, conversionRate: 28.5 },
+        { channel: 'Cross-Vertical Referral (Wealth/Banking)', share: 30, cacInr: 2800, conversionRate: 44.0 },
+        { channel: 'Partner & Algo Sub-brokers', share: 15, cacInr: 9000, conversionRate: 22.0 },
+        { channel: 'Employee Direct Network', share: 10, cacInr: 1200, conversionRate: 50.0 },
+      ]
+    : vertical === 'real_estate'
+    ? [
+        { channel: 'HNI Advisory Inbound', share: 50, cacInr: 25000, conversionRate: 18.5 },
+        { channel: 'Cross-Vertical Referral (Wealth)', share: 30, cacInr: 8000, conversionRate: 35.0 },
+        { channel: 'Developer Direct Mandates', share: 20, cacInr: 18000, conversionRate: 22.0 },
+      ]
+    : [
         { channel: 'Website Inbound', share: 45, cacInr: 8500, conversionRate: 22.4 },
         { channel: 'Cross-Vertical Referral (Banking)', share: 30, cacInr: 3200, conversionRate: 38.0 },
         { channel: 'Campaign C12', share: 20, cacInr: 19500, conversionRate: 14.1 },
         { channel: 'Employee Network', share: 5, cacInr: 1500, conversionRate: 42.5 },
-      ],
-      productEconomics: [
+      ];
+
+  const productEconomics = vertical === 'banking'
+    ? [
+        { product: 'V1 Commercial Term Loan', minTicketInr: 10000000, feeBps: 125, marginPercent: 55 },
+        { product: 'V1 Current Account', minTicketInr: 1000000, feeBps: 50, marginPercent: 68 },
+      ]
+    : vertical === 'markets'
+    ? [
+        { product: 'Equity Delivery & Intraday', minTicketInr: 500000, feeBps: 20, marginPercent: 65 },
+        { product: 'Derivatives & F&O Trading', minTicketInr: 1000000, feeBps: 15, marginPercent: 72 },
+        { product: 'Direct Mutual Funds & SGBs', minTicketInr: 100000, feeBps: 35, marginPercent: 58 },
+      ]
+    : vertical === 'real_estate'
+    ? [
+        { product: 'Luxury Residential Mandate', minTicketInr: 20000000, feeBps: 200, marginPercent: 70 },
+        { product: 'Commercial Office Space', minTicketInr: 50000000, feeBps: 150, marginPercent: 75 },
+      ]
+    : [
         { product: 'V1 Wealth Portfolio', minTicketInr: 2500000, feeBps: 75, marginPercent: 62 },
         { product: 'V1 Savings Plus', minTicketInr: 500000, feeBps: 45, marginPercent: 48 },
-      ],
-      unitCapacityGapFte: 4, // 4 additional callers needed across regions to hit 500 wins target
+      ];
+
+  return {
+    period,
+    economics: {
+      aumRunRateInr: totalAum > 0 ? totalAum * 12 : (vertical === 'banking' ? 720000000 : vertical === 'markets' ? 480000000 : 540000000),
+      monthlyAumVelocityInr: totalAum > 0 ? totalAum : (vertical === 'banking' ? 60000000 : vertical === 'markets' ? 40000000 : 45000000),
+      averageTicketSizeInr: avgTicketSize,
+      conversionPerFteWins: Number((totalWins / totalCallers).toFixed(1)),
+      estimatedBlendedCacInr: vertical === 'banking' ? 14500 : vertical === 'markets' ? 8500 : 12500,
+      channelEconomics,
+      productEconomics,
+      unitCapacityGapFte: vertical === 'banking' ? 3 : vertical === 'markets' ? 2 : 4,
     },
   };
 }
@@ -455,28 +523,32 @@ export async function getNationalEconomics(scope: Scope, period = 'month-to-date
 
 export async function listProductRuleProposals(scope: Scope) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const { rows } = await pool.query(
     `SELECT p.*, e.display_name AS nm_name
        FROM product_rule_proposals p
        JOIN employees e ON e.id = p.nm_employee_id
-      WHERE p.vertical = 'wealth'
-      ORDER BY p.created_at DESC`
+      WHERE p.vertical = $1
+      ORDER BY p.created_at DESC`,
+    [vertical]
   );
   return rows;
 }
 
 export async function createProductRuleProposal(scope: Scope, input: ProposeProductRuleInput) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const proposalId = id('PRP');
   const { rows } = await pool.query(
     `INSERT INTO product_rule_proposals (
        id, nm_employee_id, vertical, rule_name, current_version, proposed_version,
        reason, effective_date, affected_products, preview_impact, status
-     ) VALUES ($1, $2, 'wealth', $3, $4, $5, $6, $7, $8, $9, 'submitted')
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'submitted')
      RETURNING *`,
     [
       proposalId,
       scope.employeeId,
+      vertical,
       input.ruleName,
       input.currentVersion,
       input.proposedVersion,
@@ -493,15 +565,16 @@ export async function createProductRuleProposal(scope: Scope, input: ProposeProd
 
 export async function getNationalForecastRollup(scope: Scope, periodLabel = 'October') {
   assertNm(scope);
-  // Pull submitted regional forecasts
+  const vertical = getVertical(scope);
+  // Pull submitted regional forecasts for this vertical
   const { rows: regionalForecasts } = await pool.query(
     `SELECT rf.*, r.name AS region_name, e.display_name AS rm_name
        FROM regional_forecasts rf
        JOIN regions r ON r.id = rf.region_id
        JOIN employees e ON e.id = rf.rm_employee_id
-      WHERE rf.period_label = $1
+      WHERE r.vertical = $1 AND rf.period_label = $2
       ORDER BY rf.created_at DESC`,
-    [periodLabel]
+    [vertical, periodLabel]
   );
 
   const bottomUpSum = regionalForecasts.reduce((acc, curr) => acc + Number(curr.adjusted_revenue), 0);
@@ -509,29 +582,30 @@ export async function getNationalForecastRollup(scope: Scope, periodLabel = 'Oct
   // Latest national forecast record if exists
   const { rows: nationalForecasts } = await pool.query(
     `SELECT * FROM national_forecasts
-      WHERE vertical = 'wealth' AND period_label = $1
+      WHERE vertical = $1 AND period_label = $2
       ORDER BY version DESC LIMIT 1`,
-    [periodLabel]
+    [vertical, periodLabel]
   );
   const active = nationalForecasts[0] || null;
 
   return {
     periodLabel,
     regionalForecasts,
-    bottomUpSum: bottomUpSum > 0 ? bottomUpSum : 45000000,
+    bottomUpSum: bottomUpSum > 0 ? bottomUpSum : (vertical === 'banking' ? 60000000 : 45000000),
     nationalAdjustment: active ? Number(active.national_adjustment) : -2500000,
     adjustedRevenue: active
       ? Number(active.adjusted_revenue)
-      : (bottomUpSum > 0 ? bottomUpSum : 45000000) - 2500000,
+      : (bottomUpSum > 0 ? bottomUpSum : (vertical === 'banking' ? 60000000 : 45000000)) - 2500000,
     currency: 'INR',
     status: active ? active.status : 'draft',
-    nationalAssumptions: active ? active.national_assumptions : 'Conservative adjustment for macro liquidity and SEBI advisory turnaround SLAs.',
-    topNationalRisks: active ? active.top_national_risks : ['Regulatory turnaround lag on Tier-1 PMS approvals', 'Capacity deficit in West Region'],
+    nationalAssumptions: active ? active.national_assumptions : (vertical === 'banking' ? 'Conservative adjustment for RBI repo rate liquidity and commercial credit turnaround.' : 'Conservative adjustment for macro liquidity and SEBI advisory turnaround SLAs.'),
+    topNationalRisks: active ? active.top_national_risks : (vertical === 'banking' ? ['Working capital sanction collateral search turnaround delays', 'Capacity deficit in North Zone'] : ['Regulatory turnaround lag on Tier-1 PMS approvals', 'Capacity deficit in West Region']),
   };
 }
 
 export async function submitNationalForecast(scope: Scope, input: SubmitNationalForecastInput) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const forecastId = id('NF');
   const adjustedRevenue = input.bottomUpRevenue + input.nationalAdjustment;
   const status = input.submitToExecutives ? 'submitted_to_executives' : 'draft';
@@ -542,11 +616,12 @@ export async function submitNationalForecast(scope: Scope, input: SubmitNational
        id, nm_employee_id, vertical, period_label, bottom_up_revenue, national_adjustment,
        adjusted_revenue, currency, accepted_regional_forecast_ids, top_national_risks,
        national_assumptions, status, submitted_at, version
-     ) VALUES ($1, $2, 'wealth', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 1)
      RETURNING *`,
     [
       forecastId,
       scope.employeeId,
+      vertical,
       input.periodLabel,
       input.bottomUpRevenue,
       input.nationalAdjustment,
@@ -627,7 +702,7 @@ export async function decideCrossRegionTransfer(scope: Scope, input: DecideCross
         `SELECT id FROM teams WHERE region_id = $1 LIMIT 1`,
         [transfer.destination_region_id]
       );
-      const destTeamId = destTeams[0]?.id || 'TEAM-WEALTH-GAMMA';
+      const destTeamId = destTeams[0]?.id || (getVertical(scope) === 'banking' ? 'TEAM-BANKING-BETA' : 'TEAM-WEALTH-GAMMA');
 
       await client.query(
         `UPDATE leads
@@ -665,18 +740,21 @@ export async function decideCrossRegionTransfer(scope: Scope, input: DecideCross
 
 export async function listCrossVerticalReferrals(scope: Scope) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const { rows } = await pool.query(
     `SELECT r.*, l.display_name AS converted_lead_name
        FROM cross_vertical_referrals r
   LEFT JOIN leads l ON l.id = r.receiving_lead_id
-      WHERE r.receiving_vertical = 'wealth'
-      ORDER BY r.created_at DESC`
+      WHERE r.receiving_vertical = $1
+      ORDER BY r.created_at DESC`,
+    [vertical]
   );
   return rows;
 }
 
 export async function decideCrossVerticalReferral(scope: Scope, input: DecideCrossVerticalReferralInput) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const { rows: refRows } = await pool.query(
     `SELECT * FROM cross_vertical_referrals WHERE id = $1`,
     [input.referralId]
@@ -690,19 +768,22 @@ export async function decideCrossVerticalReferral(scope: Scope, input: DecideCro
 
     if (input.decision === 'accepted') {
       const newLeadId = `FV-${Math.floor(1000 + Math.random() * 9000)}`;
-      const targetTeamId = input.targetTeamId || 'TEAM-WEALTH-ALPHA';
-      const targetOwnerId = input.targetOwnerEmployeeId || 'EMP-001';
+      const targetTeamId = input.targetTeamId || (vertical === 'banking' ? 'TEAM-BANKING-ALPHA' : vertical === 'markets' ? 'TEAM-MARKETS-ALPHA' : vertical === 'real_estate' ? 'TEAM-REALESTATE-ALPHA' : 'TEAM-WEALTH-ALPHA');
+      const targetOwnerId = input.targetOwnerEmployeeId || (vertical === 'banking' ? 'EMP-004' : vertical === 'markets' ? 'EMP-021' : vertical === 'real_estate' ? 'EMP-026' : 'EMP-001');
+      const defaultProduct = vertical === 'banking' ? 'V1 Current Account' : vertical === 'markets' ? 'Equity Delivery & Intraday' : vertical === 'real_estate' ? 'Commercial Office Space' : 'V1 Wealth Portfolio';
 
       await client.query(
         `INSERT INTO leads (
            id, vertical, display_name, email, phone, preferred_language, product,
            source, stage, owner_employee_id, team_id
-         ) VALUES ($1, 'wealth', $2, NULL, $3, 'English', 'V1 Wealth Portfolio',
-                   $4, 'contacted', $5, $6)`,
+         ) VALUES ($1, $2, $3, NULL, $4, 'English', $5,
+                   $6, 'contacted', $7, $8)`,
         [
           newLeadId,
+          vertical,
           referral.prospect_name,
           referral.prospect_contact,
+          defaultProduct,
           `Referral (${referral.source_vertical.toUpperCase()})`,
           targetOwnerId,
           targetTeamId,
@@ -738,11 +819,14 @@ export async function decideCrossVerticalReferral(scope: Scope, input: DecideCro
       await client.query('COMMIT');
       return { success: true, decision: 'accepted', receivingLeadId: newLeadId };
     } else {
+      const defaultDecline = vertical === 'banking'
+        ? 'Declined per commercial banking credit criteria.'
+        : 'Declined per wealth investment minimum criteria.';
       await client.query(
         `UPDATE cross_vertical_referrals
             SET decision = 'declined', decline_reason = $1, decided_at = now()
           WHERE id = $2`,
-        [input.declineReason || 'Declined per wealth investment minimum criteria.', input.referralId]
+        [input.declineReason || defaultDecline, input.referralId]
       );
 
       await client.query('COMMIT');
@@ -760,28 +844,32 @@ export async function decideCrossVerticalReferral(scope: Scope, input: DecideCro
 
 export async function listNationalEscalations(scope: Scope) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const { rows } = await pool.query(
     `SELECT e.*, emp.display_name AS nm_name
        FROM national_escalations e
        JOIN employees emp ON emp.id = e.nm_employee_id
-      WHERE e.vertical = 'wealth'
-      ORDER BY e.created_at DESC`
+      WHERE e.vertical = $1
+      ORDER BY e.created_at DESC`,
+    [vertical]
   );
   return rows;
 }
 
 export async function createNationalEscalation(scope: Scope, input: CreateNationalEscalationInput) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const escalationId = id('NESC');
   const { rows } = await pool.query(
     `INSERT INTO national_escalations (
        id, nm_employee_id, vertical, category, target_executive, title, detail,
        evidence_summary, decision_deadline, status
-     ) VALUES ($1, $2, 'wealth', $3, $4, $5, $6, $7, $8, 'open')
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open')
      RETURNING *`,
     [
       escalationId,
       scope.employeeId,
+      vertical,
       input.category,
       input.targetExecutive,
       input.title,
@@ -894,13 +982,39 @@ export async function generateNationalReportPdf(scope: Scope, input: GenerateNat
     doc.pipe(writeStream);
 
     // Header & Brand Palette (#113F3D)
+    const vertical = getVertical(scope);
+    const brandTitle =
+      vertical === 'banking'
+        ? 'FINVERSE COMMERCIAL BANKING'
+        : vertical === 'markets'
+        ? 'FINVERSE MARKETS & SECURITIES'
+        : vertical === 'real-estate' || vertical === 'real_estate'
+        ? 'FINVERSE REAL ESTATE ADVISORY'
+        : 'FINVERSE WEALTH MANAGEMENT';
+    const brandSub =
+      vertical === 'banking'
+        ? 'National Commercial Performance & Strategy Pack'
+        : vertical === 'markets'
+        ? 'National Markets Performance & Trading Strategy Pack'
+        : vertical === 'real-estate' || vertical === 'real_estate'
+        ? 'National Real Estate Advisory Performance Pack'
+        : 'National Executive Performance & Strategy Pack';
+    const verticalLabel =
+      vertical === 'banking'
+        ? 'Commercial Banking'
+        : vertical === 'markets'
+        ? 'Markets & Securities'
+        : vertical === 'real-estate' || vertical === 'real_estate'
+        ? 'Real Estate Advisory'
+        : 'Wealth';
+
     doc.rect(40, 40, 515, 60).fill('#113F3D');
-    doc.fillColor('#FFFFFF').fontSize(18).text('FINVERSE WEALTH MANAGEMENT', 55, 52);
-    doc.fontSize(12).fillColor('#DCEEEA').text('National Executive Performance & Strategy Pack', 55, 75);
+    doc.fillColor('#FFFFFF').fontSize(18).text(brandTitle, 55, 52);
+    doc.fontSize(12).fillColor('#DCEEEA').text(brandSub, 55, 75);
 
     doc.moveDown(4);
     doc.fillColor('#1B1F1E').fontSize(14).text(`Period: ${input.periodLabel}`, { underline: true });
-    doc.fontSize(10).fillColor('#6B7280').text(`Vertical: Wealth | National Manager: ${scope.displayName} | Date: ${new Date().toLocaleDateString('en-IN')}`);
+    doc.fontSize(10).fillColor('#6B7280').text(`Vertical: ${verticalLabel} | National Manager: ${scope.displayName} | Date: ${new Date().toLocaleDateString('en-IN')}`);
     doc.moveDown(1.5);
 
     // Section 1: Executive KPI Attainment
@@ -963,12 +1077,13 @@ export async function listNationalReportSchedules(scope: Scope) {
 
 export async function saveNationalReportSchedule(scope: Scope, input: SaveNationalReportScheduleInput) {
   assertNm(scope);
+  const vertical = getVertical(scope);
   const scheduleId = input.id || id('NRS');
 
   const { rows } = await pool.query(
     `INSERT INTO national_report_schedules (
        id, nm_employee_id, vertical, name, period_type, cadence, recipients, sections, status
-     ) VALUES ($1, $2, 'wealth', $3, $4, $5, $6, $7, $8)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (id) DO UPDATE SET
        name = EXCLUDED.name,
        period_type = EXCLUDED.period_type,
@@ -980,6 +1095,7 @@ export async function saveNationalReportSchedule(scope: Scope, input: SaveNation
     [
       scheduleId,
       scope.employeeId,
+      vertical,
       input.name,
       input.periodType,
       input.cadence,

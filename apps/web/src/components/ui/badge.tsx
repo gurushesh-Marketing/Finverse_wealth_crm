@@ -11,23 +11,29 @@ const styles: Record<string, string> = {
   simulated: 'bg-[#DCEEEA] text-[#155451]',
   manual: 'bg-[#DCEEEA] text-[#155451]',
   pending: 'bg-[#DCEEEA] text-[#155451]',
+  secondary: 'bg-muted text-muted-foreground',
+  outline: 'border border-border text-foreground',
+  destructive: 'bg-rose-100 text-rose-800',
   default: 'bg-[#DCEEEA] text-[#1B1F1E]',
 };
 
 export function Badge({
   tone = 'default',
+  variant,
   children,
   className,
 }: {
   tone?: string;
+  variant?: string;
   children: ReactNode;
   className?: string;
 }) {
+  const chosen = variant ?? tone;
   return (
     <span
       className={cn(
         'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-        styles[tone] ?? styles.default,
+        styles[chosen] ?? styles.default,
         className
       )}
     >

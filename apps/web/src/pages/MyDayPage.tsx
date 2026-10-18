@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { MyDayResponse } from '@finverse/contracts';
 import { api } from '../lib/api';
 import { wealthApi, type TaskView } from '../lib/wealth-api';
@@ -154,27 +154,59 @@ export function MyDayPage() {
   const next = overdue[0] ?? upcoming[0] ?? null;
   const staleMinutes = data ? (Date.now() - new Date(data.asOf).getTime()) / 60000 : 0;
 
-  // Deck P006 / P007 Pipeline stages
-  const pipelineStages = [
-    { num: '01', name: 'New', count: signal?.stageFlow?.find((s: any) => s.stage === 'new')?.count ?? 42 },
-    { num: '02', name: 'Discovery', count: signal?.stageFlow?.find((s: any) => s.stage === 'contacted')?.count ?? 31 },
-    { num: '03', name: 'Suitability', count: signal?.stageFlow?.find((s: any) => s.stage === 'qualified')?.count ?? 24 },
-    { num: '04', name: 'Proposal', count: signal?.stageFlow?.find((s: any) => s.stage === 'follow-up')?.count ?? 14 },
-    { num: '05', name: 'Onboarding', count: signal?.stageFlow?.find((s: any) => s.stage === 'converted')?.count ?? 7 },
-  ];
+  const location = useLocation();
+  const isBanking = location.pathname.startsWith('/banking');
+  const isMarkets = location.pathname.startsWith('/markets');
+  const isRealEstate = location.pathname.startsWith('/real-estate') || location.pathname.startsWith('/real_estate');
+  const basePath = isBanking ? '/banking' : isMarkets ? '/markets' : isRealEstate ? '/real-estate' : '/wealth';
+  const verticalTitle = isBanking ? 'BANKING' : isMarkets ? 'MARKETS & SECURITIES' : isRealEstate ? 'REAL ESTATE ADVISORY' : 'WEALTH';
+  const verticalScopeLabel = isBanking ? 'Banking scope' : isMarkets ? 'Markets scope' : isRealEstate ? 'Real Estate scope' : 'Wealth scope';
+
+  // Deck P005, P006 / P007 Pipeline stages
+  const pipelineStages = isBanking
+    ? [
+        { num: '01', name: 'New', count: signal?.stageFlow?.find((s: any) => s.stage === 'new')?.count ?? 18 },
+        { num: '02', name: 'Eligibility', count: signal?.stageFlow?.find((s: any) => s.stage === 'eligibility' || s.stage === 'contacted')?.count ?? 12 },
+        { num: '03', name: 'Documents', count: signal?.stageFlow?.find((s: any) => s.stage === 'documents')?.count ?? 9 },
+        { num: '04', name: 'Sanction', count: signal?.stageFlow?.find((s: any) => s.stage === 'sanction')?.count ?? 6 },
+        { num: '05', name: 'Disbursal', count: signal?.stageFlow?.find((s: any) => s.stage === 'disbursal' || s.stage === 'converted')?.count ?? 4 },
+      ]
+    : isMarkets
+    ? [
+        { num: '01', name: 'New', count: signal?.stageFlow?.find((s: any) => s.stage === 'new')?.count ?? 25 },
+        { num: '02', name: 'KYC', count: signal?.stageFlow?.find((s: any) => s.stage === 'kyc' || s.stage === 'contacted')?.count ?? 19 },
+        { num: '03', name: 'Risk Profile', count: signal?.stageFlow?.find((s: any) => s.stage === 'risk-profile')?.count ?? 14 },
+        { num: '04', name: 'Demat Opened', count: signal?.stageFlow?.find((s: any) => s.stage === 'demat-opened')?.count ?? 8 },
+        { num: '05', name: 'Funded & Active', count: signal?.stageFlow?.find((s: any) => s.stage === 'active-funded' || s.stage === 'converted')?.count ?? 5 },
+      ]
+    : isRealEstate
+    ? [
+        { num: '01', name: 'New', count: signal?.stageFlow?.find((s: any) => s.stage === 'new')?.count ?? 15 },
+        { num: '02', name: 'Requirement', count: signal?.stageFlow?.find((s: any) => s.stage === 'requirement' || s.stage === 'qualified')?.count ?? 11 },
+        { num: '03', name: 'Site Visit', count: signal?.stageFlow?.find((s: any) => s.stage === 'site-visit')?.count ?? 8 },
+        { num: '04', name: 'Booking', count: signal?.stageFlow?.find((s: any) => s.stage === 'booking')?.count ?? 5 },
+        { num: '05', name: 'Registration', count: signal?.stageFlow?.find((s: any) => s.stage === 'registration' || s.stage === 'converted')?.count ?? 3 },
+      ]
+    : [
+        { num: '01', name: 'New', count: signal?.stageFlow?.find((s: any) => s.stage === 'new')?.count ?? 42 },
+        { num: '02', name: 'Discovery', count: signal?.stageFlow?.find((s: any) => s.stage === 'contacted')?.count ?? 31 },
+        { num: '03', name: 'Suitability', count: signal?.stageFlow?.find((s: any) => s.stage === 'qualified')?.count ?? 24 },
+        { num: '04', name: 'Proposal', count: signal?.stageFlow?.find((s: any) => s.stage === 'follow-up')?.count ?? 14 },
+        { num: '05', name: 'Onboarding', count: signal?.stageFlow?.find((s: any) => s.stage === 'converted')?.count ?? 7 },
+      ];
 
   return (
     <div className="space-y-6">
-      {/* Workspace Sub-banner and Top Actions */}
+      {/* Workspace Sub-banner and Top Actions (Deck P036 / P038) */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-muted-foreground">
             <span>Personal Workspace</span>
             <span>/</span>
-            <span className="text-primary font-bold">Wealth</span>
+            <span className="text-primary font-bold">{verticalTitle}</span>
           </div>
           <h1 className="mt-1 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            My day
+            Your next conversation starts here.
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             A clear path through today&apos;s assigned prospects, promised follow-ups and customer context.
@@ -182,16 +214,19 @@ export function MyDayPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="default" className="bg-[#DCEEEA] text-primary font-medium">
-            Wealth scope
+          <Badge tone="default" className="bg-[#DCEEEA] text-primary font-medium inline-flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {verticalScopeLabel}
           </Badge>
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShowContractModal(true)}
-            className="border-primary/40 font-medium hover:bg-secondary"
+            className="border-primary/40 font-medium hover:bg-secondary inline-flex items-center gap-1"
           >
-            SC-01 Contract Guidance
+            <span>Actions</span>
           </Button>
           <div className="flex items-center rounded-md border border-border bg-card p-0.5" role="group" aria-label="Caller availability">
             {(['available', 'busy', 'away'] as const).map((st) => (
@@ -212,6 +247,22 @@ export function MyDayPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Sub-navigation Tabs matching Action Deck P036 */}
+      <div className="flex items-center gap-6 border-b border-border/40 pb-2 text-sm font-medium">
+        <span className="border-b-2 border-primary pb-2 font-semibold text-primary">
+          My day
+        </span>
+        <Link to={`${basePath}/prospects`} className="pb-2 text-muted-foreground hover:text-foreground">
+          Lead inbox
+        </Link>
+        <Link to={`${basePath}/deals`} className="pb-2 text-muted-foreground hover:text-foreground">
+          Pipeline
+        </Link>
+        <Link to={`${basePath}/reports`} className="pb-2 text-muted-foreground hover:text-foreground">
+          Performance
+        </Link>
       </div>
 
       {saved ? <SuccessNote>{saved}</SuccessNote> : null}
@@ -260,7 +311,7 @@ export function MyDayPage() {
                   </div>
                 </div>
                 <Link
-                  to={`/wealth/prospects/${next.leadId}`}
+                  to={`${basePath}/prospects/${next.leadId}`}
                   className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-[#DCEEEA]"
                 >
                   Open work area →
@@ -272,7 +323,7 @@ export function MyDayPage() {
                   Queue clear — capture a self-sourced enquiry or review conversations.
                 </p>
                 <Link
-                  to="/wealth/prospects"
+                  to={`${basePath}/prospects`}
                   className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-[#DCEEEA]"
                 >
                   Open lead inbox →
@@ -382,9 +433,9 @@ export function MyDayPage() {
                 ) : (
                   <ul className="divide-y divide-border/60" role="list">
                     {(signal?.attention ?? [
-                      { count: 3, label: 'Promised callbacks', caption: '11:00 is the next deadline', href: '/wealth/tasks' },
-                      { count: 8, label: 'Uncontacted today', caption: 'New website and intake leads', href: '/wealth/prospects' },
-                      { count: 4, label: 'Replies to review', caption: 'Two request a call', href: '/wealth/conversations' },
+                      { count: 3, label: 'Promised callbacks', caption: '11:00 is the next deadline', href: `${basePath}/tasks` },
+                      { count: 8, label: 'Uncontacted today', caption: isBanking ? 'New borrower enquiries & facilities' : isMarkets ? 'New trading accounts & broking leads' : 'New website and intake leads', href: `${basePath}/prospects` },
+                      { count: 4, label: 'Replies to review', caption: 'Two request a call', href: `${basePath}/activities` },
                     ]).map((row: any) => (
                       <li key={row.label}>
                         <Link
@@ -426,7 +477,7 @@ export function MyDayPage() {
             <CardTitle className="text-lg">Today&apos;s commitments</CardTitle>
           </div>
           <Link
-            to="/wealth/tasks"
+            to={`${basePath}/tasks`}
             className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
           >
             View all →
@@ -461,14 +512,14 @@ export function MyDayPage() {
                       <tr key={task.id} className="transition-colors hover:bg-secondary/30">
                         <td className="py-2.5 font-mono text-xs font-semibold">
                           <Link
-                            to={`/wealth/prospects/${task.leadId}`}
+                            to={`${basePath}/prospects/${task.leadId}`}
                             className="text-primary underline-offset-4 hover:underline"
                           >
                             {task.leadId}
                           </Link>
                         </td>
                         <td className="py-2.5 font-medium text-foreground">
-                          {task.leadName || 'Aarav Shah'}
+                          {task.leadName || (isBanking ? 'Arjun Commercial Works' : 'Aarav Shah')}
                         </td>
                         <td className="py-2.5 text-xs text-muted-foreground">
                           <span className="font-medium text-foreground">
@@ -495,21 +546,25 @@ export function MyDayPage() {
           )}
 
           <div className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-            Only assigned Wealth enquiries appear. A transfer changes this queue at its effective time.
+            {isBanking
+              ? 'Only assigned Commercial Banking borrowers appear. A transfer changes this queue at its effective time.'
+              : isMarkets
+              ? 'Only assigned Markets & Trading clients appear. A transfer changes this queue at its effective time.'
+              : 'Only assigned Wealth enquiries appear. A transfer changes this queue at its effective time.'}
           </div>
         </CardContent>
       </Card>
 
       {/* Bottom Row (Deck P007): Opportunity Flow & Shortcuts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Wealth Pipeline Opportunity Flow */}
+        {/* Pipeline Opportunity Flow */}
         <Card className="lg:col-span-7">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Opportunity Flow
               </span>
-              <CardTitle className="text-base">Wealth pipeline</CardTitle>
+              <CardTitle className="text-base">{isBanking ? 'Banking pipeline' : isMarkets ? 'Markets pipeline' : 'Wealth pipeline'}</CardTitle>
             </div>
             <Badge tone="default" className="text-[10px]">Illustrative stages</Badge>
           </CardHeader>
@@ -529,7 +584,7 @@ export function MyDayPage() {
 
             <div className="mt-5 border-t border-border/60 pt-3">
               <Link
-                to="/wealth/pipeline"
+                to={`${basePath}/deals`}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
               >
                 Explore all 28 Sales caller actions →
@@ -566,7 +621,7 @@ export function MyDayPage() {
               </li>
               <li>
                 <Link
-                  to="/wealth/prospects"
+                  to={`${basePath}/prospects`}
                   className="group flex items-center justify-between rounded-md p-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
                 >
                   <span className="flex items-center gap-2">
@@ -578,7 +633,7 @@ export function MyDayPage() {
               </li>
               <li>
                 <Link
-                  to={next ? `/wealth/prospects/${next.leadId}` : '/wealth/prospects'}
+                  to={next ? `${basePath}/prospects/${next.leadId}` : `${basePath}/prospects`}
                   className="group flex items-center justify-between rounded-md p-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
                 >
                   <span className="flex items-center gap-2">
