@@ -390,7 +390,6 @@ export async function getTerritoryCoverage(scope: Scope) {
 
   return {
     regionName: regionalScope.regionName,
-    subRegions: ['Karnataka South Hub', 'Tamil Nadu Metro Zone', 'Kerala Coastal Belt'],
     languageQueues: ['English', 'Hindi', 'Kannada', 'Tamil', 'Telugu'],
     teamStats: teamStats.map((t: any) => ({
       teamId: t.id,
