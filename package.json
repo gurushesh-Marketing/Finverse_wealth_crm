@@ -12,7 +12,11 @@
     "test": "pnpm --filter @finverse/api test && pnpm --filter @finverse/web test:e2e",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "db:migrate": "tsx database/migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:migrate:sql": "tsx database/migrate.ts",
+    "db:pull": "drizzle-kit pull",
+    "db:studio": "drizzle-kit studio",
     "db:seed": "tsx database/seed.ts"
   },
   "devDependencies": {
@@ -20,6 +24,8 @@
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
     "dotenv": "^16.4.5",
+    "drizzle-kit": "^0.31.11",
+    "drizzle-orm": "^0.45.4",
     "eslint": "^9.0.0",
     "pg": "^8.13.0",
     "tsx": "^4.19.0",

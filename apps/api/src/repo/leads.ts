@@ -8,9 +8,12 @@ import type {
   MyDayResponse,
   TimelineEvent,
 } from '@finverse/contracts';
-import { pool } from './db';
+import { eq, and, or, inArray, notInArray, ilike, asc, desc, lt, gte, count, sql } from 'drizzle-orm';
+import { db } from './db';
+import { leads, leadTasks, leadEvents, employees, teams, reminders } from '../db/schema';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
+import { readScopeCondition, readScopeSql } from '../wealth/scope';
 
 interface LeadRow {
   id: string;
@@ -26,8 +29,8 @@ interface LeadRow {
   owner_name: string | null;
   team_name: string | null;
   record_version: number;
-  created_at: Date;
-  min_due: Date | null;
+  created_at: Date | string;
+  min_due: Date | string | null;
 }
 
 interface TaskRow {
@@ -35,10 +38,10 @@ interface TaskRow {
   lead_id: string;
   action: string;
   purpose: string;
-  due_at: Date;
+  due_at: Date | string;
   priority: string;
   status: string;
-  created_at: Date;
+  created_at: Date | string;
 }
 
 interface EventRow {
@@ -46,7 +49,7 @@ interface EventRow {
   lead_id: string;
   kind: string;
   note: string;
-  occurred_at: Date;
+  occurred_at: Date | string;
   actor_name: string;
 }
 
@@ -55,29 +58,19 @@ export function maskPhone(phone: string): string {
   return `+91 •••••${last3}`;
 }
 
-function dueStatusFrom(dueAt: Date | null): DueStatus {
-  if (!dueAt) return 'none';
-  const now = Date.now();
-  if (dueAt.getTime() < now) return 'overdue';
-  const endOfDay = new Date();
-  endOfDay.setHours(23, 59, 59, 999);
-  return dueAt.getTime() <= endOfDay.getTime() ? 'today' : 'upcoming';
+function toIso(val: Date | string | null | undefined): string | null {
+  if (!val) return null;
+  return (val instanceof Date ? val : new Date(val)).toISOString();
 }
 
-function scopeSql(scope: Scope, params: unknown[], alias = 'l'): string {
-  params.push(scope.verticals);
-  const verticalIdx = params.length;
-  let ownerSql = 'FALSE';
-  if (scope.role === 'SC') {
-    params.push(scope.employeeId);
-    ownerSql = `${alias}.owner_employee_id = $${params.length}`;
-  } else if (scope.role === 'TL') {
-    params.push(scope.employeeId);
-    const meIdx = params.length;
-    params.push(scope.teams);
-    ownerSql = `(${alias}.owner_employee_id = $${meIdx} OR ${alias}.team_id = ANY($${params.length}))`;
-  }
-  return `${alias}.vertical = ANY($${verticalIdx}) AND ${ownerSql}`;
+function dueStatusFrom(dueAt: Date | string | null): DueStatus {
+  if (!dueAt) return 'none';
+  const dueDate = dueAt instanceof Date ? dueAt : new Date(dueAt);
+  const now = Date.now();
+  if (dueDate.getTime() < now) return 'overdue';
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+  return dueDate.getTime() <= endOfDay.getTime() ? 'today' : 'upcoming';
 }
 
 function toSummary(row: LeadRow): LeadSummary {
@@ -89,7 +82,7 @@ function toSummary(row: LeadRow): LeadSummary {
     stage: row.stage as LeadSummary['stage'],
     ownerName: row.owner_name ?? 'Unassigned',
     teamName: row.team_name ?? '—',
-    nextActionAt: row.min_due ? row.min_due.toISOString() : null,
+    nextActionAt: toIso(row.min_due),
     dueStatus: dueStatusFrom(row.min_due),
   };
 }
@@ -100,10 +93,10 @@ function toTask(row: TaskRow): LeadTask {
     leadId: row.lead_id,
     action: row.action as LeadTask['action'],
     purpose: row.purpose,
-    dueAt: row.due_at.toISOString(),
+    dueAt: toIso(row.due_at) ?? new Date().toISOString(),
     priority: row.priority as LeadTask['priority'],
     status: row.status as LeadTask['status'],
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIso(row.created_at) ?? new Date().toISOString(),
   };
 }
 
@@ -113,76 +106,129 @@ function toEvent(row: EventRow): TimelineEvent {
     kind: row.kind as TimelineEvent['kind'],
     actorName: row.actor_name,
     note: row.note,
-    occurredAt: row.occurred_at.toISOString(),
+    occurredAt: toIso(row.occurred_at) ?? new Date().toISOString(),
   };
 }
 
-const LEAD_SELECT = `
-  SELECT l.*, e.display_name AS owner_name, t.name AS team_name,
-    (SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open') AS min_due
-  FROM leads l
-  LEFT JOIN employees e ON e.id = l.owner_employee_id
-  LEFT JOIN teams t ON t.id = l.team_id
-`;
-
 export async function listLeads(scope: Scope, query: LeadsQuery): Promise<LeadSummary[]> {
-  const params: unknown[] = [];
-  const where: string[] = [scopeSql(scope, params)];
+  const minDueSubquery = sql<Date | null>`(SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = ${leads.id} AND t2.status = 'open')`;
+
+  const conditions = [readScopeCondition(scope)];
+
   if (query.search) {
-    params.push(`%${query.search}%`);
-    where.push(`(l.id ILIKE $${params.length} OR l.display_name ILIKE $${params.length})`);
+    conditions.push(
+      or(
+        ilike(leads.id, `%${query.search}%`),
+        ilike(leads.displayName, `%${query.search}%`)
+      )!
+    );
   }
   if (query.stage) {
-    params.push(query.stage);
-    where.push(`l.stage = $${params.length}`);
+    conditions.push(eq(leads.stage, query.stage));
   }
   if (query.source) {
-    params.push(query.source);
-    where.push(`l.source = $${params.length}`);
+    conditions.push(eq(leads.source, query.source));
   }
   if (query.product) {
-    params.push(query.product);
-    where.push(`l.product = $${params.length}`);
+    conditions.push(eq(leads.product, query.product));
   }
   if (query.due) {
-    const dueExpr = `(SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open')`;
-    if (query.due === 'overdue') where.push(`${dueExpr} < now()`);
-    if (query.due === 'today')
-      where.push(
-        `${dueExpr} >= now() AND ${dueExpr} < (date_trunc('day', now()) + interval '1 day')`
+    if (query.due === 'overdue') conditions.push(sql`${minDueSubquery} < now()`);
+    if (query.due === 'today') {
+      conditions.push(
+        sql`${minDueSubquery} >= now() AND ${minDueSubquery} < (date_trunc('day', now()) + interval '1 day')`
       );
-    if (query.due === 'upcoming')
-      where.push(`${dueExpr} >= (date_trunc('day', now()) + interval '1 day')`);
+    }
+    if (query.due === 'upcoming') {
+      conditions.push(sql`${minDueSubquery} >= (date_trunc('day', now()) + interval '1 day')`);
+    }
   }
-  const { rows } = await pool.query<LeadRow>(
-    `${LEAD_SELECT} WHERE ${where.join(' AND ')}
-     ORDER BY (SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open') ASC NULLS LAST, l.id ASC
-     LIMIT 200`,
-    params
-  );
-  return rows.map(toSummary);
+
+  const rows = await db
+    .select({
+      id: leads.id,
+      vertical: leads.vertical,
+      display_name: leads.displayName,
+      email: leads.email,
+      phone: leads.phone,
+      preferred_language: leads.preferredLanguage,
+      product: leads.product,
+      source: leads.source,
+      stage: leads.stage,
+      owner_employee_id: leads.ownerEmployeeId,
+      owner_name: employees.displayName,
+      team_name: teams.name,
+      record_version: leads.recordVersion,
+      created_at: sql<Date>`${leads.createdAt}::timestamptz`,
+      min_due: sql<Date | null>`${minDueSubquery}::timestamptz`,
+    })
+    .from(leads)
+    .leftJoin(employees, eq(employees.id, leads.ownerEmployeeId))
+    .leftJoin(teams, eq(teams.id, leads.teamId))
+    .where(and(...conditions))
+    .orderBy(sql`${minDueSubquery} ASC NULLS LAST`, asc(leads.id))
+    .limit(200);
+
+  return (rows as unknown as LeadRow[]).map(toSummary);
 }
 
 export async function getLead(scope: Scope, leadId: string): Promise<LeadDetail> {
-  const params: unknown[] = [leadId];
-  const scopeWhere = scopeSql(scope, params);
-  const { rows } = await pool.query<LeadRow>(
-    `${LEAD_SELECT} WHERE l.id = $1 AND ${scopeWhere}`,
-    params
-  );
-  const row = rows[0];
+  const minDueSubquery = sql<Date | null>`(SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = ${leads.id} AND t2.status = 'open')`;
+
+  const [row] = await db
+    .select({
+      id: leads.id,
+      vertical: leads.vertical,
+      display_name: leads.displayName,
+      email: leads.email,
+      phone: leads.phone,
+      preferred_language: leads.preferredLanguage,
+      product: leads.product,
+      source: leads.source,
+      stage: leads.stage,
+      owner_employee_id: leads.ownerEmployeeId,
+      owner_name: employees.displayName,
+      team_name: teams.name,
+      record_version: leads.recordVersion,
+      created_at: sql<Date>`${leads.createdAt}::timestamptz`,
+      min_due: sql<Date | null>`${minDueSubquery}::timestamptz`,
+    })
+    .from(leads)
+    .leftJoin(employees, eq(employees.id, leads.ownerEmployeeId))
+    .leftJoin(teams, eq(teams.id, leads.teamId))
+    .where(and(eq(leads.id, leadId), readScopeCondition(scope)));
+
   if (!row) throw notFound();
 
-  const { rows: taskRows } = await pool.query<TaskRow>(
-    `SELECT * FROM lead_tasks WHERE lead_id = $1 ORDER BY due_at ASC, id ASC`,
-    [leadId]
-  );
-  const { rows: eventRows } = await pool.query<EventRow>(
-    `SELECT ev.*, e.display_name AS actor_name
-     FROM lead_events ev LEFT JOIN employees e ON e.id = ev.actor_employee_id
-     WHERE ev.lead_id = $1 ORDER BY ev.occurred_at DESC, ev.id DESC LIMIT 100`,
-    [leadId]
-  );
+  const taskRows = await db
+    .select({
+      id: leadTasks.id,
+      lead_id: leadTasks.leadId,
+      action: leadTasks.action,
+      purpose: leadTasks.purpose,
+      due_at: sql<Date>`${leadTasks.dueAt}::timestamptz`,
+      priority: leadTasks.priority,
+      status: leadTasks.status,
+      created_at: sql<Date>`${leadTasks.createdAt}::timestamptz`,
+    })
+    .from(leadTasks)
+    .where(eq(leadTasks.leadId, leadId))
+    .orderBy(asc(leadTasks.dueAt), asc(leadTasks.id));
+
+  const eventRows = await db
+    .select({
+      id: leadEvents.id,
+      lead_id: leadEvents.leadId,
+      kind: leadEvents.kind,
+      note: leadEvents.note,
+      occurred_at: sql<Date>`${leadEvents.occurredAt}::timestamptz`,
+      actor_name: sql<string>`COALESCE(${employees.displayName}, 'System')`,
+    })
+    .from(leadEvents)
+    .leftJoin(employees, eq(employees.id, leadEvents.actorEmployeeId))
+    .where(eq(leadEvents.leadId, leadId))
+    .orderBy(desc(leadEvents.occurredAt), desc(leadEvents.id))
+    .limit(100);
 
   const isOwner = row.owner_employee_id === scope.employeeId;
   return {
@@ -196,52 +242,101 @@ export async function getLead(scope: Scope, leadId: string): Promise<LeadDetail>
     stage: row.stage as LeadDetail['stage'],
     ownerName: row.owner_name ?? 'Unassigned',
     teamName: row.team_name ?? '—',
-    nextActionAt: row.min_due ? row.min_due.toISOString() : null,
+    nextActionAt: toIso(row.min_due),
     dueStatus: dueStatusFrom(row.min_due),
     recordVersion: row.record_version,
-    createdAt: row.created_at.toISOString(),
-    tasks: taskRows.map(toTask),
-    timeline: eventRows.map(toEvent),
+    createdAt: toIso(row.created_at) ?? new Date().toISOString(),
+    tasks: (taskRows as unknown as TaskRow[]).map(toTask),
+    timeline: (eventRows as unknown as EventRow[]).map(toEvent),
   };
 }
 
 export async function myDay(scope: Scope): Promise<MyDayResponse> {
-  const params: unknown[] = [scope.employeeId];
-  const scopeWhere = scopeSql(scope, params, 'l');
-  const { rows: countRows } = await pool.query<{
-    active_leads: string;
-    overdue: string;
-    due_today: string;
-    upcoming: string;
-  }>(
-    `SELECT
-      (SELECT count(*) FROM leads l WHERE l.owner_employee_id = $1 AND ${scopeWhere} AND l.stage NOT IN ('converted', 'lost')) AS active_leads,
-      (SELECT count(*) FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
-        WHERE t.owner_employee_id = $1 AND t.status = 'open' AND ${scopeWhere} AND t.due_at < now()) AS overdue,
-      (SELECT count(*) FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
-        WHERE t.owner_employee_id = $1 AND t.status = 'open' AND ${scopeWhere}
-          AND t.due_at >= now() AND t.due_at < (date_trunc('day', now()) + interval '1 day')) AS due_today,
-      (SELECT count(*) FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
-        WHERE t.owner_employee_id = $1 AND t.status = 'open' AND ${scopeWhere}
-          AND t.due_at >= (date_trunc('day', now()) + interval '1 day')) AS upcoming`,
-    params
-  );
-  const { rows: taskRows } = await pool.query<TaskRow>(
-    `SELECT t.* FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
-     WHERE t.owner_employee_id = $1 AND t.status = 'open' AND ${scopeWhere}
-     ORDER BY t.due_at ASC LIMIT 10`,
-    params
-  );
-  const c = countRows[0]!;
+  const scopeCond = readScopeCondition(scope);
+
+  const [activeLeadsRes] = await db
+    .select({ n: count() })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.ownerEmployeeId, scope.employeeId),
+        inArray(leads.vertical, scope.verticals),
+        notInArray(leads.stage, ['converted', 'lost'])
+      )
+    );
+
+  const [overdueRes] = await db
+    .select({ n: count() })
+    .from(leadTasks)
+    .innerJoin(leads, eq(leads.id, leadTasks.leadId))
+    .where(
+      and(
+        eq(leadTasks.ownerEmployeeId, scope.employeeId),
+        eq(leadTasks.status, 'open'),
+        scopeCond,
+        lt(leadTasks.dueAt, sql`now()`)
+      )
+    );
+
+  const [dueTodayRes] = await db
+    .select({ n: count() })
+    .from(leadTasks)
+    .innerJoin(leads, eq(leads.id, leadTasks.leadId))
+    .where(
+      and(
+        eq(leadTasks.ownerEmployeeId, scope.employeeId),
+        eq(leadTasks.status, 'open'),
+        scopeCond,
+        gte(leadTasks.dueAt, sql`now()`),
+        lt(leadTasks.dueAt, sql`date_trunc('day', now()) + interval '1 day'`)
+      )
+    );
+
+  const [upcomingRes] = await db
+    .select({ n: count() })
+    .from(leadTasks)
+    .innerJoin(leads, eq(leads.id, leadTasks.leadId))
+    .where(
+      and(
+        eq(leadTasks.ownerEmployeeId, scope.employeeId),
+        eq(leadTasks.status, 'open'),
+        scopeCond,
+        gte(leadTasks.dueAt, sql`date_trunc('day', now()) + interval '1 day'`)
+      )
+    );
+
+  const taskRows = await db
+    .select({
+      id: leadTasks.id,
+      lead_id: leadTasks.leadId,
+      action: leadTasks.action,
+      purpose: leadTasks.purpose,
+      due_at: sql<Date>`${leadTasks.dueAt}::timestamptz`,
+      priority: leadTasks.priority,
+      status: leadTasks.status,
+      created_at: sql<Date>`${leadTasks.createdAt}::timestamptz`,
+    })
+    .from(leadTasks)
+    .innerJoin(leads, eq(leads.id, leadTasks.leadId))
+    .where(
+      and(
+        eq(leadTasks.ownerEmployeeId, scope.employeeId),
+        eq(leadTasks.status, 'open'),
+        scopeCond
+      )
+    )
+    .orderBy(asc(leadTasks.dueAt))
+    .limit(10);
+
   return {
     asOf: new Date().toISOString(),
     counts: {
-      overdue: Number(c.overdue),
-      dueToday: Number(c.due_today),
-      upcoming: Number(c.upcoming),
-      activeLeads: Number(c.active_leads),
+      overdue: Number(overdueRes?.n ?? 0),
+      dueToday: Number(dueTodayRes?.n ?? 0),
+      upcoming: Number(upcomingRes?.n ?? 0),
+      activeLeads: Number(activeLeadsRes?.n ?? 0),
     },
-    nextTasks: taskRows.map(toTask),
+    nextTasks: (taskRows as unknown as TaskRow[]).map(toTask),
     availability: null,
   };
 }
@@ -251,39 +346,40 @@ export async function createFollowUp(
   leadId: string,
   input: FollowUpInput
 ): Promise<{ task: LeadTask; timeline: TimelineEvent }> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const params: unknown[] = [leadId];
-    const scopeWhere = scopeSql(scope, params);
-    const { rows } = await client.query<{
-      id: string;
-      owner_employee_id: string | null;
-      stage: string;
-    }>(
-      `SELECT id, owner_employee_id, stage FROM leads l WHERE l.id = $1 AND ${scopeWhere} FOR UPDATE`,
-      params
-    );
-    const lead = rows[0];
-    if (!lead) {
-      await client.query('ROLLBACK');
-      throw notFound();
-    }
+  return await db.transaction(async (tx) => {
+    // Lock lead for update
+    const [lead] = await tx
+      .select({
+        id: leads.id,
+        owner_employee_id: leads.ownerEmployeeId,
+        stage: leads.stage,
+      })
+      .from(leads)
+      .where(and(eq(leads.id, leadId), readScopeCondition(scope)))
+      .for('update');
+
+    if (!lead) throw notFound();
     if (scope.role !== 'SC') {
-      await client.query('ROLLBACK');
       throw forbidden('Only sales callers can schedule follow-ups for prospects.');
     }
     if (lead.owner_employee_id !== scope.employeeId) {
-      await client.query('ROLLBACK');
       throw forbidden('Only the current owner can schedule follow-ups for this lead.');
     }
 
-    const dup = await client.query(
-      `SELECT id FROM lead_tasks WHERE lead_id = $1 AND action = $2 AND purpose = $3 AND status = 'open'`,
-      [leadId, input.action, input.purpose]
-    );
-    if ((dup.rowCount ?? 0) > 0) {
-      await client.query('ROLLBACK');
+    const [dup] = await tx
+      .select({ id: leadTasks.id })
+      .from(leadTasks)
+      .where(
+        and(
+          eq(leadTasks.leadId, leadId),
+          eq(leadTasks.action, input.action),
+          eq(leadTasks.purpose, input.purpose),
+          eq(leadTasks.status, 'open')
+        )
+      )
+      .limit(1);
+
+    if (dup) {
       throw new HttpError(
         409,
         'DUPLICATE_OPEN_TASK',
@@ -297,39 +393,69 @@ export async function createFollowUp(
     const dueDate = new Date(input.dueAt);
     const note = `Follow-up: ${input.action} — ${input.purpose} (due ${dueDate.toUTCString()})`;
 
-    const { rows: taskRows } = await client.query<TaskRow>(
-      `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'open') RETURNING *`,
-      [taskId, leadId, scope.employeeId, input.action, input.purpose, dueDate, input.priority]
-    );
-    if (input.reminderMinutes) {
-      await client.query(
-        `INSERT INTO reminders (id, task_id, remind_at, status) VALUES ($1, $2, $3, 'scheduled')`,
-        [`REM-${suffix}`, taskId, new Date(dueDate.getTime() - input.reminderMinutes * 60_000)]
-      );
-    }
-    const { rows: eventRows } = await client.query<EventRow>(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note)
-       VALUES ($1, $2, $3, 'follow-up-scheduled', $4)
-       RETURNING id, lead_id, kind, note, occurred_at`,
-      [eventId, leadId, scope.employeeId, note]
-    );
-    await client.query(
-      `UPDATE leads
-       SET updated_at = now(), record_version = record_version + 1,
-           stage = CASE WHEN stage IN ('converted', 'lost') THEN stage ELSE 'follow-up' END
-       WHERE id = $1`,
-      [leadId]
-    );
-    await client.query('COMMIT');
+    const [taskRow] = await tx
+      .insert(leadTasks)
+      .values({
+        id: taskId,
+        leadId,
+        ownerEmployeeId: scope.employeeId,
+        action: input.action,
+        purpose: input.purpose,
+        dueAt: dueDate.toISOString(),
+        priority: input.priority,
+        status: 'open',
+      })
+      .returning();
 
-    const task = toTask(taskRows[0]!);
-    const timeline = toEvent({ ...eventRows[0]!, actor_name: scope.displayName });
+    if (input.reminderMinutes) {
+      await tx.insert(reminders).values({
+        id: `REM-${suffix}`,
+        taskId,
+        remindAt: new Date(dueDate.getTime() - input.reminderMinutes * 60_000).toISOString(),
+        status: 'scheduled',
+      });
+    }
+
+    const [eventRow] = await tx
+      .insert(leadEvents)
+      .values({
+        id: eventId,
+        leadId,
+        actorEmployeeId: scope.employeeId,
+        kind: 'follow-up-scheduled',
+        note,
+      })
+      .returning();
+
+    await tx
+      .update(leads)
+      .set({
+        updatedAt: sql`now()`,
+        recordVersion: sql`${leads.recordVersion} + 1`,
+        stage: sql`CASE WHEN ${leads.stage} IN ('converted', 'lost') THEN ${leads.stage} ELSE 'follow-up' END`,
+      })
+      .where(eq(leads.id, leadId));
+
+    const task = toTask({
+      id: taskRow.id,
+      lead_id: taskRow.leadId,
+      action: taskRow.action,
+      purpose: taskRow.purpose,
+      due_at: new Date(taskRow.dueAt),
+      priority: taskRow.priority,
+      status: taskRow.status,
+      created_at: new Date(taskRow.createdAt),
+    });
+
+    const timeline = toEvent({
+      id: eventRow.id,
+      lead_id: eventRow.leadId,
+      kind: eventRow.kind,
+      note: eventRow.note,
+      occurred_at: new Date(eventRow.occurredAt),
+      actor_name: scope.displayName,
+    });
+
     return { task, timeline };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

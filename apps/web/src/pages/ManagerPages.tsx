@@ -978,6 +978,7 @@ export function ManagerCapacityPage() {
                   <option value="EMP-001">Asha Rao (Wealth Alpha)</option>
                   <option value="EMP-002">Ravi Menon (Wealth Beta)</option>
                   <option value="EMP-006">Karan Shah (Wealth Gamma)</option>
+                  <option value="EMP-012">Priya Sharma (Wealth Alpha)</option>
                 </Select>
               </FormField>
               <FormField label="Proposed Role">

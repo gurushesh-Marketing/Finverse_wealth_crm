@@ -208,6 +208,7 @@ function AllocateForm({ lead, onSaved }: { lead: any; onSaved: (msg: string) => 
         <Select id="alloc-to" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="EMP-001">Asha Rao</option>
           <option value="EMP-002">Ravi Nair</option>
+          <option value="EMP-012">Priya Sharma</option>
         </Select>
       </FormRow>
       <FormRow label="Reason" htmlFor="alloc-reason"><Input id="alloc-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></FormRow>
@@ -957,7 +958,7 @@ export function TlCoachingPage() {
           <CardHeader><CardTitle>Associate review (TL workspace)</CardTitle></CardHeader>
           <CardContent>
             <div className="mb-2 flex gap-2">
-              {['EMP-001', 'EMP-002'].map((id) => (
+              {['EMP-001', 'EMP-002', 'EMP-012'].map((id) => (
                 <Button key={id} size="sm" variant="outline" onClick={() => void tlApi.member(id).then(setMember)}>{id}</Button>
               ))}
             </div>
@@ -974,7 +975,7 @@ export function TlCoachingPage() {
             <div className="mt-4 rounded-md border border-border p-3">
               <p className="mb-2 text-sm font-medium">Schedule a one-to-one · TL-12</p>
               <div className="grid grid-cols-2 gap-2">
-                <FormRow label="Employee" htmlFor="o2o-emp"><Select id="o2o-emp" value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}><option value="EMP-001">Asha Rao</option><option value="EMP-002">Ravi Nair</option></Select></FormRow>
+                <FormRow label="Employee" htmlFor="o2o-emp"><Select id="o2o-emp" value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}><option value="EMP-001">Asha Rao</option><option value="EMP-002">Ravi Nair</option><option value="EMP-012">Priya Sharma</option></Select></FormRow>
                 <FormRow label="Period" htmlFor="o2o-period"><Input id="o2o-period" value={form.periodLabel} onChange={(e) => setForm({ ...form, periodLabel: e.target.value })} /></FormRow>
                 <FormRow label="Agenda" htmlFor="o2o-agenda"><Input id="o2o-agenda" value={form.agenda} onChange={(e) => setForm({ ...form, agenda: e.target.value })} /></FormRow>
                 <FormRow label="Scheduled at" htmlFor="o2o-when"><Input id="o2o-when" type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} /></FormRow>

@@ -1,7 +1,28 @@
-import { pool } from './db';
+import { db, pool } from './db';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
 import { channelEligibleForCall } from '../wealth/rules';
+import { eq, sql } from 'drizzle-orm';
+import {
+  leads,
+  leadTasks,
+  leadEvents,
+  leadOwnershipEvents,
+  allocationBatches,
+  targetAllocations,
+  teamTargets,
+  teamForecasts,
+  reviews,
+  mentorships,
+  teamRequests,
+  teamReportExports,
+  reportSchedules,
+  callQualityReviews,
+  evidenceAccessLog,
+  activityCorrections,
+  overdueEscalations,
+  enquiries,
+} from '../db/schema';
 import type {
   AllocationReceipt,
   TlAllocationInput,
@@ -28,11 +49,12 @@ export function assertTl(scope: Scope): void {
   }
 }
 
-function teamFilter(scope: Scope, params: unknown[], alias = 'l'): string {
-  params.push(scope.verticals);
-  const vIdx = params.length;
-  params.push(scope.teams);
-  return `${alias}.vertical = ANY($${vIdx}) AND ${alias}.team_id = ANY($${params.length})`;
+function inList<T>(vals: T[]) {
+  return vals.length > 0 ? sql.join(vals.map((v) => sql`${v}`), sql`, `) : sql`NULL`;
+}
+
+function teamFilter(scope: Scope, alias = 'l') {
+  return sql`${sql.raw(alias)}.vertical IN (${inList(scope.verticals)}) AND ${sql.raw(alias)}.team_id IN (${inList(scope.teams)})`;
 }
 
 export interface TlMember extends TlMemberRow {
@@ -40,24 +62,25 @@ export interface TlMember extends TlMemberRow {
 }
 
 async function teamMembers(scope: Scope): Promise<TlMember[]> {
-  const { rows } = await pool.query(
-    `SELECT e.id, e.display_name,
-            COALESCE(av.status, 'available') AS availability,
-            array_remove(array_agg(DISTINCT a.team_id), NULL) AS team_ids
-       FROM assignments a
-       JOIN employees e ON e.id = a.employee_id
-       LEFT JOIN LATERAL (
-         SELECT status FROM availability_changes c
-          WHERE c.employee_id = e.id AND c.effective_from <= now()
-          ORDER BY c.effective_from DESC LIMIT 1
-       ) av ON true
-      WHERE a.team_id = ANY($1) AND a.role = 'SC'
-        AND a.effective_from <= now()
-        AND (a.effective_to IS NULL OR a.effective_to > now())
-      GROUP BY e.id, e.display_name, av.status
-      ORDER BY e.display_name`,
-    [scope.teams]
-  );
+  // Complex lateral join for latest availability and team aggregation
+  const { rows } = await db.execute<any>(sql`
+    SELECT e.id, e.display_name,
+           COALESCE(av.status, 'available') AS availability,
+           array_remove(array_agg(DISTINCT a.team_id), NULL) AS team_ids
+      FROM assignments a
+      JOIN employees e ON e.id = a.employee_id
+      LEFT JOIN LATERAL (
+        SELECT status FROM availability_changes c
+         WHERE c.employee_id = e.id AND c.effective_from <= now()
+         ORDER BY c.effective_from DESC LIMIT 1
+      ) av ON true
+     WHERE a.team_id IN (${inList(scope.teams)}) AND a.role = 'SC'
+       AND a.effective_from <= now()
+       AND (a.effective_to IS NULL OR a.effective_to > now())
+     GROUP BY e.id, e.display_name, av.status
+     ORDER BY e.display_name
+  `);
+
   const members: TlMember[] = rows.map((r: any) => ({
     employeeId: r.id,
     displayName: r.display_name,
@@ -72,44 +95,43 @@ async function teamMembers(scope: Scope): Promise<TlMember[]> {
   }));
   if (members.length === 0) return members;
   const ids = members.map((m) => m.employeeId);
-  const { rows: work } = await pool.query(
-    `SELECT owner_employee_id,
-            COUNT(*) FILTER (WHERE kind = 'lead')::int AS open_leads,
-            COUNT(*) FILTER (WHERE kind = 'task')::int AS open_tasks,
-            COUNT(*) FILTER (WHERE kind = 'task' AND overdue)::int AS overdue_tasks
-       FROM (
-         SELECT l.owner_employee_id, 'lead'::text AS kind, false AS overdue
-           FROM leads l
-          WHERE l.owner_employee_id = ANY($1)
-            AND l.vertical = ANY($2)
-            AND l.team_id = ANY($3)
-            AND l.stage NOT IN ('converted', 'lost')
-         UNION ALL
-         SELECT t.owner_employee_id, 'task', t.due_at < now()
-           FROM lead_tasks t
-           JOIN leads l ON l.id = t.lead_id
-          WHERE t.owner_employee_id = ANY($1)
-            AND l.vertical = ANY($2)
-            AND l.team_id = ANY($3)
-            AND t.status = 'open'
-       ) w
-      GROUP BY owner_employee_id`,
-    [ids, scope.verticals, scope.teams]
-  );
+
+  // Aggregated workload query across leads and lead_tasks
+  const { rows: work } = await db.execute<any>(sql`
+    SELECT owner_employee_id,
+           COUNT(*) FILTER (WHERE kind = 'lead')::int AS open_leads,
+           COUNT(*) FILTER (WHERE kind = 'task')::int AS open_tasks,
+           COUNT(*) FILTER (WHERE kind = 'task' AND overdue)::int AS overdue_tasks
+      FROM (
+        SELECT l.owner_employee_id, 'lead'::text AS kind, false AS overdue
+          FROM leads l
+         WHERE l.owner_employee_id IN (${inList(ids)})
+           AND ${teamFilter(scope, 'l')}
+           AND l.stage NOT IN ('converted', 'lost')
+        UNION ALL
+        SELECT t.owner_employee_id, 'task', t.due_at < now()
+          FROM lead_tasks t
+          JOIN leads l ON l.id = t.lead_id
+         WHERE t.owner_employee_id IN (${inList(ids)})
+           AND ${teamFilter(scope, 'l')}
+           AND t.status = 'open'
+      ) w
+     GROUP BY owner_employee_id
+  `);
+
   const byId = new Map<string, any>(work.map((w: any) => [w.owner_employee_id, w]));
   const since = new Date(Date.now() - 24 * 3600 * 1000);
-  const { rows: done } = await pool.query(
-    `SELECT t.owner_employee_id, COUNT(*)::int AS n
-       FROM lead_tasks t
-       JOIN leads l ON l.id = t.lead_id
-      WHERE t.owner_employee_id = ANY($1)
-        AND l.vertical = ANY($2)
-        AND l.team_id = ANY($3)
-        AND t.status = 'completed'
-        AND t.completed_at >= $4
-      GROUP BY t.owner_employee_id`,
-    [ids, scope.verticals, scope.teams, since]
-  );
+  const { rows: done } = await db.execute<any>(sql`
+    SELECT t.owner_employee_id, COUNT(*)::int AS n
+      FROM lead_tasks t
+      JOIN leads l ON l.id = t.lead_id
+     WHERE t.owner_employee_id IN (${inList(ids)})
+       AND ${teamFilter(scope, 'l')}
+       AND t.status = 'completed'
+       AND t.completed_at >= ${since}
+     GROUP BY t.owner_employee_id
+  `);
+
   const doneById = new Map<string, any>(done.map((d: any) => [d.owner_employee_id, d]));
   for (const m of members) {
     const w = byId.get(m.employeeId);
@@ -132,39 +154,36 @@ function periodStart(period: TlPeriod): Date {
 
 export async function overview(scope: Scope, period: TlPeriod, comparison: string): Promise<TlOverviewResponse> {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
   const members = await teamMembers(scope);
   const start = periodStart(period);
 
-  const { rows: totals } = await pool.query(
-    `SELECT
-       COUNT(*) FILTER (WHERE l.stage NOT IN ('converted', 'lost'))::int AS active_leads,
-       COUNT(*) FILTER (WHERE l.stage = 'converted' AND l.updated_at >= $${params.length + 1})::int AS wins,
-       COALESCE(SUM(q.expected_value) FILTER (WHERE l.stage NOT IN ('converted', 'lost')), 0)::float AS pipeline_value
-     FROM leads l
-     LEFT JOIN LATERAL (
-       SELECT q2.expected_value FROM qualifications q2 WHERE q2.lead_id = l.id
-        ORDER BY q2.created_at DESC LIMIT 1
-     ) q ON true
-     WHERE ${filter}`,
-    [...params, start]
-  );
-  const { rows: taskRows } = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE t.status = 'open')::int AS open_tasks,
-            COUNT(*) FILTER (WHERE t.status = 'open' AND t.due_at < now())::int AS overdue,
-            COUNT(*) FILTER (WHERE t.status = 'open' AND t.due_at >= now() AND t.due_at < now() + interval '1 day')::int AS due_today,
-            COUNT(*) FILTER (WHERE t.status = 'completed' AND t.completed_at >= $${params.length + 1})::int AS completed
-       FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
-      WHERE ${filter}`,
-    [...params, start]
-  );
-  const { rows: pending } = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM outcome_requests r JOIN leads l ON l.id = r.lead_id
-      WHERE r.status = 'pending' AND ${filter}`,
-    params
-  );
-  const { rows: idleRows } = await pool.query(`SELECT 1`, []);
+  // Aggregated totals with lateral join for latest qualification estimate
+  const { rows: totals } = await db.execute<any>(sql`
+    SELECT
+      COUNT(*) FILTER (WHERE l.stage NOT IN ('converted', 'lost'))::int AS active_leads,
+      COUNT(*) FILTER (WHERE l.stage = 'converted' AND l.updated_at >= ${start})::int AS wins,
+      COALESCE(SUM(q.expected_value) FILTER (WHERE l.stage NOT IN ('converted', 'lost')), 0)::float AS pipeline_value
+    FROM leads l
+    LEFT JOIN LATERAL (
+      SELECT q2.expected_value FROM qualifications q2 WHERE q2.lead_id = l.id
+       ORDER BY q2.created_at DESC LIMIT 1
+    ) q ON true
+    WHERE ${teamFilter(scope, 'l')}
+  `);
+
+  const { rows: taskRows } = await db.execute<any>(sql`
+    SELECT COUNT(*) FILTER (WHERE t.status = 'open')::int AS open_tasks,
+           COUNT(*) FILTER (WHERE t.status = 'open' AND t.due_at < now())::int AS overdue,
+           COUNT(*) FILTER (WHERE t.status = 'open' AND t.due_at >= now() AND t.due_at < now() + interval '1 day')::int AS due_today,
+           COUNT(*) FILTER (WHERE t.status = 'completed' AND t.completed_at >= ${start})::int AS completed
+      FROM lead_tasks t JOIN leads l ON l.id = t.lead_id
+     WHERE ${teamFilter(scope, 'l')}
+  `);
+
+  const { rows: pending } = await db.execute<{ n: number }>(sql`
+    SELECT COUNT(*)::int AS n FROM outcome_requests r JOIN leads l ON l.id = r.lead_id
+     WHERE r.status = 'pending' AND ${teamFilter(scope, 'l')}
+  `);
 
   const t = totals[0] ?? { active_leads: 0, wins: 0, pipeline_value: 0 };
   const tk = taskRows[0] ?? { open_tasks: 0, overdue: 0, due_today: 0, completed: 0 };
@@ -179,7 +198,6 @@ export async function overview(scope: Scope, period: TlPeriod, comparison: strin
     { key: 'pending-approvals', label: 'Pending approvals', value: pending[0]?.n ?? 0, numerator: pending[0]?.n ?? 0, denominator: 1, comparison, formula: 'COUNT(pending outcome_requests in team scope)' },
     { key: 'pipeline-value', label: 'Open pipeline value', value: t.pipeline_value, numerator: t.pipeline_value, denominator: 1, comparison, formula: 'SUM(expected_value, open stages) — estimate, not revenue' },
   ];
-  void idleRows;
 
   return {
     teams: scope.teams.map((tid) => ({ id: tid, name: tid })),
@@ -195,16 +213,13 @@ export async function overview(scope: Scope, period: TlPeriod, comparison: strin
 
 export async function drill(scope: Scope, metric: string, period: TlPeriod): Promise<TlDrillResponse> {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT l.*, eo.display_name AS owner_name, t.name AS team_name
-       FROM leads l
-       LEFT JOIN employees eo ON eo.id = l.owner_employee_id
-       LEFT JOIN teams t ON t.id = l.team_id
-      WHERE ${filter} ORDER BY l.updated_at DESC LIMIT 30`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT l.*, eo.display_name AS owner_name, t.name AS team_name
+      FROM leads l
+      LEFT JOIN employees eo ON eo.id = l.owner_employee_id
+      LEFT JOIN teams t ON t.id = l.team_id
+     WHERE ${teamFilter(scope, 'l')} ORDER BY l.updated_at DESC LIMIT 30
+  `);
   return {
     metric,
     members: await teamMembers(scope),
@@ -218,9 +233,7 @@ export async function drill(scope: Scope, metric: string, period: TlPeriod): Pro
 
 export async function correctiveTask(scope: Scope, leadId: string, purpose: string, dueAt: string) {
   assertTl(scope);
-  const params: unknown[] = [leadId];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(`SELECT l.* FROM leads l WHERE l.id = $1 AND ${filter}`, params);
+  const { rows } = await db.execute<any>(sql`SELECT l.* FROM leads l WHERE l.id = ${leadId} AND ${teamFilter(scope, 'l')}`);
   const lead = rows[0];
   if (!lead) throw notFound();
   const due = new Date(dueAt);
@@ -228,16 +241,26 @@ export async function correctiveTask(scope: Scope, leadId: string, purpose: stri
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', { fieldErrors: { dueAt: ['Enter a valid date and time.'] } });
   }
   const taskId = id('TASK');
-  await pool.query(
-    `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-     VALUES ($1, $2, $3, 'other', $4, $5, 'high', 'open')`,
-    [taskId, leadId, lead.owner_employee_id ?? scope.employeeId, `TL corrective: ${purpose}`, due]
-  );
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'task-updated', $4, $5, $6, $7)`,
-    [id('EVT'), leadId, scope.employeeId, `TL corrective task assigned: ${purpose}`, scope.role, lead.team_id, scope.assignmentId]
-  );
+  await db.insert(leadTasks).values({
+    id: taskId,
+    leadId,
+    ownerEmployeeId: lead.owner_employee_id ?? scope.employeeId,
+    action: 'other',
+    purpose: `TL corrective: ${purpose}`,
+    dueAt: due.toISOString(),
+    priority: 'high',
+    status: 'open',
+  });
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'task-updated',
+    note: `TL corrective task assigned: ${purpose}`,
+    actorRole: scope.role,
+    actorTeamId: lead.team_id,
+    assignmentId: scope.assignmentId,
+  });
   return { taskId, status: 'open' as const };
 }
 
@@ -245,14 +268,11 @@ export async function correctiveTask(scope: Scope, leadId: string, purpose: stri
 
 export async function allocationQueue(scope: Scope) {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT l.*, EXTRACT(EPOCH FROM (now() - l.created_at))::int AS age_seconds
-       FROM leads l WHERE l.owner_employee_id IS NULL AND ${filter}
-      ORDER BY l.created_at ASC`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT l.*, EXTRACT(EPOCH FROM (now() - l.created_at))::int AS age_seconds
+      FROM leads l WHERE l.owner_employee_id IS NULL AND ${teamFilter(scope, 'l')}
+     ORDER BY l.created_at ASC
+  `);
   return {
     leads: rows.map((r: any) => ({
       id: r.id, displayName: r.display_name, product: r.product, source: r.source,
@@ -275,67 +295,76 @@ export async function eligibleRecipients(scope: Scope) {
 
 export async function allocateLead(scope: Scope, input: TlAllocationInput): Promise<AllocationReceipt> {
   assertTl(scope);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const params: unknown[] = [input.leadId];
-    const filter = teamFilter(scope, params);
-    const { rows } = await client.query(
-      `SELECT l.* FROM leads l WHERE l.id = $1 AND ${filter} FOR UPDATE`,
-      params
-    );
+  return await db.transaction(async (tx) => {
+    const { rows } = await tx.execute<any>(sql`
+      SELECT l.* FROM leads l WHERE l.id = ${input.leadId} AND ${teamFilter(scope, 'l')} FOR UPDATE
+    `);
     const lead = rows[0];
-    if (!lead) { await client.query('ROLLBACK'); throw notFound(); }
+    if (!lead) throw notFound();
     if (lead.owner_employee_id !== null) {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'Lead already has an owner — use rebalance.', {});
     }
     if (lead.record_version !== input.recordVersion) {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'Record changed since you loaded it. Reload and retry.', {});
     }
-    const { rows: recips } = await client.query(
-      `SELECT e.id FROM assignments a JOIN employees e ON e.id = a.employee_id
-        WHERE a.team_id = $1 AND a.role = 'SC' AND a.effective_from <= now()
-          AND (a.effective_to IS NULL OR a.effective_to > now()) AND e.id = $2`,
-      [lead.team_id, input.toEmployeeId]
-    );
+    const { rows: recips } = await tx.execute<{ id: string }>(sql`
+      SELECT e.id FROM assignments a JOIN employees e ON e.id = a.employee_id
+       WHERE a.team_id = ${lead.team_id} AND a.role = 'SC' AND a.effective_from <= now()
+         AND (a.effective_to IS NULL OR a.effective_to > now()) AND e.id = ${input.toEmployeeId}
+    `);
     if (!recips[0]) {
-      await client.query('ROLLBACK');
       throw new HttpError(422, 'VALIDATION_FAILED', 'Recipient is not an eligible associate for this team.', {
         fieldErrors: { toEmployeeId: ['Choose an eligible associate.'] },
       });
     }
-    await client.query(
-      `UPDATE leads SET owner_employee_id = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-      [input.leadId, input.toEmployeeId]
-    );
-    await client.query(
-      `INSERT INTO lead_ownership_events (id, lead_id, from_owner_employee_id, to_owner_employee_id, actor_employee_id, actor_role, actor_team_id, assignment_id, kind, reason, record_version)
-       VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, 'first-allocation', $8, $9)`,
-      [id('OWN'), input.leadId, input.toEmployeeId, scope.employeeId, scope.role, lead.team_id, scope.assignmentId, input.reason, input.recordVersion]
-    );
+
+    await tx.update(leads)
+      .set({
+        ownerEmployeeId: input.toEmployeeId,
+        updatedAt: sql`now()`,
+        recordVersion: sql`record_version + 1`,
+      })
+      .where(eq(leads.id, input.leadId));
+
+    await tx.insert(leadOwnershipEvents).values({
+      id: id('OWN'),
+      leadId: input.leadId,
+      fromOwnerEmployeeId: null,
+      toOwnerEmployeeId: input.toEmployeeId,
+      actorEmployeeId: scope.employeeId,
+      actorRole: scope.role,
+      actorTeamId: lead.team_id,
+      assignmentId: scope.assignmentId,
+      kind: 'first-allocation',
+      reason: input.reason,
+      recordVersion: input.recordVersion,
+    });
+
     const taskId = id('TASK');
-    await client.query(
-      `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-       VALUES ($1, $2, $3, 'voice-call', 'First contact after allocation', $4, 'high', 'open')`,
-      [taskId, input.leadId, input.toEmployeeId, new Date(Date.now() + 86_400_000)]
-    );
-    await client.query(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-       VALUES ($1, $2, $3, 'assignment-changed', $4, $5, $6, $7)`,
-      [id('EVT'), input.leadId, scope.employeeId,
-       `Assignment notification (in-app): lead allocated to ${input.toEmployeeId} (${input.reason}). First-contact task ${taskId} created.`,
-       scope.role, lead.team_id, scope.assignmentId]
-    );
-    await client.query('COMMIT');
+    await tx.insert(leadTasks).values({
+      id: taskId,
+      leadId: input.leadId,
+      ownerEmployeeId: input.toEmployeeId,
+      action: 'voice-call',
+      purpose: 'First contact after allocation',
+      dueAt: new Date(Date.now() + 86_400_000).toISOString(),
+      priority: 'high',
+      status: 'open',
+    });
+
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId: input.leadId,
+      actorEmployeeId: scope.employeeId,
+      kind: 'assignment-changed',
+      note: `Assignment notification (in-app): lead allocated to ${input.toEmployeeId} (${input.reason}). First-contact task ${taskId} created.`,
+      actorRole: scope.role,
+      actorTeamId: lead.team_id,
+      assignmentId: scope.assignmentId,
+    });
+
     return { leadId: input.leadId, status: 'assigned', toEmployeeId: input.toEmployeeId, taskId };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 function pickWeighted(members: TlMember[], loads: Map<string, number>, cap: number): TlMember | null {
@@ -354,12 +383,9 @@ export async function batchPreview(scope: Scope, input: TlBatchAllocationInput) 
   assertTl(scope);
   if (!scope.teams.includes(input.teamId)) throw notFound();
   const members = (await eligibleRecipients(scope)).recipients.filter((r) => r.teamIds.includes(input.teamId));
-  const params: unknown[] = [input.leadIds, input.teamId];
-  const filter = `l.vertical = ANY($3)`;
-  const { rows } = await pool.query(
-    `SELECT l.* FROM leads l WHERE l.id = ANY($1) AND l.team_id = $2 AND l.vertical = ANY($3)`,
-    [...params, scope.verticals]
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT l.* FROM leads l WHERE l.id IN (${inList(input.leadIds)}) AND l.team_id = ${input.teamId} AND l.vertical IN (${inList(scope.verticals)})
+  `);
   const cap = input.capacityCap ?? CAPACITY_CAP;
   const loads = new Map<string, number>(members.map((m) => [m.employeeId, m.openLeads]));
   const receipts: AllocationReceipt[] = [];
@@ -390,86 +416,103 @@ export async function batchPreview(scope: Scope, input: TlBatchAllocationInput) 
 
 export async function batchCommit(scope: Scope, input: TlBatchAllocationInput, batchKey: string) {
   assertTl(scope);
-  const { rows: existing } = await pool.query(`SELECT * FROM allocation_batches WHERE batch_key = $1`, [batchKey]);
+  const { rows: existing } = await db.execute<any>(sql`SELECT * FROM allocation_batches WHERE batch_key = ${batchKey}`);
   if (existing[0]) {
     return { batchId: existing[0].id as string, batchKey, results: existing[0].results as AllocationReceipt[], replayed: true };
   }
   const preview = await batchPreview(scope, input);
-  const client = await pool.connect();
   const batchId = id('BATCH');
   const results: AllocationReceipt[] = [];
-  try {
-    await client.query('BEGIN');
+
+  return await db.transaction(async (tx) => {
     for (const row of preview.receipts) {
       if (row.status !== 'assigned' || !row.toEmployeeId) { results.push(row); continue; }
-      await client.query('SAVEPOINT alloc_row');
       try {
-        const params: unknown[] = [row.leadId, input.teamId, scope.verticals];
-        const { rows: leadRows } = await client.query(
-          `SELECT l.* FROM leads l WHERE l.id = $1 AND l.team_id = $2 AND l.vertical = ANY($3) AND l.owner_employee_id IS NULL FOR UPDATE`,
-          params
-        );
-        const lead = leadRows[0];
-        if (!lead) { results.push({ ...row, status: 'failed', detail: 'revalidated: no longer allocatable' }); continue; }
-        const taskId = id('TASK');
-        await client.query(
-          `UPDATE leads SET owner_employee_id = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-          [row.leadId, row.toEmployeeId]
-        );
-        await client.query(
-          `INSERT INTO lead_ownership_events (id, lead_id, to_owner_employee_id, actor_employee_id, actor_role, actor_team_id, assignment_id, kind, reason, batch_key, record_version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'batch', 'Batch distribution (weighted round-robin)', $8, $9)`,
-          [id('OWN'), row.leadId, row.toEmployeeId, scope.employeeId, scope.role, lead.team_id, scope.assignmentId, batchKey, lead.record_version]
-        );
-        await client.query(
-          `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-           VALUES ($1, $2, $3, 'voice-call', 'First contact after batch allocation', $4, 'high', 'open')`,
-          [taskId, row.leadId, row.toEmployeeId, new Date(Date.now() + 86_400_000)]
-        );
-        await client.query(
-          `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-           VALUES ($1, $2, $3, 'assignment-changed', $4, $5, $6, $7)`,
-          [id('EVT'), row.leadId, scope.employeeId,
-           `Assignment notification (in-app): batch ${batchKey} allocated to ${row.toEmployeeId}. First-contact task ${taskId}.`,
-           scope.role, lead.team_id, scope.assignmentId]
-        );
-        results.push({ ...row, taskId });
-        await client.query('RELEASE SAVEPOINT alloc_row');
+        await tx.transaction(async (sp) => {
+          const { rows: leadRows } = await sp.execute<any>(sql`
+            SELECT l.* FROM leads l WHERE l.id = ${row.leadId} AND l.team_id = ${input.teamId} AND l.vertical IN (${inList(scope.verticals)}) AND l.owner_employee_id IS NULL FOR UPDATE
+          `);
+          const lead = leadRows[0];
+          if (!lead) { results.push({ ...row, status: 'failed', detail: 'revalidated: no longer allocatable' }); return; }
+          const taskId = id('TASK');
+          await sp.update(leads)
+            .set({
+              ownerEmployeeId: row.toEmployeeId,
+              updatedAt: sql`now()`,
+              recordVersion: sql`record_version + 1`,
+            })
+            .where(eq(leads.id, row.leadId));
+
+          const toEmployeeId = row.toEmployeeId!;
+          await sp.insert(leadOwnershipEvents).values({
+            id: id('OWN'),
+            leadId: row.leadId,
+            toOwnerEmployeeId: toEmployeeId,
+            actorEmployeeId: scope.employeeId,
+            actorRole: scope.role,
+            actorTeamId: lead.team_id,
+            assignmentId: scope.assignmentId,
+            kind: 'batch',
+            reason: 'Batch distribution (weighted round-robin)',
+            batchKey,
+            recordVersion: lead.record_version,
+          });
+
+          await sp.insert(leadTasks).values({
+            id: taskId,
+            leadId: row.leadId,
+            ownerEmployeeId: toEmployeeId,
+            action: 'voice-call',
+            purpose: 'First contact after batch allocation',
+            dueAt: new Date(Date.now() + 86_400_000).toISOString(),
+            priority: 'high',
+            status: 'open',
+          });
+
+          await sp.insert(leadEvents).values({
+            id: id('EVT'),
+            leadId: row.leadId,
+            actorEmployeeId: scope.employeeId,
+            kind: 'assignment-changed',
+            note: `Assignment notification (in-app): batch ${batchKey} allocated to ${row.toEmployeeId}. First-contact task ${taskId}.`,
+            actorRole: scope.role,
+            actorTeamId: lead.team_id,
+            assignmentId: scope.assignmentId,
+          });
+          results.push({ ...row, taskId });
+        });
       } catch (err: any) {
-        await client.query('ROLLBACK TO SAVEPOINT alloc_row');
-        if (err?.code === '23505') {
+        if (err?.code === '23505' || err?.cause?.code === '23505') {
           results.push({ ...row, status: 'conflict', detail: 'concurrent allocation — left for retry' });
         } else {
           throw err;
         }
       }
     }
+
     try {
-      await client.query(
-        `INSERT INTO allocation_batches (id, batch_key, actor_employee_id, actor_team_id, method, total_count, success_count, held_count, failed_count, results)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [batchId, batchKey, scope.employeeId, scope.teams[0] ?? null, input.method, results.length,
-         results.filter((r) => r.status === 'assigned').length,
-         results.filter((r) => r.status === 'held').length,
-         results.filter((r) => r.status === 'failed' || r.status === 'conflict').length,
-         JSON.stringify(results)]
-      );
+      await tx.insert(allocationBatches).values({
+        id: batchId,
+        batchKey,
+        actorEmployeeId: scope.employeeId,
+        actorTeamId: scope.teams[0] ?? null,
+        method: input.method,
+        totalCount: results.length,
+        successCount: results.filter((r) => r.status === 'assigned').length,
+        heldCount: results.filter((r) => r.status === 'held').length,
+        failedCount: results.filter((r) => r.status === 'failed' || r.status === 'conflict').length,
+        results,
+      });
     } catch (err: any) {
-      if (err?.code === '23505') {
-        await client.query('ROLLBACK');
-        const { rows: again } = await pool.query(`SELECT * FROM allocation_batches WHERE batch_key = $1`, [batchKey]);
+      if (err?.code === '23505' || err?.cause?.code === '23505') {
+        const { rows: again } = await db.execute<any>(sql`SELECT * FROM allocation_batches WHERE batch_key = ${batchKey}`);
         return { batchId: again[0]?.id as string, batchKey, results: again[0]?.results as AllocationReceipt[], replayed: true };
       }
       throw err;
     }
-    await client.query('COMMIT');
+
     return { batchId, batchKey, results };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ─── TL-04 workload + rebalance ───
@@ -482,62 +525,66 @@ export async function workload(scope: Scope) {
 
 export async function rebalance(scope: Scope, input: TlRebalanceInput) {
   assertTl(scope);
-  const client = await pool.connect();
-  const results: Array<{ leadId: string; status: 'moved' | 'held' | 'failed'; detail?: string }> = [];
-  try {
-    await client.query('BEGIN');
-    const { rows: dest } = await client.query(
-      `SELECT a.team_id FROM assignments a
-        WHERE a.employee_id = $1 AND a.role = 'SC' AND a.team_id = ANY($2)
-          AND a.effective_from <= now() AND (a.effective_to IS NULL OR a.effective_to > now())`,
-      [input.toEmployeeId, scope.teams]
-    );
+  return await db.transaction(async (tx) => {
+    const { rows: dest } = await tx.execute<{ team_id: string }>(sql`
+      SELECT a.team_id FROM assignments a
+       WHERE a.employee_id = ${input.toEmployeeId} AND a.role = 'SC' AND a.team_id IN (${inList(scope.teams)})
+         AND a.effective_from <= now() AND (a.effective_to IS NULL OR a.effective_to > now())
+    `);
     if (!dest[0]) {
-      await client.query('ROLLBACK');
       throw forbidden('Recipient is outside your granted teams — cross-boundary moves become a Manager request.');
     }
+    const results: Array<{ leadId: string; status: 'moved' | 'held' | 'failed'; detail?: string }> = [];
     for (const leadId of input.leadIds) {
-      const params: unknown[] = [leadId];
-      const filter = teamFilter(scope, params);
-      const { rows } = await client.query(`SELECT l.* FROM leads l WHERE l.id = $1 AND ${filter} FOR UPDATE`, params);
+      const { rows } = await tx.execute<any>(sql`SELECT l.* FROM leads l WHERE l.id = ${leadId} AND ${teamFilter(scope, 'l')} FOR UPDATE`);
       const lead = rows[0];
       if (!lead) { results.push({ leadId, status: 'failed', detail: 'out of scope' }); continue; }
       if (!lead.owner_employee_id) { results.push({ leadId, status: 'held', detail: 'unowned — use allocation' }); continue; }
-      const { rows: pend } = await client.query(
-        `SELECT id FROM outcome_requests WHERE lead_id = $1 AND status = 'pending'`, [leadId]
+      const { rows: pend } = await tx.execute<{ id: string }>(
+        sql`SELECT id FROM outcome_requests WHERE lead_id = ${leadId} AND status = 'pending'`
       );
       if (pend[0]) { results.push({ leadId, status: 'held', detail: 'pending approval locked — decide first' }); continue; }
-      await client.query(
-        `UPDATE leads SET owner_employee_id = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-        [leadId, input.toEmployeeId]
-      );
-      await client.query(
-        `UPDATE lead_tasks SET owner_employee_id = $2 WHERE lead_id = $1 AND status = 'open'`,
-        [leadId, input.toEmployeeId]
-      );
-      await client.query(
-        `INSERT INTO lead_ownership_events (id, lead_id, from_owner_employee_id, to_owner_employee_id, actor_employee_id, actor_role, actor_team_id, assignment_id, kind, reason, record_version)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'rebalance', $9, $10)`,
-        [id('OWN'), leadId, lead.owner_employee_id, input.toEmployeeId, scope.employeeId, scope.role, lead.team_id, scope.assignmentId,
-         `${input.reason} (handoff by ${input.handoffDeadline})`, lead.record_version]
-      );
-      await client.query(
-        `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-         VALUES ($1, $2, $3, 'assignment-changed', $4, $5, $6, $7)`,
-        [id('EVT'), leadId, scope.employeeId,
-         `Assignment notification (in-app): work rebalanced ${lead.owner_employee_id} → ${input.toEmployeeId} (${input.reason}). Open tasks moved together; original due times preserved; earlier activity stays with its actor.`,
-         scope.role, lead.team_id, scope.assignmentId]
-      );
+
+      await tx.update(leads)
+        .set({
+          ownerEmployeeId: input.toEmployeeId,
+          updatedAt: sql`now()`,
+          recordVersion: sql`record_version + 1`,
+        })
+        .where(eq(leads.id, leadId));
+
+      await tx.update(leadTasks)
+        .set({ ownerEmployeeId: input.toEmployeeId })
+        .where(sql`lead_id = ${leadId} AND status = 'open'`);
+
+      await tx.insert(leadOwnershipEvents).values({
+        id: id('OWN'),
+        leadId,
+        fromOwnerEmployeeId: lead.owner_employee_id,
+        toOwnerEmployeeId: input.toEmployeeId,
+        actorEmployeeId: scope.employeeId,
+        actorRole: scope.role,
+        actorTeamId: lead.team_id,
+        assignmentId: scope.assignmentId,
+        kind: 'rebalance',
+        reason: `${input.reason} (handoff by ${input.handoffDeadline})`,
+        recordVersion: lead.record_version,
+      });
+
+      await tx.insert(leadEvents).values({
+        id: id('EVT'),
+        leadId,
+        actorEmployeeId: scope.employeeId,
+        kind: 'assignment-changed',
+        note: `Assignment notification (in-app): work rebalanced ${lead.owner_employee_id} → ${input.toEmployeeId} (${input.reason}). Open tasks moved together; original due times preserved; earlier activity stays with its actor.`,
+        actorRole: scope.role,
+        actorTeamId: lead.team_id,
+        assignmentId: scope.assignmentId,
+      });
       results.push({ leadId, status: 'moved' });
     }
-    await client.query('COMMIT');
     return { results };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ─── TL-05 overdue resolution ───
@@ -557,20 +604,17 @@ export interface OverdueTaskRow {
 
 export async function overdueQueue(scope: Scope): Promise<{ tasks: OverdueTaskRow[] }> {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT t.id, t.lead_id, t.owner_employee_id, t.purpose, t.action, t.due_at,
-            EXTRACT(EPOCH FROM (now() - t.due_at))::int AS age_seconds,
-            l.display_name AS lead_name, e.display_name AS owner_name,
-            COALESCE((SELECT COUNT(*) FROM overdue_escalations oe WHERE oe.task_id = t.id), 0)::int AS breach_count
-       FROM lead_tasks t
-       JOIN leads l ON l.id = t.lead_id
-       LEFT JOIN employees e ON e.id = t.owner_employee_id
-      WHERE t.status = 'open' AND t.due_at < now() AND ${filter}
-      ORDER BY t.due_at ASC`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT t.id, t.lead_id, t.owner_employee_id, t.purpose, t.action, t.due_at,
+           EXTRACT(EPOCH FROM (now() - t.due_at))::int AS age_seconds,
+           l.display_name AS lead_name, e.display_name AS owner_name,
+           COALESCE((SELECT COUNT(*) FROM overdue_escalations oe WHERE oe.task_id = t.id), 0)::int AS breach_count
+      FROM lead_tasks t
+      JOIN leads l ON l.id = t.lead_id
+      LEFT JOIN employees e ON e.id = t.owner_employee_id
+     WHERE t.status = 'open' AND t.due_at < now() AND ${teamFilter(scope, 'l')}
+     ORDER BY t.due_at ASC
+  `);
   return {
     tasks: rows.map((r: any) => ({
       taskId: r.id, leadId: r.lead_id, leadName: r.lead_name,
@@ -595,76 +639,81 @@ export async function overdueAction(scope: Scope, taskId: string, input: {
   if (Number.isNaN(due.getTime())) {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', { fieldErrors: { recoveryDueAt: ['Enter a valid date and time.'] } });
   }
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const params: unknown[] = [taskId];
-    const filter = teamFilter(scope, params);
-    const { rows } = await client.query(
-      `SELECT t.*, l.team_id AS lead_team, l.display_name AS lead_name FROM lead_tasks t
-         JOIN leads l ON l.id = t.lead_id
-        WHERE t.id = $1 AND ${filter} FOR UPDATE`,
-      params
-    );
+  return await db.transaction(async (tx) => {
+    const { rows } = await tx.execute<any>(sql`
+      SELECT t.*, l.team_id AS lead_team, l.display_name AS lead_name FROM lead_tasks t
+        JOIN leads l ON l.id = t.lead_id
+       WHERE t.id = ${taskId} AND ${teamFilter(scope, 'l')} FOR UPDATE
+    `);
     const task = rows[0];
-    if (!task) { await client.query('ROLLBACK'); throw notFound(); }
+    if (!task) throw notFound();
     if (task.status !== 'open') {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'Task is no longer open — original history stays untouched.', {});
     }
-    // TL cannot erase deadlines or backdate: no update to due_at/completed_at here.
+
     let newOwner = task.owner_employee_id;
     if (input.action === 'reassign') {
       if (!input.newOwnerEmployeeId) {
-        await client.query('ROLLBACK');
         throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', { fieldErrors: { newOwnerEmployeeId: ['Choose a recipient for the handoff.'] } });
       }
-      const { rows: ok } = await client.query(
-        `SELECT id FROM assignments WHERE employee_id = $1 AND team_id = $2 AND role = 'SC'
-           AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())`,
-        [input.newOwnerEmployeeId, task.lead_team]
-      );
+      const { rows: ok } = await tx.execute<{ id: string }>(sql`
+        SELECT id FROM assignments WHERE employee_id = ${input.newOwnerEmployeeId} AND team_id = ${task.lead_team} AND role = 'SC'
+          AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())
+      `);
       if (!ok[0]) {
-        await client.query('ROLLBACK');
         throw forbidden('Handoff recipient is outside the team — permitted handoffs only.');
       }
       newOwner = input.newOwnerEmployeeId;
     }
-    const { rows: sup } = await client.query(
-      `SELECT channels FROM contact_suppressions WHERE lead_id = $1 AND active = true`, [task.lead_id]
-    );
+
+    const { rows: sup } = await tx.execute<{ channels: string[] }>(sql`
+      SELECT channels FROM contact_suppressions WHERE lead_id = ${task.lead_id} AND active = true
+    `);
     const suppressed = sup.flatMap((s: any) => s.channels);
     const recoveryTaskId = id('TASK');
-    await client.query(
-      `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'high', 'open')`,
-      [recoveryTaskId, task.lead_id, newOwner, channelEligibleForCall(suppressed) ? 'voice-call' : 'whatsapp-message',
-       `Recovery after overdue (${input.action}): ${input.reason}`, due]
-    );
-    const { rows: prev } = await client.query(`SELECT COUNT(*)::int AS n FROM overdue_escalations WHERE task_id = $1`, [taskId]);
+    await tx.insert(leadTasks).values({
+      id: recoveryTaskId,
+      leadId: task.lead_id,
+      ownerEmployeeId: newOwner,
+      action: channelEligibleForCall(suppressed) ? 'voice-call' : 'whatsapp-message',
+      purpose: `Recovery after overdue (${input.action}): ${input.reason}`,
+      dueAt: due.toISOString(),
+      priority: 'high',
+      status: 'open',
+    });
+
+    const { rows: prev } = await tx.execute<{ n: number }>(sql`
+      SELECT COUNT(*)::int AS n FROM overdue_escalations WHERE task_id = ${taskId}
+    `);
     const breachCount = (prev[0]?.n ?? 0) + 1;
     const notifyManager = breachCount >= BREACH_THRESHOLD;
-    await client.query(
-      `INSERT INTO overdue_escalations (id, task_id, lead_id, subject_employee_id, actor_employee_id, action, reason, severity, recovery_task_id, manager_notified)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [id('ESC'), taskId, task.lead_id, task.owner_employee_id, scope.employeeId, input.action, input.reason,
-       breachCount >= BREACH_THRESHOLD ? 'high' : 'medium', recoveryTaskId, notifyManager]
-    );
-    await client.query(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-       VALUES ($1, $2, $3, 'task-updated', $4, $5, $6, $7)`,
-      [id('EVT'), task.lead_id, scope.employeeId,
-       `TL overdue action (${input.action}) on ${taskId}: ${input.reason}. Recovery task ${recoveryTaskId} (due ${due.toISOString()}). Original deadline history preserved.${notifyManager ? ' Manager notified (breach threshold).' : ''}`,
-       scope.role, task.lead_team, scope.assignmentId]
-    );
-    await client.query('COMMIT');
+
+    await tx.insert(overdueEscalations).values({
+      id: id('ESC'),
+      taskId,
+      leadId: task.lead_id,
+      subjectEmployeeId: task.owner_employee_id,
+      actorEmployeeId: scope.employeeId,
+      action: input.action,
+      reason: input.reason,
+      severity: breachCount >= BREACH_THRESHOLD ? 'high' : 'medium',
+      recoveryTaskId,
+      managerNotified: notifyManager,
+    });
+
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId: task.lead_id,
+      actorEmployeeId: scope.employeeId,
+      kind: 'task-updated',
+      note: `TL overdue action (${input.action}) on ${taskId}: ${input.reason}. Recovery task ${recoveryTaskId} (due ${due.toISOString()}). Original deadline history preserved.${notifyManager ? ' Manager notified (breach threshold).' : ''}`,
+      actorRole: scope.role,
+      actorTeamId: task.lead_team,
+      assignmentId: scope.assignmentId,
+    });
+
     return { escalationId: null, recoveryTaskId, breachCount, notifyManager };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ─── TL-06 associate review (TL workspace; never the Caller interface) ───
@@ -675,38 +724,36 @@ export async function memberReview(scope: Scope, employeeId: string, period: TlP
   const member = memberRows.find((m) => m.employeeId === employeeId);
   if (!member) throw notFound();
   const start = periodStart(period);
-  const { rows: history } = await pool.query(
-    `SELECT id, team_id, role, effective_from, effective_to FROM assignments
-      WHERE employee_id = $1 AND team_id = ANY($2) ORDER BY effective_from DESC`,
-    [employeeId, scope.teams]
-  );
-  const { rows: ownEvents } = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM lead_events e
-       JOIN leads l ON l.id = e.lead_id
-      WHERE e.actor_employee_id = $1 AND e.occurred_at >= $2
-        AND l.vertical = ANY($3) AND l.team_id = ANY($4)
-        AND e.assignment_id IS NOT NULL`,
-    [employeeId, start, scope.verticals, scope.teams]
-  );
-  const { rows: inherited } = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM lead_ownership_events oe
-       JOIN leads l ON l.id = oe.lead_id
-      WHERE oe.to_owner_employee_id = $1 AND oe.kind IN ('transfer', 'rebalance')
-        AND l.vertical = ANY($2) AND l.team_id = ANY($3)`,
-    [employeeId, scope.verticals, scope.teams]
-  );
-  const { rows: coaching } = await pool.query(
-    `SELECT qr.id, qr.feedback, qr.created_at FROM call_quality_reviews qr
-       JOIN calls c ON c.id = qr.call_id
-       JOIN leads l ON l.id = c.lead_id
-      WHERE qr.subject_employee_id = $1 AND l.team_id = ANY($2) AND l.vertical = ANY($3)
-      ORDER BY qr.created_at DESC LIMIT 5`,
-    [employeeId, scope.teams, scope.verticals]
-  );
-  const { rows: training } = await pool.query(
-    `SELECT id, mentor_employee_id, work_cap, review_date, status FROM mentorships
-      WHERE intern_employee_id = $1 ORDER BY created_at DESC`, [employeeId]
-  );
+
+  const { rows: history } = await db.execute<any>(sql`
+    SELECT id, team_id, role, effective_from, effective_to FROM assignments
+     WHERE employee_id = ${employeeId} AND team_id IN (${inList(scope.teams)}) ORDER BY effective_from DESC
+  `);
+  const { rows: ownEvents } = await db.execute<{ n: number }>(sql`
+    SELECT COUNT(*)::int AS n FROM lead_events e
+      JOIN leads l ON l.id = e.lead_id
+     WHERE e.actor_employee_id = ${employeeId} AND e.occurred_at >= ${start}
+       AND ${teamFilter(scope, 'l')}
+       AND e.assignment_id IS NOT NULL
+  `);
+  const { rows: inherited } = await db.execute<{ n: number }>(sql`
+    SELECT COUNT(*)::int AS n FROM lead_ownership_events oe
+      JOIN leads l ON l.id = oe.lead_id
+     WHERE oe.to_owner_employee_id = ${employeeId} AND oe.kind IN ('transfer', 'rebalance')
+       AND ${teamFilter(scope, 'l')}
+  `);
+  const { rows: coaching } = await db.execute<any>(sql`
+    SELECT qr.id, qr.feedback, qr.created_at FROM call_quality_reviews qr
+      JOIN calls c ON c.id = qr.call_id
+      JOIN leads l ON l.id = c.lead_id
+     WHERE qr.subject_employee_id = ${employeeId} AND ${teamFilter(scope, 'l')}
+     ORDER BY qr.created_at DESC LIMIT 5
+  `);
+  const { rows: training } = await db.execute<any>(sql`
+    SELECT id, mentor_employee_id, work_cap, review_date, status FROM mentorships
+     WHERE intern_employee_id = ${employeeId} ORDER BY created_at DESC
+  `);
+
   return {
     member,
     assignmentHistory: history.map((h: any) => ({
@@ -726,24 +773,20 @@ export async function memberReview(scope: Scope, employeeId: string, period: TlP
 
 export async function listDecisions(scope: Scope) {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT r.*, l.display_name AS lead_name, l.team_id, e.display_name AS submitter_name
-       FROM outcome_requests r
-       JOIN leads l ON l.id = r.lead_id
-       LEFT JOIN employees e ON e.id = r.actor_employee_id
-      WHERE r.status = 'pending' AND ${filter}
-      ORDER BY r.created_at ASC`,
-    params
-  );
-  const { rows: dups } = await pool.query(
-    `SELECT en.id, en.display_name, en.phone, en.duplicate_of, en.status, le.display_name AS original_name
-       FROM enquiries en JOIN leads le ON le.id = en.duplicate_of
-      WHERE en.duplicate_of IS NOT NULL AND en.status = 'duplicate' AND ${filter.replace(/\bl\./g, 'le.')}
-      ORDER BY en.created_at DESC LIMIT 20`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT r.*, l.display_name AS lead_name, l.team_id, e.display_name AS submitter_name
+      FROM outcome_requests r
+      JOIN leads l ON l.id = r.lead_id
+      LEFT JOIN employees e ON e.id = r.actor_employee_id
+     WHERE r.status = 'pending' AND ${teamFilter(scope, 'l')}
+     ORDER BY r.created_at ASC
+  `);
+  const { rows: dups } = await db.execute<any>(sql`
+    SELECT en.id, en.display_name, en.phone, en.duplicate_of, en.status, le.display_name AS original_name
+      FROM enquiries en JOIN leads le ON le.id = en.duplicate_of
+     WHERE en.duplicate_of IS NOT NULL AND en.status = 'duplicate' AND ${teamFilter(scope, 'le')}
+     ORDER BY en.created_at DESC LIMIT 20
+  `);
   return {
     requests: rows.map((r: any) => ({
       id: r.id, type: r.type, leadId: r.lead_id, leadName: r.lead_name,
@@ -758,28 +801,32 @@ export async function listDecisions(scope: Scope) {
 
 export async function duplicateDisposition(scope: Scope, enquiryId: string, decision: 'confirm-separate' | 'route-merge') {
   assertTl(scope);
-  const params: unknown[] = [enquiryId];
-  const filter = teamFilter(scope, params, 'le');
-  const { rows } = await pool.query(
-    `SELECT en.* FROM enquiries en JOIN leads le ON le.id = en.duplicate_of WHERE en.id = $1 AND ${filter}`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT en.* FROM enquiries en JOIN leads le ON le.id = en.duplicate_of WHERE en.id = ${enquiryId} AND ${teamFilter(scope, 'le')}
+  `);
   const enq = rows[0];
   if (!enq) throw notFound();
   if (decision === 'confirm-separate') {
-    await pool.query(`UPDATE enquiries SET duplicate_of = NULL, status = 'pending' WHERE id = $1`, [enquiryId]);
+    await db.update(enquiries)
+      .set({ duplicateOf: null, status: 'pending' })
+      .where(eq(enquiries.id, enquiryId));
     return { status: 'confirmed-separate', note: 'Distinct records confirmed — IDs and source links retained.' };
   }
   // Merge authority is separate: route a review reference to the data steward — never collapse records here.
   const reqId = id('REQ');
-  await pool.query(
-    `INSERT INTO team_requests (id, team_id, actor_employee_id, category, payload, status)
-     VALUES ($1, $2, $3, 'merge-request', $4, 'pending')`,
-    [reqId, null, scope.employeeId,
-     JSON.stringify({ enquiryId, duplicateOf: enq.duplicate_of,
-       request: `Identity merge review for ${enq.id}`,
-       businessReason: 'Match-review reference only — no customer record shared across verticals.' })]
-  );
+  await db.insert(teamRequests).values({
+    id: reqId,
+    teamId: null,
+    actorEmployeeId: scope.employeeId,
+    category: 'merge-request',
+    payload: {
+      enquiryId,
+      duplicateOf: enq.duplicate_of,
+      request: `Identity merge review for ${enq.id}`,
+      businessReason: 'Match-review reference only — no customer record shared across verticals.',
+    },
+    status: 'pending',
+  });
   return { status: 'merge-requested', requestId: reqId, note: 'Routed to the data steward as a match-review reference. Records are not collapsed.' };
 }
 
@@ -793,13 +840,10 @@ export async function createQualityReview(scope: Scope, input: {
   callId: string; scores: Record<string, number>; feedback: string; evidenceRef?: string; assessed?: boolean;
 }) {
   assertTl(scope);
-  const params: unknown[] = [input.callId];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT c.*, l.team_id AS lead_team FROM calls c JOIN leads l ON l.id = c.lead_id
-      WHERE c.id = $1 AND ${filter}`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT c.*, l.team_id AS lead_team FROM calls c JOIN leads l ON l.id = c.lead_id
+     WHERE c.id = ${input.callId} AND ${teamFilter(scope, 'l')}
+  `);
   const call = rows[0];
   if (!call) throw notFound();
   const cleanScores: Record<string, number> = {};
@@ -807,34 +851,35 @@ export async function createQualityReview(scope: Scope, input: {
     const v = input.scores[key];
     if (typeof v === 'number' && v >= 0 && v <= 5) cleanScores[key] = v;
   }
-  // Missing/unavailable recording evidence -> unassessed; never invent a score from call duration alone.
   const assessed = input.assessed !== false && Boolean(input.evidenceRef);
   if (assessed && Object.keys(cleanScores).length === 0) {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', { fieldErrors: { scores: ['Score the approved rubric.'] } });
   }
   const reviewId = id('QR');
-  await pool.query(
-    `INSERT INTO call_quality_reviews (id, call_id, actor_employee_id, subject_employee_id, rubric_version, scores, feedback, evidence_ref, assessed)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [reviewId, input.callId, scope.employeeId, call.actor_employee_id, RUBRIC_VERSION,
-     JSON.stringify(cleanScores), input.feedback, input.evidenceRef ?? null, assessed]
-  );
+  await db.insert(callQualityReviews).values({
+    id: reviewId,
+    callId: input.callId,
+    actorEmployeeId: scope.employeeId,
+    subjectEmployeeId: call.actor_employee_id,
+    rubricVersion: RUBRIC_VERSION,
+    scores: cleanScores,
+    feedback: input.feedback,
+    evidenceRef: input.evidenceRef ?? null,
+    assessed,
+  });
   return { reviewId, assessed, rubricVersion: RUBRIC_VERSION, sampleNote: 'Quality samples are reported with sample size — small samples do not imply full coverage.' };
 }
 
 export async function listQualityReviews(scope: Scope) {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT qr.*, c.lead_id, e.display_name AS subject_name
-       FROM call_quality_reviews qr
-       JOIN calls c ON c.id = qr.call_id
-       JOIN leads l ON l.id = c.lead_id
-       LEFT JOIN employees e ON e.id = qr.subject_employee_id
-      WHERE ${filter} ORDER BY qr.created_at DESC LIMIT 50`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT qr.*, c.lead_id, e.display_name AS subject_name
+      FROM call_quality_reviews qr
+      JOIN calls c ON c.id = qr.call_id
+      JOIN leads l ON l.id = c.lead_id
+      LEFT JOIN employees e ON e.id = qr.subject_employee_id
+     WHERE ${teamFilter(scope, 'l')} ORDER BY qr.created_at DESC LIMIT 50
+  `);
   return {
     reviews: rows.map((r: any) => ({
       id: r.id, callId: r.call_id, leadId: r.lead_id, subjectName: r.subject_name ?? '—',
@@ -846,21 +891,20 @@ export async function listQualityReviews(scope: Scope) {
 
 export async function accessEvidence(scope: Scope, reviewId: string) {
   assertTl(scope);
-  const params: unknown[] = [reviewId];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT qr.* FROM call_quality_reviews qr
-       JOIN calls c ON c.id = qr.call_id
-       JOIN leads l ON l.id = c.lead_id
-      WHERE qr.id = $1 AND ${filter}`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT qr.* FROM call_quality_reviews qr
+      JOIN calls c ON c.id = qr.call_id
+      JOIN leads l ON l.id = c.lead_id
+     WHERE qr.id = ${reviewId} AND ${teamFilter(scope, 'l')}
+  `);
   const review = rows[0];
   if (!review) throw notFound();
-  await pool.query(
-    `INSERT INTO evidence_access_log (id, review_id, actor_employee_id, action) VALUES ($1, $2, $3, 'view-evidence')`,
-    [id('EAL'), reviewId, scope.employeeId]
-  );
+  await db.insert(evidenceAccessLog).values({
+    id: id('EAL'),
+    reviewId,
+    actorEmployeeId: scope.employeeId,
+    action: 'view-evidence',
+  });
   return {
     evidenceRef: review.evidence_ref,
     simulated: true,
@@ -870,7 +914,6 @@ export async function accessEvidence(scope: Scope, reviewId: string) {
 
 // ─── TL-18 documented activity corrections (append-only) ───
 
-// Column-truthful allowed values (mirrors the DB CHECK constraints).
 const CORRECTION_FIELDS: Record<string, { column: string; allowed?: string[] }> = {
   wrapup_disposition: { column: 'wrapup_disposition', allowed: ['connected', 'no-answer', 'busy', 'wrong-number', 'callback'] },
   status: { column: 'status', allowed: ['connecting', 'ringing', 'connected', 'ended', 'failed', 'no-answer', 'missed'] },
@@ -891,12 +934,9 @@ export async function submitActivityCorrection(scope: Scope, input: {
       fieldErrors: { requestedValue: [`Allowed: ${fieldSpec.allowed.join(', ')}.`] },
     });
   }
-  const params: unknown[] = [input.callId];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT c.*, l.team_id AS lead_team FROM calls c JOIN leads l ON l.id = c.lead_id WHERE c.id = $1 AND ${filter}`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT c.*, l.team_id AS lead_team FROM calls c JOIN leads l ON l.id = c.lead_id WHERE c.id = ${input.callId} AND ${teamFilter(scope, 'l')}
+  `);
   const call = rows[0];
   if (!call) throw notFound();
   if (scope.role !== 'TL' && call.actor_employee_id !== scope.employeeId) {
@@ -904,28 +944,30 @@ export async function submitActivityCorrection(scope: Scope, input: {
   }
   const originalValue = String((call as any)[fieldSpec.column] ?? '');
   const correctionId = id('COR');
-  await pool.query(
-    `INSERT INTO activity_corrections (id, call_id, actor_employee_id, requested_field, requested_value, original_value, evidence_ref, explanation, affected_report_versions)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [correctionId, input.callId, scope.employeeId, fieldSpec.column, input.requestedValue,
-     originalValue, input.evidenceRef ?? null, input.explanation, JSON.stringify(['tl-metrics-v1', 'metrics-v1'])]
-  );
+  await db.insert(activityCorrections).values({
+    id: correctionId,
+    callId: input.callId,
+    actorEmployeeId: scope.employeeId,
+    requestedField: fieldSpec.column,
+    requestedValue: input.requestedValue,
+    originalValue,
+    evidenceRef: input.evidenceRef ?? null,
+    explanation: input.explanation,
+    affectedReportVersions: ['tl-metrics-v1', 'metrics-v1'],
+  });
   return { correctionId, status: 'pending' as const, originalValue, note: 'Provider truth cannot be overridden without supporting evidence.' };
 }
 
 export async function listActivityCorrections(scope: Scope) {
   assertTl(scope);
-  const params: unknown[] = [];
-  const filter = teamFilter(scope, params);
-  const { rows } = await pool.query(
-    `SELECT ac.*, c.lead_id, e.display_name AS submitter_name
-       FROM activity_corrections ac
-       JOIN calls c ON c.id = ac.call_id
-       JOIN leads l ON l.id = c.lead_id
-       LEFT JOIN employees e ON e.id = ac.actor_employee_id
-      WHERE ${filter} ORDER BY ac.created_at DESC LIMIT 50`,
-    params
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT ac.*, c.lead_id, e.display_name AS submitter_name
+      FROM activity_corrections ac
+      JOIN calls c ON c.id = ac.call_id
+      JOIN leads l ON l.id = c.lead_id
+      LEFT JOIN employees e ON e.id = ac.actor_employee_id
+     WHERE ${teamFilter(scope, 'l')} ORDER BY ac.created_at DESC LIMIT 50
+  `);
   return {
     corrections: rows.map((r: any) => ({
       id: r.id, callId: r.call_id, leadId: r.lead_id, submitterName: r.submitter_name ?? '—',
@@ -945,27 +987,20 @@ export async function decideActivityCorrection(
   evidence?: Record<string, unknown>
 ) {
   assertTl(scope);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const lookupParams: unknown[] = [correctionId];
-    const lookupFilter = teamFilter(scope, lookupParams);
-    const { rows } = await client.query(
-      `SELECT ac.*, c.lead_id AS call_lead_id, l.team_id AS lead_team
-         FROM activity_corrections ac
-         JOIN calls c ON c.id = ac.call_id
-         JOIN leads l ON l.id = c.lead_id
-        WHERE ac.id = $1 AND ${lookupFilter} FOR UPDATE OF ac`,
-      lookupParams
-    );
+  return await db.transaction(async (tx) => {
+    const { rows } = await tx.execute<any>(sql`
+      SELECT ac.*, c.lead_id AS call_lead_id, l.team_id AS lead_team
+        FROM activity_corrections ac
+        JOIN calls c ON c.id = ac.call_id
+        JOIN leads l ON l.id = c.lead_id
+       WHERE ac.id = ${correctionId} AND ${teamFilter(scope, 'l')} FOR UPDATE OF ac
+    `);
     const cor = rows[0];
-    if (!cor) { await client.query('ROLLBACK'); throw notFound(); }
+    if (!cor) throw notFound();
     if (cor.actor_employee_id === scope.employeeId) {
-      await client.query('ROLLBACK');
       throw forbidden('Self-submitted corrections are decided by Manager — not by their author.');
     }
     if (cor.status !== 'pending') {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', `Correction already ${cor.status}.`);
     }
 
@@ -978,40 +1013,43 @@ export async function decideActivityCorrection(
       resolvedStatus = 'rejected';
     }
 
-    await client.query(
-      `UPDATE activity_corrections SET status = $2, decided_by = $3, decision_reason = $4, decision_evidence = $5, decided_at = now() WHERE id = $1`,
-      [correctionId, resolvedStatus, scope.employeeId, reason, JSON.stringify(evidence ?? {})]
-    );
+    await tx.update(activityCorrections)
+      .set({
+        status: resolvedStatus,
+        decidedBy: scope.employeeId,
+        decisionReason: reason,
+        decisionEvidence: evidence ?? {},
+        decidedAt: sql`now()`,
+      })
+      .where(eq(activityCorrections.id, correctionId));
+
     if (resolvedStatus === 'accepted') {
-      // Append-only: original fact reference retained on the correction row; the live fact is annotated, never deleted.
-      await client.query(
-        `UPDATE calls SET ${cor.requested_field} = $1 WHERE id = $2`,
-        [cor.requested_value, cor.call_id]
-      );
-      await client.query(
-        `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-         VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-        [id('EVT'), cor.call_lead_id, scope.employeeId,
-         `Activity correction accepted (${cor.requested_field}): "${cor.original_value}" → "${cor.requested_value}" (${reason}). Original fact retained on ${correctionId}; affected report versions flagged.`,
-         scope.role, cor.lead_team, scope.assignmentId]
-      );
+      await tx.execute(sql`UPDATE calls SET ${sql.raw(cor.requested_field)} = ${cor.requested_value} WHERE id = ${cor.call_id}`);
+      await tx.insert(leadEvents).values({
+        id: id('EVT'),
+        leadId: cor.call_lead_id,
+        actorEmployeeId: scope.employeeId,
+        kind: 'note',
+        note: `Activity correction accepted (${cor.requested_field}): "${cor.original_value}" → "${cor.requested_value}" (${reason}). Original fact retained on ${correctionId}; affected report versions flagged.`,
+        actorRole: scope.role,
+        actorTeamId: cor.lead_team,
+        assignmentId: scope.assignmentId,
+      });
     } else {
-      await client.query(
-        `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-         VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-        [id('EVT'), cor.call_lead_id, scope.employeeId,
-         `Activity correction ${resolvedStatus} (${cor.requested_field}): ${reason}. Original fact retained on ${correctionId}.`,
-         scope.role, cor.lead_team, scope.assignmentId]
-      );
+      await tx.insert(leadEvents).values({
+        id: id('EVT'),
+        leadId: cor.call_lead_id,
+        actorEmployeeId: scope.employeeId,
+        kind: 'note',
+        note: `Activity correction ${resolvedStatus} (${cor.requested_field}): ${reason}. Original fact retained on ${correctionId}.`,
+        actorRole: scope.role,
+        actorTeamId: cor.lead_team,
+        assignmentId: scope.assignmentId,
+      });
     }
-    await client.query('COMMIT');
+
     return { correctionId, status: resolvedStatus, affectedReportVersions: cor.affected_report_versions };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ─── TL-10 target distribution ───
@@ -1023,13 +1061,16 @@ export async function createTarget(scope: Scope, input: {
   if (!scope.teams.includes(input.teamId)) throw notFound();
   const targetId = id('TGT');
   try {
-    await pool.query(
-      `INSERT INTO team_targets (id, team_id, period_label, metric, parent_value, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [targetId, input.teamId, input.periodLabel, input.metric, input.parentValue, scope.employeeId]
-    );
+    await db.insert(teamTargets).values({
+      id: targetId,
+      teamId: input.teamId,
+      periodLabel: input.periodLabel,
+      metric: input.metric,
+      parentValue: String(input.parentValue),
+      createdBy: scope.employeeId,
+    });
   } catch (err: any) {
-    if (err?.code === '23505') {
+    if (err?.code === '23505' || err?.cause?.code === '23505') {
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'An approved target already exists for this team, period and metric.', {});
     }
     throw err;
@@ -1041,32 +1082,26 @@ export async function allocateTargets(scope: Scope, targetId: string, input: {
   allocations: Array<{ employeeId: string; allocatedValue: number; prorateNote?: string }>;
 }) {
   assertTl(scope);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(`SELECT * FROM team_targets WHERE id = $1 FOR UPDATE`, [targetId]);
+  return await db.transaction(async (tx) => {
+    const { rows } = await tx.execute<any>(sql`SELECT * FROM team_targets WHERE id = ${targetId} FOR UPDATE`);
     const target = rows[0];
-    if (!target) { await client.query('ROLLBACK'); throw notFound(); }
-    if (!scope.teams.includes(target.team_id)) { await client.query('ROLLBACK'); throw notFound(); }
+    if (!target) throw notFound();
+    if (!scope.teams.includes(target.team_id)) throw notFound();
     if (target.closed) {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'Closed periods cannot be silently changed — request a Manager adjustment.', {});
     }
     const total = input.allocations.reduce((a, b) => a + b.allocatedValue, 0);
     if (total > Number(target.parent_value)) {
-      await client.query('ROLLBACK');
       throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
         fieldErrors: { allocations: [`Allocations ${total} exceed the parent target ${target.parent_value}.`] },
       });
     }
     for (const alloc of input.allocations) {
-      const { rows: ok } = await client.query(
-        `SELECT id FROM assignments WHERE employee_id = $1 AND team_id = $2
-           AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())`,
-        [alloc.employeeId, target.team_id]
-      );
+      const { rows: ok } = await tx.execute<{ id: string }>(sql`
+        SELECT id FROM assignments WHERE employee_id = ${alloc.employeeId} AND team_id = ${target.team_id}
+          AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())
+      `);
       if (!ok[0]) {
-        await client.query('ROLLBACK');
         throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
           fieldErrors: { allocations: [`Employee ${alloc.employeeId} is not a member of this team.`] },
         });
@@ -1074,42 +1109,38 @@ export async function allocateTargets(scope: Scope, targetId: string, input: {
     }
     const version = target.version + 1;
     for (const alloc of input.allocations) {
-      await client.query(
-        `INSERT INTO target_allocations (id, target_id, employee_id, allocated_value, prorate_note, version)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id('TAL'), targetId, alloc.employeeId, alloc.allocatedValue, alloc.prorateNote ?? null, version]
-      );
+      await tx.insert(targetAllocations).values({
+        id: id('TAL'),
+        targetId,
+        employeeId: alloc.employeeId,
+        allocatedValue: String(alloc.allocatedValue),
+        prorateNote: alloc.prorateNote ?? null,
+        version,
+      });
     }
-    await client.query(`UPDATE team_targets SET version = $2 WHERE id = $1`, [targetId, version]);
-    await client.query('COMMIT');
+    await tx.update(teamTargets).set({ version }).where(eq(teamTargets.id, targetId));
+
     return {
       targetId, version,
       allocated: total,
       remainder: Number(target.parent_value) - total,
       note: 'Versioned allocation published to affected employees. Transfer prorating preserved on each row.',
     };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function listTargets(scope: Scope) {
   assertTl(scope);
-  const { rows } = await pool.query(
-    `SELECT t.*, tm.name AS team_name FROM team_targets t JOIN teams tm ON tm.id = t.team_id
-      WHERE t.team_id = ANY($1) ORDER BY t.created_at DESC`,
-    [scope.teams]
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT t.*, tm.name AS team_name FROM team_targets t JOIN teams tm ON tm.id = t.team_id
+     WHERE t.team_id IN (${inList(scope.teams)}) ORDER BY t.created_at DESC
+  `);
   const result = [];
   for (const t of rows) {
-    const { rows: allocs } = await pool.query(
-      `SELECT a.*, e.display_name FROM target_allocations a JOIN employees e ON e.id = a.employee_id
-        WHERE a.target_id = $1 AND a.version = $2`,
-      [t.id, t.version]
-    );
+    const { rows: allocs } = await db.execute<any>(sql`
+      SELECT a.*, e.display_name FROM target_allocations a JOIN employees e ON e.id = a.employee_id
+       WHERE a.target_id = ${t.id} AND a.version = ${t.version}
+    `);
     const allocated = allocs.reduce((a: number, b: any) => a + Number(b.allocated_value), 0);
     result.push({
       id: t.id, teamId: t.team_id, teamName: t.team_name, periodLabel: t.period_label,
@@ -1133,30 +1164,35 @@ export async function submitForecast(scope: Scope, input: {
   assertTl(scope);
   if (!scope.teams.includes(input.teamId)) throw notFound();
   if (input.opportunityIds.length > 0) {
-    const params: unknown[] = [input.opportunityIds, input.teamId, scope.verticals];
-    const { rows } = await pool.query(
-      `SELECT id FROM leads WHERE id = ANY($1) AND team_id = $2 AND vertical = ANY($3)`, params
-    );
+    const { rows } = await db.execute<{ id: string }>(sql`
+      SELECT id FROM leads WHERE id IN (${inList(input.opportunityIds)}) AND team_id = ${input.teamId} AND vertical IN (${inList(scope.verticals)})
+    `);
     if (rows.length !== new Set(input.opportunityIds).size) {
       throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
         fieldErrors: { opportunityIds: ['Every supporting opportunity must be in your team scope.'] },
       });
     }
   }
-  const { rows: ver } = await pool.query(
-    `SELECT COALESCE(MAX(version), 0) AS v FROM team_forecasts
-      WHERE team_id = $1 AND period_label = $2 AND category = $3`,
-    [input.teamId, input.periodLabel, input.category]
-  );
+  const { rows: ver } = await db.execute<any>(sql`
+    SELECT COALESCE(MAX(version), 0) AS v FROM team_forecasts
+     WHERE team_id = ${input.teamId} AND period_label = ${input.periodLabel} AND category = ${input.category}
+  `);
   const version = Number(ver[0].v) + 1;
   const forecastId = id('FC');
-  await pool.query(
-    `INSERT INTO team_forecasts (id, team_id, period_label, category, expected_revenue, currency, opportunity_ids, risk_notes, assumptions, status, version, actor_employee_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-    [forecastId, input.teamId, input.periodLabel, input.category, input.expectedRevenue, input.currency,
-     JSON.stringify(input.opportunityIds), input.riskNotes ?? null, input.assumptions ?? null,
-     version > 1 ? 'revised' : 'submitted', version, scope.employeeId]
-  );
+  await db.insert(teamForecasts).values({
+    id: forecastId,
+    teamId: input.teamId,
+    periodLabel: input.periodLabel,
+    category: input.category,
+    expectedRevenue: String(input.expectedRevenue),
+    currency: input.currency,
+    opportunityIds: input.opportunityIds,
+    riskNotes: input.riskNotes ?? null,
+    assumptions: input.assumptions ?? null,
+    status: version > 1 ? 'revised' : 'submitted',
+    version,
+    actorEmployeeId: scope.employeeId,
+  });
   return {
     forecastId, version, status: version > 1 ? 'revised' : 'submitted',
     note: 'Forecast version frozen with supporting opportunity IDs. Won value stays separate from expected revenue.',
@@ -1165,12 +1201,11 @@ export async function submitForecast(scope: Scope, input: {
 
 export async function listForecasts(scope: Scope) {
   assertTl(scope);
-  const { rows } = await pool.query(
-    `SELECT f.*, e.display_name AS submitter_name FROM team_forecasts f
+  const { rows } = await db.execute<any>(sql`
+    SELECT f.*, e.display_name AS submitter_name FROM team_forecasts f
       LEFT JOIN employees e ON e.id = f.actor_employee_id
-      WHERE f.team_id = ANY($1) ORDER BY f.submitted_at DESC LIMIT 50`,
-    [scope.teams]
-  );
+     WHERE f.team_id IN (${inList(scope.teams)}) ORDER BY f.submitted_at DESC LIMIT 50
+  `);
   return {
     forecasts: rows.map((f: any) => ({
       id: f.id, teamId: f.team_id, periodLabel: f.period_label, category: f.category,
@@ -1196,11 +1231,16 @@ export async function createOneToOne(scope: Scope, input: {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', { fieldErrors: { scheduledAt: ['Enter a valid date and time.'] } });
   }
   const reviewId = id('REV');
-  await pool.query(
-    `INSERT INTO reviews (id, employee_id, reviewer_employee_id, period, scorecard, agenda, snapshot_version, scheduled_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 1, $7)`,
-    [reviewId, input.employeeId, scope.employeeId, input.periodLabel, JSON.stringify({}), input.agenda, when]
-  );
+  await db.insert(reviews).values({
+    id: reviewId,
+    employeeId: input.employeeId,
+    reviewerEmployeeId: scope.employeeId,
+    period: input.periodLabel,
+    scorecard: {},
+    agenda: input.agenda,
+    snapshotVersion: 1,
+    scheduledAt: when.toISOString(),
+  });
   return { reviewId, snapshotVersion: 1, note: 'Meeting snapshot frozen at creation. Employee disagreement remains recorded; a missing response never implies agreement.' };
 }
 
@@ -1208,59 +1248,58 @@ export async function completeOneToOne(scope: Scope, reviewId: string, input: {
   feedback: string; privateNotes?: string; commitments: Array<{ text: string; dueAt: string }>; disagreement?: string;
 }) {
   assertTl(scope);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(`SELECT * FROM reviews WHERE id = $1 FOR UPDATE`, [reviewId]);
+  return await db.transaction(async (tx) => {
+    const { rows } = await tx.execute<any>(sql`SELECT * FROM reviews WHERE id = ${reviewId} FOR UPDATE`);
     const review = rows[0];
     if (!review || review.reviewer_employee_id !== scope.employeeId) {
-      await client.query('ROLLBACK');
       throw notFound();
     }
-    const { rows: leads } = await client.query(
-      `SELECT id FROM leads WHERE owner_employee_id = $1 AND team_id = ANY($2) AND stage NOT IN ('converted', 'lost') ORDER BY created_at LIMIT 1`,
-      [review.employee_id, scope.teams]
-    );
-    await client.query(
-      `UPDATE reviews SET scorecard = $2, private_notes = $3, disagreement = COALESCE($4, disagreement), snapshot_version = snapshot_version + 1 WHERE id = $1`,
-      [reviewId, JSON.stringify({ feedback: input.feedback, commitments: input.commitments }),
-       input.privateNotes ?? null, input.disagreement ?? null]
-    );
+    const { rows: leadRows } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM leads WHERE owner_employee_id = ${review.employee_id} AND team_id IN (${inList(scope.teams)}) AND stage NOT IN ('converted', 'lost') ORDER BY created_at LIMIT 1
+    `);
+
+    await tx.update(reviews)
+      .set({
+        scorecard: { feedback: input.feedback, commitments: input.commitments },
+        privateNotes: input.privateNotes ?? null,
+        disagreement: input.disagreement ?? review.disagreement,
+        snapshotVersion: sql`snapshot_version + 1`,
+      })
+      .where(eq(reviews.id, reviewId));
+
     const taskIds: string[] = [];
     for (const c of input.commitments) {
       const due = new Date(c.dueAt);
       if (Number.isNaN(due.getTime())) continue;
-      if (!leads[0]) continue;
+      if (!leadRows[0]) continue;
       const taskId = id('TASK');
-      // [ASSUMPTION] demo mapping: commitment tasks attach to the member's oldest open lead.
-      await client.query(
-        `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-         VALUES ($1, $2, $3, 'other', $4, $5, 'normal', 'open')`,
-        [taskId, leads[0].id, review.employee_id, `One-to-one commitment: ${c.text}`, due]
-      );
+      await tx.insert(leadTasks).values({
+        id: taskId,
+        leadId: leadRows[0].id,
+        ownerEmployeeId: review.employee_id,
+        action: 'other',
+        purpose: `One-to-one commitment: ${c.text}`,
+        dueAt: due.toISOString(),
+        priority: 'normal',
+        status: 'open',
+      });
       taskIds.push(taskId);
     }
-    await client.query('COMMIT');
+
     return { reviewId, commitmentTaskIds: taskIds, snapshotVersion: review.snapshot_version + 1, note: 'Commitments tracked to completion; acknowledgement ≠ agreement.' };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function listOneToOnes(scope: Scope) {
   assertTl(scope);
-  const { rows } = await pool.query(
-    `SELECT r.*, e.display_name AS employee_name FROM reviews r
+  const { rows } = await db.execute<any>(sql`
+    SELECT r.*, e.display_name AS employee_name FROM reviews r
       LEFT JOIN employees e ON e.id = r.employee_id
-      WHERE (r.reviewer_employee_id = $1 OR r.reviewer_employee_id IN (
-              SELECT employee_id FROM assignments WHERE team_id = ANY($2)
-                AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())))
-      ORDER BY r.scheduled_at DESC NULLS LAST LIMIT 50`,
-    [scope.employeeId, scope.teams]
-  );
+     WHERE (r.reviewer_employee_id = ${scope.employeeId} OR r.reviewer_employee_id IN (
+             SELECT employee_id FROM assignments WHERE team_id IN (${inList(scope.teams)})
+               AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())))
+     ORDER BY r.scheduled_at DESC NULLS LAST LIMIT 50
+  `);
   return {
     reviews: rows.map((r: any) => ({
       id: r.id, employeeId: r.employee_id, employeeName: r.employee_name ?? '—',
@@ -1293,12 +1332,15 @@ export async function createMentorship(scope: Scope, input: {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', { fieldErrors: { reviewDate: ['Enter a valid date.'] } });
   }
   const mentorshipId = id('MEN');
-  await pool.query(
-    `INSERT INTO mentorships (id, intern_employee_id, mentor_employee_id, work_cap, allowed_products, review_date, granted_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [mentorshipId, input.internEmployeeId, input.mentorEmployeeId, input.workCap,
-     JSON.stringify(input.allowedProducts), reviewDate, scope.employeeId]
-  );
+  await db.insert(mentorships).values({
+    id: mentorshipId,
+    internEmployeeId: input.internEmployeeId,
+    mentorEmployeeId: input.mentorEmployeeId,
+    workCap: input.workCap,
+    allowedProducts: input.allowedProducts,
+    reviewDate: input.reviewDate,
+    grantedBy: scope.employeeId,
+  });
   return {
     mentorshipId,
     note: 'TL allocates work but grants no roles. Mentor visibility is scoped and dated; permission expansion is an HR/Super Admin request.',
@@ -1307,21 +1349,20 @@ export async function createMentorship(scope: Scope, input: {
 
 export async function listMentorships(scope: Scope) {
   assertTl(scope);
-  await pool.query(
-    `UPDATE mentorships SET status = 'expired' WHERE status = 'active' AND review_date IS NOT NULL AND review_date < CURRENT_DATE`
-  );
-  const { rows } = await pool.query(
-    `SELECT m.*, ei.display_name AS intern_name, em.display_name AS mentor_name
-       FROM mentorships m
-       LEFT JOIN employees ei ON ei.id = m.intern_employee_id
-       LEFT JOIN employees em ON em.id = m.mentor_employee_id
-      WHERE m.intern_employee_id IN (
-              SELECT employee_id FROM assignments WHERE team_id = ANY($1)
-                AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now()))
-         OR m.mentor_employee_id = $2
-      ORDER BY m.created_at DESC LIMIT 50`,
-    [scope.teams, scope.employeeId]
-  );
+  await db.execute(sql`
+    UPDATE mentorships SET status = 'expired' WHERE status = 'active' AND review_date IS NOT NULL AND review_date < CURRENT_DATE
+  `);
+  const { rows } = await db.execute<any>(sql`
+    SELECT m.*, ei.display_name AS intern_name, em.display_name AS mentor_name
+      FROM mentorships m
+      LEFT JOIN employees ei ON ei.id = m.intern_employee_id
+      LEFT JOIN employees em ON em.id = m.mentor_employee_id
+     WHERE m.intern_employee_id IN (
+             SELECT employee_id FROM assignments WHERE team_id IN (${inList(scope.teams)})
+               AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now()))
+        OR m.mentor_employee_id = ${scope.employeeId}
+     ORDER BY m.created_at DESC LIMIT 50
+  `);
   return {
     mentorships: rows.map((m: any) => ({
       id: m.id, internEmployeeId: m.intern_employee_id, internName: m.intern_name ?? '—',
@@ -1343,24 +1384,26 @@ export async function createTeamRequest(scope: Scope, input: {
   assertTl(scope);
   if (input.teamId && !scope.teams.includes(input.teamId)) throw notFound();
   if (input.leadId) {
-    const params: unknown[] = [input.leadId];
-    const filter = teamFilter(scope, params);
-    const { rows } = await pool.query(`SELECT id FROM leads l WHERE l.id = $1 AND ${filter}`, params);
+    const { rows } = await db.execute<{ id: string }>(sql`SELECT id FROM leads l WHERE l.id = ${input.leadId} AND ${teamFilter(scope, 'l')}`);
     if (!rows[0]) throw notFound();
   }
   const requestId = id('TREQ');
   const dueAt = new Date(Date.now() + 3 * 86_400_000);
-  await pool.query(
-    `INSERT INTO team_requests (id, team_id, actor_employee_id, category, subject_employee_id, lead_id, severity, payload, due_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [requestId, input.teamId ?? null, scope.employeeId, input.category,
-     input.subjectEmployeeId ?? null, input.leadId ?? null, input.severity ?? 'medium',
-     JSON.stringify({
-       request: input.request, businessReason: input.businessReason,
-       effectiveDate: input.effectiveDate ?? null, impact: input.impact ?? null,
-       requestedDecision: input.requestedDecision ?? null,
-     }), dueAt]
-  );
+  await db.insert(teamRequests).values({
+    id: requestId,
+    teamId: input.teamId ?? null,
+    actorEmployeeId: scope.employeeId,
+    category: input.category,
+    subjectEmployeeId: input.subjectEmployeeId ?? null,
+    leadId: input.leadId ?? null,
+    severity: input.severity ?? 'medium',
+    payload: {
+      request: input.request, businessReason: input.businessReason,
+      effectiveDate: input.effectiveDate ?? null, impact: input.impact ?? null,
+      requestedDecision: input.requestedDecision ?? null,
+    },
+    dueAt: dueAt.toISOString(),
+  });
   return {
     requestId, status: 'pending' as const,
     note: 'Requesting a change grants no access. Manager/HR approval and admin execution remain separate; a rejection leaves assignments unchanged.',
@@ -1369,16 +1412,15 @@ export async function createTeamRequest(scope: Scope, input: {
 
 export async function listTeamRequests(scope: Scope) {
   assertTl(scope);
-  const { rows } = await pool.query(
-    `SELECT tr.*, e.display_name AS actor_name, l.display_name AS lead_name
-       FROM team_requests tr
-       LEFT JOIN employees e ON e.id = tr.actor_employee_id
-       LEFT JOIN leads l ON l.id = tr.lead_id
-      WHERE (tr.actor_employee_id = $1 OR tr.team_id = ANY($2)
-             OR (tr.category = 'merge-request' AND tr.actor_employee_id = $1))
-      ORDER BY tr.created_at DESC LIMIT 50`,
-    [scope.employeeId, scope.teams]
-  );
+  const { rows } = await db.execute<any>(sql`
+    SELECT tr.*, e.display_name AS actor_name, l.display_name AS lead_name
+      FROM team_requests tr
+      LEFT JOIN employees e ON e.id = tr.actor_employee_id
+      LEFT JOIN leads l ON l.id = tr.lead_id
+     WHERE (tr.actor_employee_id = ${scope.employeeId} OR tr.team_id IN (${inList(scope.teams)})
+            OR (tr.category = 'merge-request' AND tr.actor_employee_id = ${scope.employeeId}))
+     ORDER BY tr.created_at DESC LIMIT 50
+  `);
   return {
     requests: rows.map((r: any) => ({
       id: r.id, category: r.category, status: r.status, severity: r.severity,
@@ -1401,18 +1443,17 @@ export async function createTeamPack(scope: Scope, input: { teamIds: string[]; p
   const { resolve, dirname } = await import('node:path');
   const EXPORT_ROOT = resolve(__dirname, '../../../.uploads/exports');
   const members = (await teamMembers(scope)).filter((m) => m.teamIds.some((t) => teamIds.includes(t)));
-  const params: unknown[] = [teamIds];
-  const { rows: totals } = await pool.query(
-    `SELECT COUNT(*)::int AS active_leads,
-            COUNT(*) FILTER (WHERE stage = 'converted')::int AS wins,
-            COUNT(*) FILTER (WHERE stage = 'lost')::int AS losses
-       FROM leads WHERE team_id = ANY($1) AND vertical = ANY($2)`,
-    [teamIds, scope.verticals]
-  );
-  const { rows: targets } = await pool.query(
-    `SELECT period_label, metric, parent_value, version FROM team_targets
-      WHERE team_id = ANY($1) ORDER BY created_at DESC LIMIT 6`, [teamIds]
-  );
+
+  const { rows: totals } = await db.execute<any>(sql`
+    SELECT COUNT(*)::int AS active_leads,
+           COUNT(*) FILTER (WHERE stage = 'converted')::int AS wins,
+           COUNT(*) FILTER (WHERE stage = 'lost')::int AS losses
+      FROM leads WHERE team_id IN (${inList(teamIds)}) AND vertical IN (${inList(scope.verticals)})
+  `);
+  const { rows: targets } = await db.execute<any>(sql`
+    SELECT period_label, metric, parent_value, version FROM team_targets
+     WHERE team_id IN (${inList(teamIds)}) ORDER BY created_at DESC LIMIT 6
+  `);
   const now = new Date();
   const periodStart = input.period === 'week'
     ? new Date(now.getTime() - 7 * 86_400_000)
@@ -1458,17 +1499,25 @@ export async function createTeamPack(scope: Scope, input: { teamIds: string[]; p
   await done;
   writeFileSync(absPath, Buffer.concat(chunks));
   const expiresAt = new Date(Date.now() + 7 * 86_400_000);
-  await pool.query(
-    `INSERT INTO team_report_exports (id, actor_employee_id, team_ids, period, period_start, period_end, metric_version, filename, rel_path, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'tl-metrics-v1', $7, $8, $9)`,
-    [exportId, scope.employeeId, JSON.stringify(teamIds), input.period, periodStart, now, filename, relPath, expiresAt]
-  );
+
+  await db.insert(teamReportExports).values({
+    id: exportId,
+    actorEmployeeId: scope.employeeId,
+    teamIds,
+    period: input.period,
+    periodStart: periodStart.toISOString(),
+    periodEnd: now.toISOString(),
+    metricVersion: 'tl-metrics-v1',
+    filename,
+    relPath,
+    expiresAt: expiresAt.toISOString(),
+  });
   return { id: exportId, downloadPath: `/api/tl/team-packs/${exportId}/download`, snapshotAt: now.toISOString(), metricVersion: 'tl-metrics-v1', expiresAt: expiresAt.toISOString() };
 }
 
 export async function downloadTeamPack(scope: Scope, exportId: string) {
   assertTl(scope);
-  const { rows } = await pool.query(`SELECT * FROM team_report_exports WHERE id = $1`, [exportId]);
+  const { rows } = await db.execute<any>(sql`SELECT * FROM team_report_exports WHERE id = ${exportId}`);
   const exp = rows[0];
   if (!exp) throw notFound();
   if (exp.revoked_at || new Date(exp.expires_at) < new Date()) {
@@ -1487,19 +1536,16 @@ export async function downloadTeamPack(scope: Scope, exportId: string) {
 // ─── TL-17 recurring report schedules (persisted; executed by the job tick) ───
 
 function nextRunAt(cadence: string, from = new Date()): Date {
-  // Explicit IST calculation (+05:30 = 330 minutes)
   const IST_OFFSET_MS = 330 * 60_000;
   const istTime = new Date(from.getTime() + IST_OFFSET_MS);
 
   if (cadence === 'monthly-1st-09:00+05:30') {
-    // 1st of next month at 09:00:00 IST = 03:30:00 UTC
     const year = istTime.getUTCFullYear();
     const month = istTime.getUTCMonth();
     return new Date(Date.UTC(year, month + 1, 1, 3, 30, 0, 0));
   }
 
-  // weekly-mon-09:00+05:30: Next Monday at 09:00:00 IST = 03:30:00 UTC
-  const day = istTime.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const day = istTime.getUTCDay();
   let daysUntilMon = ((1 - day + 7) % 7);
   const pastTargetToday = istTime.getUTCHours() > 9 || (istTime.getUTCHours() === 9 && istTime.getUTCMinutes() > 0);
   if (daysUntilMon === 0 && pastTargetToday) {
@@ -1521,14 +1567,19 @@ export async function createReportSchedule(scope: Scope, input: {
   const dedupeKey = `${scope.employeeId}:${input.cadence}:${input.period}:${teamIds.slice().sort().join('-')}`;
   const nextRun = nextRunAt(input.cadence);
   try {
-    await pool.query(
-      `INSERT INTO report_schedules (id, owner_employee_id, name, cadence, period, team_ids, recipients, dedupe_key, next_run_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [scheduleId, scope.employeeId, input.name, input.cadence, input.period,
-       JSON.stringify(teamIds), JSON.stringify(input.recipients), dedupeKey, nextRun]
-    );
+    await db.insert(reportSchedules).values({
+      id: scheduleId,
+      ownerEmployeeId: scope.employeeId,
+      name: input.name,
+      cadence: input.cadence,
+      period: input.period,
+      teamIds,
+      recipients: input.recipients,
+      dedupeKey,
+      nextRunAt: nextRun.toISOString(),
+    });
   } catch (err: any) {
-    if (err?.code === '23505') {
+    if (err?.code === '23505' || err?.cause?.code === '23505') {
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'An identical schedule already exists (owner, cadence, period, teams).', {});
     }
     throw err;
@@ -1538,13 +1589,12 @@ export async function createReportSchedule(scope: Scope, input: {
 
 export async function listReportSchedules(scope: Scope) {
   assertTl(scope);
-  const { rows } = await pool.query(
-    `SELECT s.*, e.display_name AS owner_name FROM report_schedules s
+  const { rows } = await db.execute<any>(sql`
+    SELECT s.*, e.display_name AS owner_name FROM report_schedules s
       LEFT JOIN employees e ON e.id = s.owner_employee_id
-      WHERE s.owner_employee_id = $1 OR s.team_ids::jsonb ?| $2::text[]
-      ORDER BY s.created_at DESC LIMIT 50`,
-    [scope.employeeId, scope.teams]
-  );
+     WHERE s.owner_employee_id = ${scope.employeeId} OR s.team_ids::jsonb ?| ARRAY[${inList(scope.teams)}]::text[]
+     ORDER BY s.created_at DESC LIMIT 50
+  `);
   return {
     schedules: rows.map((s: any) => ({
       id: s.id, name: s.name, cadence: s.cadence, period: s.period,
@@ -1575,7 +1625,6 @@ export async function runDueSchedules(): Promise<{ ran: number; suspended: numbe
       );
       for (const s of rows) {
         try {
-          // Permissions rechecked every run: resolve the owner's current scope.
           const { loadAuthContextByEmployeeId } = await import('./users');
           const auth = await loadAuthContextByEmployeeId(s.owner_employee_id);
           if (!auth || auth.scope.role !== 'TL') {
@@ -1611,4 +1660,3 @@ export async function runDueSchedules(): Promise<{ ran: number; suspended: numbe
     client.release();
   }
 }
-

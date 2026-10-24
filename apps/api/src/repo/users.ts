@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import type { Role, Vertical, WorkspaceSession } from '@finverse/contracts';
-import { pool } from './db';
 
 export interface Scope {
   employeeId: string;
@@ -140,17 +139,27 @@ interface EmployeeRow extends AssignmentRow {
   password_hash: string;
 }
 
-const SELECT_COLUMNS = `
-  SELECT e.id, e.email, e.display_name, e.status, e.password_hash,
-         a.id AS assignment_id, a.role, a.vertical, a.team_id,
-         to_char(a.effective_from, 'YYYY-MM-DD') AS effective_from
-  FROM employees e
-  JOIN assignments a ON a.employee_id = e.id
-`;
-const WHERE_ACTIVE = `WHERE e.status = 'active' AND a.effective_from <= CURRENT_DATE AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)`;
-const ORDER_ASSIGNMENTS = `ORDER BY a.effective_from DESC, a.id DESC`;
-const SELECT_BY_EMAIL = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND lower(e.email) = lower($1) ${ORDER_ASSIGNMENTS}`;
-const SELECT_BY_ID = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND e.id = $1 ${ORDER_ASSIGNMENTS}`;
+import { eq, and, lte, or, isNull, gt, desc, sql } from 'drizzle-orm';
+import { db } from './db';
+import { employees, assignments } from '../db/schema';
+
+function selectAuthQuery() {
+  return db
+    .select({
+      id: employees.id,
+      email: employees.email,
+      display_name: employees.displayName,
+      status: employees.status,
+      password_hash: employees.passwordHash,
+      assignment_id: assignments.id,
+      role: assignments.role,
+      vertical: assignments.vertical,
+      team_id: assignments.teamId,
+      effective_from: sql<string>`to_char(${assignments.effectiveFrom}, 'YYYY-MM-DD')`,
+    })
+    .from(employees)
+    .innerJoin(assignments, eq(assignments.employeeId, employees.id));
+}
 
 function buildContext(rows: EmployeeRow[]): AuthContext {
   const latest = rows[0]!;
@@ -196,13 +205,33 @@ function buildContext(rows: EmployeeRow[]): AuthContext {
 }
 
 export async function loadAuthContextByEmail(email: string): Promise<AuthContext | null> {
-  const { rows } = await pool.query<EmployeeRow>(SELECT_BY_EMAIL, [email]);
+  const rows = await selectAuthQuery()
+    .where(
+      and(
+        eq(employees.status, 'active'),
+        lte(assignments.effectiveFrom, sql`CURRENT_DATE`),
+        or(isNull(assignments.effectiveTo), gt(assignments.effectiveTo, sql`CURRENT_DATE`)),
+        sql`lower(${employees.email}) = lower(${email})`
+      )
+    )
+    .orderBy(desc(assignments.effectiveFrom), desc(assignments.id));
+
   if (rows.length === 0) return null;
-  return buildContext(rows);
+  return buildContext(rows as EmployeeRow[]);
 }
 
 export async function loadAuthContextByEmployeeId(employeeId: string): Promise<AuthContext | null> {
-  const { rows } = await pool.query<EmployeeRow>(SELECT_BY_ID, [employeeId]);
+  const rows = await selectAuthQuery()
+    .where(
+      and(
+        eq(employees.status, 'active'),
+        lte(assignments.effectiveFrom, sql`CURRENT_DATE`),
+        or(isNull(assignments.effectiveTo), gt(assignments.effectiveTo, sql`CURRENT_DATE`)),
+        eq(employees.id, employeeId)
+      )
+    )
+    .orderBy(desc(assignments.effectiveFrom), desc(assignments.id));
+
   if (rows.length === 0) return null;
-  return buildContext(rows);
+  return buildContext(rows as EmployeeRow[]);
 }

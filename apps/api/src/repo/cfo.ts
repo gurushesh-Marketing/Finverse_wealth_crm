@@ -1,4 +1,25 @@
-import { pool } from './db';
+import { db } from '../db';
+import {
+  financeLedgerEntries,
+  salesFinanceHandoffs,
+  receivableInvoices,
+  bankSettledReceipts,
+  receiptInvoiceMatches,
+  financeReconciliations,
+  refundRequests,
+  incentiveCalculations,
+  incentiveDisputes,
+  reportingPeriods,
+  periodReopenRequests,
+  verticalBudgetLines,
+  forecastFinanceReviews,
+  financePackSchedules,
+  financePolicies,
+  employees,
+  leads,
+} from '../db/schema';
+import { eq, and, desc, asc, sql, inArray, notInArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import {
   CfoBalancesOverview,
   CfoHandoffItem,
@@ -42,6 +63,18 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 
+// Helper to format ISO dates safely
+function toIso(d: Date | string | null | undefined): string | null {
+  if (!d) return null;
+  return new Date(d).toISOString();
+}
+
+function toDateString(d: Date | string | null | undefined): string | null {
+  if (!d) return null;
+  if (d instanceof Date) return d.toISOString().split('T')[0];
+  return String(d).split('T')[0];
+}
+
 // ---------------------------------------------------------------------------
 // CFO-01: Inspect Revenue, Cash and Outstanding Balances
 // ---------------------------------------------------------------------------
@@ -49,65 +82,73 @@ export async function getCfoBalancesOverview(periodLabel?: string): Promise<CfoB
   const pLabel = periodLabel || 'FY26-Q1';
 
   // 1. Total Recognised Revenue
-  const revRes = await pool.query<{ total: string }>(
-    `SELECT COALESCE(SUM(net_amount), 0) AS total
-     FROM finance_ledger_entries
-     WHERE entry_type = 'revenue_recognition' AND status = 'posted'`
-  );
-  const recognisedRevenue = parseFloat(revRes.rows[0]?.total || '0') || 74500000;
+  const [revRow] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${financeLedgerEntries.netAmount}), 0)`,
+    })
+    .from(financeLedgerEntries)
+    .where(
+      and(
+        eq(financeLedgerEntries.entryType, 'revenue_recognition'),
+        eq(financeLedgerEntries.status, 'posted')
+      )
+    );
+  const recognisedRevenue = parseFloat(revRow?.total || '0') || 74500000;
 
   // 2. Cash Receipts
-  const cashRes = await pool.query<{ total: string }>(
-    `SELECT COALESCE(SUM(amount), 0) AS total
-     FROM bank_settled_receipts
-     WHERE status IN ('matched', 'partially_matched')`
-  );
-  const cashReceipts = parseFloat(cashRes.rows[0]?.total || '0') || 58000000;
+  const [cashRow] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${bankSettledReceipts.amount}), 0)`,
+    })
+    .from(bankSettledReceipts)
+    .where(inArray(bankSettledReceipts.status, ['matched', 'partially_matched']));
+  const cashReceipts = parseFloat(cashRow?.total || '0') || 58000000;
 
   // 3. Outstanding Receivables
-  const arRes = await pool.query<{ total: string }>(
-    `SELECT COALESCE(SUM(outstanding_balance), 0) AS total
-     FROM receivable_invoices
-     WHERE status NOT IN ('settled', 'written_off')`
-  );
-  const outstandingReceivables = parseFloat(arRes.rows[0]?.total || '0') || 16500000;
+  const [arRow] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${receivableInvoices.outstandingBalance}), 0)`,
+    })
+    .from(receivableInvoices)
+    .where(notInArray(receivableInvoices.status, ['settled', 'written_off']));
+  const outstandingReceivables = parseFloat(arRow?.total || '0') || 16500000;
 
   // 4. Unmatched Cash
-  const unRes = await pool.query<{ total: string }>(
-    `SELECT COALESCE(SUM(unmatched_amount), 0) AS total
-     FROM bank_settled_receipts
-     WHERE status IN ('unmatched', 'partially_matched', 'suspense')`
-  );
-  const unmatchedCash = parseFloat(unRes.rows[0]?.total || '0') || 4500000;
+  const [unRow] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${bankSettledReceipts.unmatchedAmount}), 0)`,
+    })
+    .from(bankSettledReceipts)
+    .where(inArray(bankSettledReceipts.status, ['unmatched', 'partially_matched', 'suspense']));
+  const unmatchedCash = parseFloat(unRow?.total || '0') || 4500000;
 
   // 5. Recent Ledger Entries
-  const ledgerRes = await pool.query<{
-    id: string;
-    entry_code: string;
-    entry_type: string;
-    vertical: string;
-    net_amount: string;
-    account_code: string;
-    description: string;
-    status: string;
-    created_at: Date;
-  }>(
-    `SELECT id, entry_code, entry_type, vertical, net_amount, account_code, description, status, created_at
-     FROM finance_ledger_entries
-     ORDER BY created_at DESC
-     LIMIT 10`
-  );
+  const ledgerRows = await db
+    .select({
+      id: financeLedgerEntries.id,
+      entryCode: financeLedgerEntries.entryCode,
+      entryType: financeLedgerEntries.entryType,
+      vertical: financeLedgerEntries.vertical,
+      netAmount: financeLedgerEntries.netAmount,
+      accountCode: financeLedgerEntries.accountCode,
+      description: financeLedgerEntries.description,
+      status: financeLedgerEntries.status,
+      createdAt: financeLedgerEntries.createdAt,
+    })
+    .from(financeLedgerEntries)
+    .orderBy(desc(financeLedgerEntries.createdAt))
+    .limit(10);
 
-  const recentLedgerEntries = ledgerRes.rows.map((r: any) => ({
+  const recentLedgerEntries = ledgerRows.map((r) => ({
     id: r.id,
-    entryCode: r.entry_code,
-    entryType: r.entry_type,
-    vertical: r.vertical,
-    netAmount: parseFloat(r.net_amount),
-    accountCode: r.account_code,
+    entryCode: r.entryCode,
+    entryType: r.entryType as any,
+    vertical: r.vertical as any,
+    netAmount: parseFloat(r.netAmount),
+    accountCode: r.accountCode,
     description: r.description,
-    status: r.status,
-    createdAt: r.created_at.toISOString(),
+    status: r.status as any,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 
   // 6. Vertical Summary
@@ -142,38 +183,50 @@ export async function getCfoBalancesOverview(periodLabel?: string): Promise<CfoB
 // CFO-02: Verify Sales-to-Finance Handoff
 // ---------------------------------------------------------------------------
 export async function getSalesHandoffs(status?: string): Promise<CfoHandoffItem[]> {
-  const query = `
-    SELECT sfh.id, sfh.handoff_code, sfh.lead_id, sfh.vertical, sfh.converted_amount,
-           sfh.earning_milestone, sfh.supporting_evidence_url, sfh.review_status,
-           sfh.deficiency_notes, sfh.verified_at, sfh.created_at,
-           l.display_name AS client_name,
-           e_rep.display_name AS sales_rep_name,
-           e_ver.display_name AS verified_by_name
-    FROM sales_finance_handoffs sfh
-    JOIN leads l ON l.id = sfh.lead_id
-    LEFT JOIN employees e_rep ON e_rep.id = sfh.sales_rep_employee_id
-    LEFT JOIN employees e_ver ON e_ver.id = sfh.verified_by_employee_id
-    ${status ? 'WHERE sfh.review_status = $1' : ''}
-    ORDER BY sfh.created_at DESC
-  `;
-  const params = status ? [status] : [];
-  const res = await pool.query(query, params);
+  const eRep = alias(employees, 'e_rep');
+  const eVer = alias(employees, 'e_ver');
 
-  return res.rows.map((r: any) => ({
+  let query = db
+    .select({
+      id: salesFinanceHandoffs.id,
+      handoffCode: salesFinanceHandoffs.handoffCode,
+      leadId: salesFinanceHandoffs.leadId,
+      vertical: salesFinanceHandoffs.vertical,
+      convertedAmount: salesFinanceHandoffs.convertedAmount,
+      earningMilestone: salesFinanceHandoffs.earningMilestone,
+      supportingEvidenceUrl: salesFinanceHandoffs.supportingEvidenceUrl,
+      reviewStatus: salesFinanceHandoffs.reviewStatus,
+      deficiencyNotes: salesFinanceHandoffs.deficiencyNotes,
+      verifiedAt: salesFinanceHandoffs.verifiedAt,
+      createdAt: salesFinanceHandoffs.createdAt,
+      clientName: leads.displayName,
+      salesRepName: eRep.displayName,
+      verifiedByName: eVer.displayName,
+    })
+    .from(salesFinanceHandoffs)
+    .innerJoin(leads, eq(leads.id, salesFinanceHandoffs.leadId))
+    .leftJoin(eRep, eq(eRep.id, salesFinanceHandoffs.salesRepEmployeeId))
+    .leftJoin(eVer, eq(eVer.id, salesFinanceHandoffs.verifiedByEmployeeId));
+
+  const rows = status
+    ? await query.where(eq(salesFinanceHandoffs.reviewStatus, status)).orderBy(desc(salesFinanceHandoffs.createdAt))
+    : await query.orderBy(desc(salesFinanceHandoffs.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    handoffCode: r.handoff_code,
-    leadId: r.lead_id,
-    clientName: r.client_name,
-    vertical: r.vertical,
-    salesRepName: r.sales_rep_name || 'Assigned Rep',
-    convertedAmount: parseFloat(r.converted_amount),
-    earningMilestone: r.earning_milestone,
-    supportingEvidenceUrl: r.supporting_evidence_url,
-    reviewStatus: r.review_status,
-    deficiencyNotes: r.deficiency_notes,
-    verifiedByName: r.verified_by_name,
-    verifiedAt: r.verified_at ? new Date(r.verified_at).toISOString() : null,
-    createdAt: new Date(r.created_at).toISOString(),
+    handoffCode: r.handoffCode,
+    leadId: r.leadId,
+    clientName: r.clientName,
+    vertical: r.vertical as any,
+    salesRepName: r.salesRepName || 'Assigned Rep',
+    convertedAmount: parseFloat(r.convertedAmount),
+    earningMilestone: r.earningMilestone,
+    supportingEvidenceUrl: r.supportingEvidenceUrl,
+    reviewStatus: r.reviewStatus as any,
+    deficiencyNotes: r.deficiencyNotes,
+    verifiedByName: r.verifiedByName,
+    verifiedAt: toIso(r.verifiedAt),
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -182,18 +235,19 @@ export async function verifySalesHandoff(
   input: VerifySalesHandoffInput,
   employeeId: string
 ): Promise<CfoHandoffItem> {
-  const res = await pool.query(
-    `UPDATE sales_finance_handoffs
-     SET review_status = $1,
-         deficiency_notes = $2,
-         verified_by_employee_id = $3,
-         verified_at = NOW(),
-         updated_at = NOW()
-     WHERE id = $4
-     RETURNING *`,
-    [input.decision, input.deficiencyNotes || null, employeeId, handoffId]
-  );
-  if (res.rows.length === 0) throw new Error('Handoff not found');
+  const updated = await db
+    .update(salesFinanceHandoffs)
+    .set({
+      reviewStatus: input.decision,
+      deficiencyNotes: input.deficiencyNotes || null,
+      verifiedByEmployeeId: employeeId,
+      verifiedAt: sql`NOW()`,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(salesFinanceHandoffs.id, handoffId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Handoff not found');
 
   const handoffs = await getSalesHandoffs();
   return handoffs.find((h) => h.id === handoffId)!;
@@ -203,51 +257,73 @@ export async function verifySalesHandoff(
 // CFO-03 & CFO-11: Revenue Recognition & Credit Notes
 // ---------------------------------------------------------------------------
 export async function getLedgerEntries(periodId?: string, vertical?: string): Promise<LedgerEntry[]> {
-  let query = `
-    SELECT fle.*,
-           ep.display_name AS prepared_by_name,
-           ea.display_name AS approved_by_name
-    FROM finance_ledger_entries fle
-    LEFT JOIN employees ep ON ep.id = fle.prepared_by_employee_id
-    LEFT JOIN employees ea ON ea.id = fle.approved_by_employee_id
-    WHERE 1=1
-  `;
-  const params: any[] = [];
+  const ep = alias(employees, 'ep');
+  const ea = alias(employees, 'ea');
+
+  const conds = [];
   if (periodId) {
-    params.push(periodId);
-    query += ` AND fle.period_id = $${params.length}`;
+    conds.push(eq(financeLedgerEntries.periodId, periodId));
   }
   if (vertical) {
-    params.push(vertical);
-    query += ` AND fle.vertical = $${params.length}`;
+    conds.push(eq(financeLedgerEntries.vertical, vertical));
   }
-  query += ` ORDER BY fle.created_at DESC`;
 
-  const res = await pool.query(query, params);
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: financeLedgerEntries.id,
+      entryCode: financeLedgerEntries.entryCode,
+      periodId: financeLedgerEntries.periodId,
+      entryType: financeLedgerEntries.entryType,
+      vertical: financeLedgerEntries.vertical,
+      grossAmount: financeLedgerEntries.grossAmount,
+      taxAmount: financeLedgerEntries.taxAmount,
+      netAmount: financeLedgerEntries.netAmount,
+      currency: financeLedgerEntries.currency,
+      policyCode: financeLedgerEntries.policyCode,
+      sourceReferenceType: financeLedgerEntries.sourceReferenceType,
+      sourceReferenceId: financeLedgerEntries.sourceReferenceId,
+      accountCode: financeLedgerEntries.accountCode,
+      description: financeLedgerEntries.description,
+      isReversal: financeLedgerEntries.isReversal,
+      reversalLinkedEntryId: financeLedgerEntries.reversalLinkedEntryId,
+      preparedByEmployeeId: financeLedgerEntries.preparedByEmployeeId,
+      approvedByEmployeeId: financeLedgerEntries.approvedByEmployeeId,
+      approvedAt: financeLedgerEntries.approvedAt,
+      status: financeLedgerEntries.status,
+      createdAt: financeLedgerEntries.createdAt,
+      preparedByName: ep.displayName,
+      approvedByName: ea.displayName,
+    })
+    .from(financeLedgerEntries)
+    .leftJoin(ep, eq(ep.id, financeLedgerEntries.preparedByEmployeeId))
+    .leftJoin(ea, eq(ea.id, financeLedgerEntries.approvedByEmployeeId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .orderBy(desc(financeLedgerEntries.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    entryCode: r.entry_code,
-    periodId: r.period_id,
-    entryType: r.entry_type,
-    vertical: r.vertical,
-    grossAmount: parseFloat(r.gross_amount),
-    taxAmount: parseFloat(r.tax_amount),
-    netAmount: parseFloat(r.net_amount),
+    entryCode: r.entryCode,
+    periodId: r.periodId,
+    entryType: r.entryType as any,
+    vertical: r.vertical as any,
+    grossAmount: parseFloat(r.grossAmount),
+    taxAmount: parseFloat(r.taxAmount),
+    netAmount: parseFloat(r.netAmount),
     currency: r.currency,
-    policyCode: r.policy_code,
-    sourceReferenceType: r.source_reference_type,
-    sourceReferenceId: r.source_reference_id,
-    accountCode: r.account_code,
+    policyCode: r.policyCode,
+    sourceReferenceType: r.sourceReferenceType,
+    sourceReferenceId: r.sourceReferenceId,
+    accountCode: r.accountCode,
     description: r.description,
-    isReversal: r.is_reversal,
-    reversalLinkedEntryId: r.reversal_linked_entry_id,
-    preparedByEmployeeId: r.prepared_by_employee_id,
-    preparedByName: r.prepared_by_name,
-    approvedByEmployeeId: r.approved_by_employee_id,
-    approvedByName: r.approved_by_name,
-    approvedAt: r.approved_at ? new Date(r.approved_at).toISOString() : null,
-    status: r.status,
-    createdAt: new Date(r.created_at).toISOString(),
+    isReversal: r.isReversal,
+    reversalLinkedEntryId: r.reversalLinkedEntryId,
+    preparedByEmployeeId: r.preparedByEmployeeId,
+    preparedByName: r.preparedByName || undefined,
+    approvedByEmployeeId: r.approvedByEmployeeId,
+    approvedByName: r.approvedByName,
+    approvedAt: toIso(r.approvedAt),
+    status: r.status as any,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -258,51 +334,49 @@ export async function postRevenueRecognition(
   const code = `ENT-${Date.now().toString().slice(-6)}`;
   const netAmount = input.grossAmount - input.taxAmount;
 
-  const res = await pool.query(
-    `INSERT INTO finance_ledger_entries
-     (id, entry_code, period_id, entry_type, vertical, gross_amount, tax_amount, net_amount,
-      policy_code, source_reference_type, source_reference_id, account_code, description,
-      prepared_by_employee_id, approved_by_employee_id, approved_at, status)
-     VALUES ($1, $2, $3, 'revenue_recognition', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, NOW(), 'posted')
-     RETURNING *`,
-    [
-      `LEDG-${Date.now()}`,
-      code,
-      input.periodId,
-      input.vertical,
-      input.grossAmount,
-      input.taxAmount,
-      netAmount,
-      input.policyCode,
-      input.sourceReferenceType,
-      input.sourceReferenceId,
-      input.accountCode,
-      input.description,
-      employeeId,
-    ]
-  );
+  const [entry] = await db
+    .insert(financeLedgerEntries)
+    .values({
+      id: `LEDG-${Date.now()}`,
+      entryCode: code,
+      periodId: input.periodId,
+      entryType: 'revenue_recognition',
+      vertical: input.vertical,
+      grossAmount: String(input.grossAmount),
+      taxAmount: String(input.taxAmount),
+      netAmount: String(netAmount),
+      policyCode: input.policyCode,
+      sourceReferenceType: input.sourceReferenceType,
+      sourceReferenceId: input.sourceReferenceId,
+      accountCode: input.accountCode,
+      description: input.description,
+      preparedByEmployeeId: employeeId,
+      approvedByEmployeeId: employeeId,
+      approvedAt: sql`NOW()`,
+      status: 'posted',
+    })
+    .returning();
 
-  const entry = res.rows[0];
   return {
     id: entry.id,
-    entryCode: entry.entry_code,
-    periodId: entry.period_id,
-    entryType: entry.entry_type,
-    vertical: entry.vertical,
-    grossAmount: parseFloat(entry.gross_amount),
-    taxAmount: parseFloat(entry.tax_amount),
-    netAmount: parseFloat(entry.net_amount),
+    entryCode: entry.entryCode,
+    periodId: entry.periodId,
+    entryType: entry.entryType as any,
+    vertical: entry.vertical as any,
+    grossAmount: parseFloat(entry.grossAmount),
+    taxAmount: parseFloat(entry.taxAmount),
+    netAmount: parseFloat(entry.netAmount),
     currency: entry.currency,
-    policyCode: entry.policy_code,
-    sourceReferenceType: entry.source_reference_type,
-    sourceReferenceId: entry.source_reference_id,
-    accountCode: entry.account_code,
+    policyCode: entry.policyCode,
+    sourceReferenceType: entry.sourceReferenceType,
+    sourceReferenceId: entry.sourceReferenceId,
+    accountCode: entry.accountCode,
     description: entry.description,
-    isReversal: entry.is_reversal,
-    reversalLinkedEntryId: entry.reversal_linked_entry_id,
-    preparedByEmployeeId: entry.prepared_by_employee_id,
-    status: entry.status,
-    createdAt: new Date(entry.created_at).toISOString(),
+    isReversal: entry.isReversal,
+    reversalLinkedEntryId: entry.reversalLinkedEntryId,
+    preparedByEmployeeId: entry.preparedByEmployeeId,
+    status: entry.status as any,
+    createdAt: new Date(entry.createdAt).toISOString(),
   };
 }
 
@@ -310,58 +384,61 @@ export async function postCreditNote(
   input: PostCreditNoteInput,
   employeeId: string
 ): Promise<LedgerEntry> {
-  const origRes = await pool.query(`SELECT * FROM finance_ledger_entries WHERE id = $1`, [input.originalEntryId]);
-  if (origRes.rows.length === 0) throw new Error('Original ledger entry not found');
-  const orig = origRes.rows[0];
+  const [orig] = await db
+    .select()
+    .from(financeLedgerEntries)
+    .where(eq(financeLedgerEntries.id, input.originalEntryId));
+
+  if (!orig) throw new Error('Original ledger entry not found');
 
   const code = `CN-${Date.now().toString().slice(-6)}`;
   const netReversal = -Math.abs(input.creditAmount);
 
-  const res = await pool.query(
-    `INSERT INTO finance_ledger_entries
-     (id, entry_code, period_id, entry_type, vertical, gross_amount, tax_amount, net_amount,
-      policy_code, source_reference_type, source_reference_id, account_code, description,
-      is_reversal, reversal_linked_entry_id, prepared_by_employee_id, approved_by_employee_id, approved_at, status)
-     VALUES ($1, $2, $3, 'credit_note_reversal', $4, $5, 0, $6, $7, $8, $9, $10, $11, true, $12, $13, $13, NOW(), 'posted')
-     RETURNING *`,
-    [
-      `CN-LEDG-${Date.now()}`,
-      code,
-      orig.period_id,
-      orig.vertical,
-      netReversal,
-      netReversal,
-      input.policyCode,
-      'credit_note',
-      orig.id,
-      orig.account_code,
-      `Credit Note Reversal: ${input.reversalReason}`,
-      orig.id,
-      employeeId,
-    ]
-  );
+  const [entry] = await db
+    .insert(financeLedgerEntries)
+    .values({
+      id: `CN-LEDG-${Date.now()}`,
+      entryCode: code,
+      periodId: orig.periodId,
+      vertical: orig.vertical,
+      grossAmount: String(netReversal),
+      taxAmount: '0',
+      netAmount: String(netReversal),
+      policyCode: input.policyCode,
+      entryType: 'credit_note_reversal',
+      sourceReferenceType: 'credit_note',
+      sourceReferenceId: orig.id,
+      accountCode: orig.accountCode,
+      description: `Credit Note Reversal: ${input.reversalReason}`,
+      isReversal: true,
+      reversalLinkedEntryId: orig.id,
+      preparedByEmployeeId: employeeId,
+      approvedByEmployeeId: employeeId,
+      approvedAt: sql`NOW()`,
+      status: 'posted',
+    })
+    .returning();
 
-  const entry = res.rows[0];
   return {
     id: entry.id,
-    entryCode: entry.entry_code,
-    periodId: entry.period_id,
-    entryType: entry.entry_type,
-    vertical: entry.vertical,
-    grossAmount: parseFloat(entry.gross_amount),
-    taxAmount: parseFloat(entry.tax_amount),
-    netAmount: parseFloat(entry.net_amount),
+    entryCode: entry.entryCode,
+    periodId: entry.periodId,
+    entryType: entry.entryType as any,
+    vertical: entry.vertical as any,
+    grossAmount: parseFloat(entry.grossAmount),
+    taxAmount: parseFloat(entry.taxAmount),
+    netAmount: parseFloat(entry.netAmount),
     currency: entry.currency,
-    policyCode: entry.policy_code,
-    sourceReferenceType: entry.source_reference_type,
-    sourceReferenceId: entry.source_reference_id,
-    accountCode: entry.account_code,
+    policyCode: entry.policyCode,
+    sourceReferenceType: entry.sourceReferenceType,
+    sourceReferenceId: entry.sourceReferenceId,
+    accountCode: entry.accountCode,
     description: entry.description,
-    isReversal: entry.is_reversal,
-    reversalLinkedEntryId: entry.reversal_linked_entry_id,
-    preparedByEmployeeId: entry.prepared_by_employee_id,
-    status: entry.status,
-    createdAt: new Date(entry.created_at).toISOString(),
+    isReversal: entry.isReversal,
+    reversalLinkedEntryId: entry.reversalLinkedEntryId,
+    preparedByEmployeeId: entry.preparedByEmployeeId,
+    status: entry.status as any,
+    createdAt: new Date(entry.createdAt).toISOString(),
   };
 }
 
@@ -369,49 +446,65 @@ export async function postCreditNote(
 // CFO-04 & CFO-09: Receivable Invoices & Ageing / Collections
 // ---------------------------------------------------------------------------
 export async function getReceivableInvoices(periodId?: string, status?: string): Promise<ReceivableInvoice[]> {
-  let query = `
-    SELECT ri.*,
-           e.display_name AS assigned_collection_agent_name
-    FROM receivable_invoices ri
-    LEFT JOIN employees e ON e.id = ri.assigned_collection_agent_id
-    WHERE 1=1
-  `;
-  const params: any[] = [];
-  if (periodId) {
-    params.push(periodId);
-    query += ` AND ri.period_id = $${params.length}`;
-  }
-  if (status) {
-    params.push(status);
-    query += ` AND ri.status = $${params.length}`;
-  }
-  query += ` ORDER BY ri.issue_date DESC`;
+  const conds = [];
+  if (periodId) conds.push(eq(receivableInvoices.periodId, periodId));
+  if (status) conds.push(eq(receivableInvoices.status, status));
 
-  const res = await pool.query(query, params);
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: receivableInvoices.id,
+      invoiceNumber: receivableInvoices.invoiceNumber,
+      periodId: receivableInvoices.periodId,
+      leadId: receivableInvoices.leadId,
+      clientName: receivableInvoices.clientName,
+      clientPan: receivableInvoices.clientPan,
+      vertical: receivableInvoices.vertical,
+      totalAmount: receivableInvoices.totalAmount,
+      taxAmount: receivableInvoices.taxAmount,
+      netReceivable: receivableInvoices.netReceivable,
+      paidAmount: receivableInvoices.paidAmount,
+      outstandingBalance: receivableInvoices.outstandingBalance,
+      currency: receivableInvoices.currency,
+      issueDate: receivableInvoices.issueDate,
+      dueDate: receivableInvoices.dueDate,
+      status: receivableInvoices.status,
+      lineItems: receivableInvoices.lineItems,
+      assignedCollectionAgentId: receivableInvoices.assignedCollectionAgentId,
+      collectionStatus: receivableInvoices.collectionStatus,
+      promiseToPayDate: receivableInvoices.promiseToPayDate,
+      collectionNotes: receivableInvoices.collectionNotes,
+      createdAt: receivableInvoices.createdAt,
+      assignedCollectionAgentName: employees.displayName,
+    })
+    .from(receivableInvoices)
+    .leftJoin(employees, eq(employees.id, receivableInvoices.assignedCollectionAgentId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .orderBy(desc(receivableInvoices.issueDate));
+
+  return rows.map((r) => ({
     id: r.id,
-    invoiceNumber: r.invoice_number,
-    periodId: r.period_id,
-    leadId: r.lead_id,
-    clientName: r.client_name,
-    clientPan: r.client_pan,
-    vertical: r.vertical,
-    totalAmount: parseFloat(r.total_amount),
-    taxAmount: parseFloat(r.tax_amount),
-    netReceivable: parseFloat(r.net_receivable),
-    paidAmount: parseFloat(r.paid_amount),
-    outstandingBalance: parseFloat(r.outstanding_balance),
+    invoiceNumber: r.invoiceNumber,
+    periodId: r.periodId,
+    leadId: r.leadId,
+    clientName: r.clientName,
+    clientPan: r.clientPan,
+    vertical: r.vertical as any,
+    totalAmount: parseFloat(r.totalAmount),
+    taxAmount: parseFloat(r.taxAmount),
+    netReceivable: parseFloat(r.netReceivable),
+    paidAmount: parseFloat(r.paidAmount),
+    outstandingBalance: parseFloat(r.outstandingBalance),
     currency: r.currency,
-    issueDate: r.issue_date instanceof Date ? r.issue_date.toISOString().split('T')[0] : String(r.issue_date),
-    dueDate: r.due_date instanceof Date ? r.due_date.toISOString().split('T')[0] : String(r.due_date),
-    status: r.status,
-    lineItems: r.line_items || [],
-    assignedCollectionAgentId: r.assigned_collection_agent_id,
-    assignedCollectionAgentName: r.assigned_collection_agent_name,
-    collectionStatus: r.collection_status,
-    promiseToPayDate: r.promise_to_pay_date ? (r.promise_to_pay_date instanceof Date ? r.promise_to_pay_date.toISOString().split('T')[0] : String(r.promise_to_pay_date)) : null,
-    collectionNotes: r.collection_notes,
-    createdAt: new Date(r.created_at).toISOString(),
+    issueDate: toDateString(r.issueDate) || String(r.issueDate),
+    dueDate: toDateString(r.dueDate) || String(r.dueDate),
+    status: r.status as any,
+    lineItems: (r.lineItems as any) || [],
+    assignedCollectionAgentId: r.assignedCollectionAgentId,
+    assignedCollectionAgentName: r.assignedCollectionAgentName,
+    collectionStatus: r.collectionStatus as any,
+    promiseToPayDate: toDateString(r.promiseToPayDate),
+    collectionNotes: r.collectionNotes,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -423,54 +516,51 @@ export async function createReceivableInvoice(
   const gross = input.lineItems.reduce((acc, item) => acc + item.amount, 0);
   const total = gross + input.taxAmount;
 
-  const res = await pool.query(
-    `INSERT INTO receivable_invoices
-     (id, invoice_number, period_id, lead_id, client_name, client_pan, vertical,
-      total_amount, tax_amount, net_receivable, paid_amount, outstanding_balance,
-      issue_date, due_date, status, line_items)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $8, $11, $12, 'issued', $13)
-     RETURNING *`,
-    [
-      `INV-${Date.now()}`,
-      invoiceNum,
-      input.periodId,
-      input.leadId || null,
-      input.clientName,
-      input.clientPan || null,
-      input.vertical,
-      total,
-      input.taxAmount,
-      gross,
-      input.issueDate,
-      input.dueDate,
-      JSON.stringify(input.lineItems),
-    ]
-  );
+  const [r] = await db
+    .insert(receivableInvoices)
+    .values({
+      id: `INV-${Date.now()}`,
+      invoiceNumber: invoiceNum,
+      periodId: input.periodId,
+      leadId: input.leadId || null,
+      clientName: input.clientName,
+      clientPan: input.clientPan || null,
+      vertical: input.vertical,
+      totalAmount: String(total),
+      taxAmount: String(input.taxAmount),
+      netReceivable: String(gross),
+      paidAmount: '0',
+      outstandingBalance: String(total),
+      issueDate: input.issueDate,
+      dueDate: input.dueDate,
+      status: 'issued',
+      lineItems: input.lineItems,
+    })
+    .returning();
 
-  const r = res.rows[0];
   return {
     id: r.id,
-    invoiceNumber: r.invoice_number,
-    periodId: r.period_id,
-    leadId: r.lead_id,
-    clientName: r.client_name,
-    clientPan: r.client_pan,
-    vertical: r.vertical,
-    totalAmount: parseFloat(r.total_amount),
-    taxAmount: parseFloat(r.tax_amount),
-    netReceivable: parseFloat(r.net_receivable),
-    paidAmount: parseFloat(r.paid_amount),
-    outstandingBalance: parseFloat(r.outstanding_balance),
+    invoiceNumber: r.invoiceNumber,
+    periodId: r.periodId,
+    leadId: r.leadId,
+    clientName: r.clientName,
+    clientPan: r.clientPan,
+    vertical: r.vertical as any,
+    totalAmount: parseFloat(r.totalAmount),
+    taxAmount: parseFloat(r.taxAmount),
+    netReceivable: parseFloat(r.netReceivable),
+    paidAmount: parseFloat(r.paidAmount),
+    outstandingBalance: parseFloat(r.outstandingBalance),
     currency: r.currency,
-    issueDate: String(r.issue_date),
-    dueDate: String(r.due_date),
-    status: r.status,
-    lineItems: r.line_items || [],
-    assignedCollectionAgentId: r.assigned_collection_agent_id,
-    collectionStatus: r.collection_status,
-    promiseToPayDate: r.promise_to_pay_date ? String(r.promise_to_pay_date) : null,
-    collectionNotes: r.collection_notes,
-    createdAt: new Date(r.created_at).toISOString(),
+    issueDate: String(r.issueDate),
+    dueDate: String(r.dueDate),
+    status: r.status as any,
+    lineItems: (r.lineItems as any) || [],
+    assignedCollectionAgentId: r.assignedCollectionAgentId,
+    collectionStatus: r.collectionStatus as any,
+    promiseToPayDate: toDateString(r.promiseToPayDate),
+    collectionNotes: r.collectionNotes,
+    createdAt: new Date(r.createdAt).toISOString(),
   };
 }
 
@@ -479,24 +569,19 @@ export async function assignCollectionWork(
   input: AssignCollectionInput,
   employeeId: string
 ): Promise<ReceivableInvoice> {
-  const res = await pool.query(
-    `UPDATE receivable_invoices
-     SET assigned_collection_agent_id = $1,
-         collection_status = $2,
-         promise_to_pay_date = $3,
-         collection_notes = $4,
-         updated_at = NOW()
-     WHERE id = $5
-     RETURNING *`,
-    [
-      input.assignedEmployeeId,
-      input.collectionStatus,
-      input.promiseToPayDate || null,
-      input.collectionNotes || null,
-      invoiceId,
-    ]
-  );
-  if (res.rows.length === 0) throw new Error('Invoice not found');
+  const updated = await db
+    .update(receivableInvoices)
+    .set({
+      assignedCollectionAgentId: input.assignedEmployeeId,
+      collectionStatus: input.collectionStatus,
+      promiseToPayDate: input.promiseToPayDate || null,
+      collectionNotes: input.collectionNotes || null,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(receivableInvoices.id, invoiceId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Invoice not found');
 
   const invoices = await getReceivableInvoices();
   return invoices.find((i) => i.id === invoiceId)!;
@@ -539,31 +624,34 @@ export async function getAgeingBucketsSummary(): Promise<AgeingBucketsSummary> {
 // CFO-05, CFO-06, CFO-07: Bank Receipts & Payment Matching
 // ---------------------------------------------------------------------------
 export async function getBankReceipts(status?: string): Promise<BankSettledReceipt[]> {
-  const query = `
-    SELECT * FROM bank_settled_receipts
-    ${status ? 'WHERE status = $1' : ''}
-    ORDER BY settlement_date DESC
-  `;
-  const params = status ? [status] : [];
-  const res = await pool.query(query, params);
+  const rows = status
+    ? await db
+        .select()
+        .from(bankSettledReceipts)
+        .where(eq(bankSettledReceipts.status, status))
+        .orderBy(desc(bankSettledReceipts.settlementDate))
+    : await db
+        .select()
+        .from(bankSettledReceipts)
+        .orderBy(desc(bankSettledReceipts.settlementDate));
 
-  return res.rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
-    receiptCode: r.receipt_code,
-    bankReference: r.bank_reference,
-    bankName: r.bank_name,
-    settlementDate: r.settlement_date instanceof Date ? r.settlement_date.toISOString().split('T')[0] : String(r.settlement_date),
+    receiptCode: r.receiptCode,
+    bankReference: r.bankReference,
+    bankName: r.bankName,
+    settlementDate: toDateString(r.settlementDate) || String(r.settlementDate),
     amount: parseFloat(r.amount),
     currency: r.currency,
-    payerName: r.payer_name,
-    payerIdentifier: r.payer_identifier,
-    status: r.status,
-    matchedAmount: parseFloat(r.matched_amount),
-    unmatchedAmount: parseFloat(r.unmatched_amount),
-    suspenseReason: r.suspense_reason,
-    clarificationTeamId: r.clarification_team_id,
-    clarificationNotes: r.clarification_notes,
-    createdAt: new Date(r.created_at).toISOString(),
+    payerName: r.payerName,
+    payerIdentifier: r.payerIdentifier,
+    status: r.status as any,
+    matchedAmount: parseFloat(r.matchedAmount),
+    unmatchedAmount: parseFloat(r.unmatchedAmount),
+    suspenseReason: r.suspenseReason,
+    clarificationTeamId: r.clarificationTeamId,
+    clarificationNotes: r.clarificationNotes,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -574,23 +662,22 @@ export async function importReceiptBatch(
   let count = 0;
   for (const r of input.receipts) {
     const code = `RCT-2026-${Date.now().toString().slice(-4)}${count}`;
-    await pool.query(
-      `INSERT INTO bank_settled_receipts
-       (id, receipt_code, bank_reference, bank_name, settlement_date, amount, payer_name, payer_identifier,
-        status, matched_amount, unmatched_amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unmatched', 0, $6)
-       ON CONFLICT (bank_reference) DO NOTHING`,
-      [
-        `RCT-${Date.now()}-${count}`,
-        code,
-        r.bankReference,
-        r.bankName,
-        r.settlementDate,
-        r.amount,
-        r.payerName,
-        r.payerIdentifier || null,
-      ]
-    );
+    await db
+      .insert(bankSettledReceipts)
+      .values({
+        id: `RCT-${Date.now()}-${count}`,
+        receiptCode: code,
+        bankReference: r.bankReference,
+        bankName: r.bankName,
+        settlementDate: r.settlementDate,
+        amount: String(r.amount),
+        payerName: r.payerName,
+        payerIdentifier: r.payerIdentifier || null,
+        status: 'unmatched',
+        matchedAmount: '0',
+        unmatchedAmount: String(r.amount),
+      })
+      .onConflictDoNothing({ target: bankSettledReceipts.bankReference });
     count++;
   }
   return { importedCount: count };
@@ -600,70 +687,76 @@ export async function matchReceiptToInvoice(
   input: MatchReceiptToInvoiceInput,
   employeeId: string
 ): Promise<{ matchId: string; remainingReceiptUnmatched: number; remainingInvoiceBalance: number }> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // 1. Fetch receipt
-    const rRes = await client.query(`SELECT * FROM bank_settled_receipts WHERE id = $1 FOR UPDATE`, [input.receiptId]);
-    if (rRes.rows.length === 0) throw new Error('Receipt not found');
-    const receipt = rRes.rows[0];
-    const unmatchedAmount = parseFloat(receipt.unmatched_amount);
+  return await db.transaction(async (tx) => {
+    // 1. Fetch receipt with lock
+    const [receipt] = await tx
+      .select()
+      .from(bankSettledReceipts)
+      .where(eq(bankSettledReceipts.id, input.receiptId))
+      .for('update');
+    if (!receipt) throw new Error('Receipt not found');
+    const unmatchedAmount = parseFloat(receipt.unmatchedAmount);
     if (unmatchedAmount < input.allocatedAmount) {
       throw new Error(`Allocation ₹${input.allocatedAmount} exceeds available unmatched receipt balance ₹${unmatchedAmount}`);
     }
 
-    // 2. Fetch invoice
-    const iRes = await client.query(`SELECT * FROM receivable_invoices WHERE id = $1 FOR UPDATE`, [input.invoiceId]);
-    if (iRes.rows.length === 0) throw new Error('Invoice not found');
-    const invoice = iRes.rows[0];
-    const outstanding = parseFloat(invoice.outstanding_balance);
+    // 2. Fetch invoice with lock
+    const [invoice] = await tx
+      .select()
+      .from(receivableInvoices)
+      .where(eq(receivableInvoices.id, input.invoiceId))
+      .for('update');
+    if (!invoice) throw new Error('Invoice not found');
+    const outstanding = parseFloat(invoice.outstandingBalance);
     if (outstanding < input.allocatedAmount) {
       throw new Error(`Allocation ₹${input.allocatedAmount} exceeds invoice outstanding balance ₹${outstanding}`);
     }
 
     // 3. Create match record
     const matchId = `RIM-${Date.now()}`;
-    await client.query(
-      `INSERT INTO receipt_invoice_matches (id, receipt_id, invoice_id, allocated_amount, allocated_by_employee_id, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [matchId, input.receiptId, input.invoiceId, input.allocatedAmount, employeeId, input.notes || null]
-    );
+    await tx.insert(receiptInvoiceMatches).values({
+      id: matchId,
+      receiptId: input.receiptId,
+      invoiceId: input.invoiceId,
+      allocatedAmount: String(input.allocatedAmount),
+      allocatedByEmployeeId: employeeId,
+      notes: input.notes || null,
+    });
 
     // 4. Update receipt
-    const newMatchedReceipt = parseFloat(receipt.matched_amount) + input.allocatedAmount;
+    const newMatchedReceipt = parseFloat(receipt.matchedAmount) + input.allocatedAmount;
     const newUnmatchedReceipt = unmatchedAmount - input.allocatedAmount;
     const newReceiptStatus = newUnmatchedReceipt === 0 ? 'matched' : 'partially_matched';
-    await client.query(
-      `UPDATE bank_settled_receipts
-       SET matched_amount = $1, unmatched_amount = $2, status = $3, updated_at = NOW()
-       WHERE id = $4`,
-      [newMatchedReceipt, newUnmatchedReceipt, newReceiptStatus, input.receiptId]
-    );
+    await tx
+      .update(bankSettledReceipts)
+      .set({
+        matchedAmount: String(newMatchedReceipt),
+        unmatchedAmount: String(newUnmatchedReceipt),
+        status: newReceiptStatus,
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(bankSettledReceipts.id, input.receiptId));
 
     // 5. Update invoice
-    const newPaidInvoice = parseFloat(invoice.paid_amount) + input.allocatedAmount;
+    const newPaidInvoice = parseFloat(invoice.paidAmount) + input.allocatedAmount;
     const newOutstandingInvoice = outstanding - input.allocatedAmount;
     const newInvoiceStatus = newOutstandingInvoice === 0 ? 'settled' : 'partially_paid';
-    await client.query(
-      `UPDATE receivable_invoices
-       SET paid_amount = $1, outstanding_balance = $2, status = $3, updated_at = NOW()
-       WHERE id = $4`,
-      [newPaidInvoice, newOutstandingInvoice, newInvoiceStatus, input.invoiceId]
-    );
+    await tx
+      .update(receivableInvoices)
+      .set({
+        paidAmount: String(newPaidInvoice),
+        outstandingBalance: String(newOutstandingInvoice),
+        status: newInvoiceStatus,
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(receivableInvoices.id, input.invoiceId));
 
-    await client.query('COMMIT');
     return {
       matchId,
       remainingReceiptUnmatched: newUnmatchedReceipt,
       remainingInvoiceBalance: newOutstandingInvoice,
     };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function investigateUnmatchedReceipt(
@@ -671,24 +764,19 @@ export async function investigateUnmatchedReceipt(
   input: InvestigateUnmatchedInput,
   employeeId: string
 ): Promise<BankSettledReceipt> {
-  const res = await pool.query(
-    `UPDATE bank_settled_receipts
-     SET status = $1,
-         suspense_reason = $2,
-         clarification_team_id = $3,
-         clarification_notes = $4,
-         updated_at = NOW()
-     WHERE id = $5
-     RETURNING *`,
-    [
-      input.status,
-      input.suspenseReason,
-      input.clarificationTeamId || null,
-      input.clarificationNotes || null,
-      receiptId,
-    ]
-  );
-  if (res.rows.length === 0) throw new Error('Receipt not found');
+  const updated = await db
+    .update(bankSettledReceipts)
+    .set({
+      status: input.status,
+      suspenseReason: input.suspenseReason,
+      clarificationTeamId: input.clarificationTeamId || null,
+      clarificationNotes: input.clarificationNotes || null,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(bankSettledReceipts.id, receiptId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Receipt not found');
 
   const receipts = await getBankReceipts();
   return receipts.find((r) => r.id === receiptId)!;
@@ -698,32 +786,49 @@ export async function investigateUnmatchedReceipt(
 // CFO-08: Finance Reconciliations
 // ---------------------------------------------------------------------------
 export async function getFinanceReconciliations(): Promise<FinanceReconciliation[]> {
-  const res = await pool.query(
-    `SELECT fr.*, rp.period_label, e.display_name AS frozen_by_name
-     FROM finance_reconciliations fr
-     JOIN reporting_periods rp ON rp.id = fr.period_id
-     LEFT JOIN employees e ON e.id = fr.frozen_by_employee_id
-     ORDER BY fr.created_at DESC`
-  );
+  const rows = await db
+    .select({
+      id: financeReconciliations.id,
+      reconciliationCode: financeReconciliations.reconciliationCode,
+      periodId: financeReconciliations.periodId,
+      vertical: financeReconciliations.vertical,
+      salesClosedWinsTotal: financeReconciliations.salesClosedWinsTotal,
+      recognisedRevenueTotal: financeReconciliations.recognisedRevenueTotal,
+      cashReceiptsTotal: financeReconciliations.cashReceiptsTotal,
+      timingDifference: financeReconciliations.timingDifference,
+      partialSettlementDifference: financeReconciliations.partialSettlementDifference,
+      unbilledPipelineDifference: financeReconciliations.unbilledPipelineDifference,
+      unexplainedVariance: financeReconciliations.unexplainedVariance,
+      reconciliationStatus: financeReconciliations.reconciliationStatus,
+      frozenAt: financeReconciliations.frozenAt,
+      explanationNotes: financeReconciliations.explanationNotes,
+      createdAt: financeReconciliations.createdAt,
+      periodLabel: reportingPeriods.periodLabel,
+      frozenByName: employees.displayName,
+    })
+    .from(financeReconciliations)
+    .innerJoin(reportingPeriods, eq(reportingPeriods.id, financeReconciliations.periodId))
+    .leftJoin(employees, eq(employees.id, financeReconciliations.frozenByEmployeeId))
+    .orderBy(desc(financeReconciliations.createdAt));
 
-  return res.rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
-    reconciliationCode: r.reconciliation_code,
-    periodId: r.period_id,
-    periodLabel: r.period_label,
-    vertical: r.vertical,
-    salesClosedWinsTotal: parseFloat(r.sales_closed_wins_total),
-    recognisedRevenueTotal: parseFloat(r.recognised_revenue_total),
-    cashReceiptsTotal: parseFloat(r.cash_receipts_total),
-    timingDifference: parseFloat(r.timing_difference),
-    partialSettlementDifference: parseFloat(r.partial_settlement_difference),
-    unbilledPipelineDifference: parseFloat(r.unbilled_pipeline_difference),
-    unexplainedVariance: parseFloat(r.unexplained_variance),
-    reconciliationStatus: r.reconciliation_status,
-    frozenByName: r.frozen_by_name,
-    frozenAt: r.frozen_at ? new Date(r.frozen_at).toISOString() : null,
-    explanationNotes: r.explanation_notes,
-    createdAt: new Date(r.created_at).toISOString(),
+    reconciliationCode: r.reconciliationCode,
+    periodId: r.periodId,
+    periodLabel: r.periodLabel,
+    vertical: r.vertical as any,
+    salesClosedWinsTotal: parseFloat(r.salesClosedWinsTotal),
+    recognisedRevenueTotal: parseFloat(r.recognisedRevenueTotal),
+    cashReceiptsTotal: parseFloat(r.cashReceiptsTotal),
+    timingDifference: parseFloat(r.timingDifference),
+    partialSettlementDifference: parseFloat(r.partialSettlementDifference),
+    unbilledPipelineDifference: parseFloat(r.unbilledPipelineDifference),
+    unexplainedVariance: parseFloat(r.unexplainedVariance),
+    reconciliationStatus: r.reconciliationStatus as any,
+    frozenByName: r.frozenByName,
+    frozenAt: toIso(r.frozenAt),
+    explanationNotes: r.explanationNotes,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -732,16 +837,26 @@ export async function freezeReconciliation(
   employeeId: string
 ): Promise<FinanceReconciliation> {
   const code = `REC-${Date.now().toString().slice(-6)}`;
-  const res = await pool.query(
-    `INSERT INTO finance_reconciliations
-     (id, reconciliation_code, period_id, vertical, sales_closed_wins_total, recognised_revenue_total,
-      cash_receipts_total, timing_difference, partial_settlement_difference, unbilled_pipeline_difference,
-      unexplained_variance, reconciliation_status, frozen_by_employee_id, frozen_at, explanation_notes)
-     VALUES ($1, $2, $3, 'wealth', 78000000, 74500000, 58000000, 3500000, 12500000, 4000000, 0, 'approved_frozen', $4, NOW(), $5)
-     ON CONFLICT (reconciliation_code) DO NOTHING
-     RETURNING *`,
-    [`REC-${Date.now()}`, code, input.periodId, employeeId, input.explanationNotes]
-  );
+  await db
+    .insert(financeReconciliations)
+    .values({
+      id: `REC-${Date.now()}`,
+      reconciliationCode: code,
+      periodId: input.periodId,
+      vertical: 'wealth',
+      salesClosedWinsTotal: '78000000',
+      recognisedRevenueTotal: '74500000',
+      cashReceiptsTotal: '58000000',
+      timingDifference: '3500000',
+      partialSettlementDifference: '12500000',
+      unbilledPipelineDifference: '4000000',
+      unexplainedVariance: '0',
+      reconciliationStatus: 'approved_frozen',
+      frozenByEmployeeId: employeeId,
+      frozenAt: sql`NOW()`,
+      explanationNotes: input.explanationNotes,
+    })
+    .onConflictDoNothing({ target: financeReconciliations.reconciliationCode });
 
   const recons = await getFinanceReconciliations();
   return recons[0];
@@ -751,33 +866,50 @@ export async function freezeReconciliation(
 // CFO-10: Refund Requests
 // ---------------------------------------------------------------------------
 export async function getRefundRequests(status?: string): Promise<RefundRequest[]> {
-  const query = `
-    SELECT rr.*, e.display_name AS authorized_by_name
-    FROM refund_requests rr
-    LEFT JOIN employees e ON e.id = rr.authorized_by_employee_id
-    ${status ? 'WHERE rr.status = $1' : ''}
-    ORDER BY rr.created_at DESC
-  `;
-  const params = status ? [status] : [];
-  const res = await pool.query(query, params);
+  const conds = [];
+  if (status) conds.push(eq(refundRequests.status, status));
 
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: refundRequests.id,
+      refundCode: refundRequests.refundCode,
+      leadId: refundRequests.leadId,
+      clientName: refundRequests.clientName,
+      originalReceiptId: refundRequests.originalReceiptId,
+      refundAmount: refundRequests.refundAmount,
+      currency: refundRequests.currency,
+      reason: refundRequests.reason,
+      bankBeneficiaryName: refundRequests.bankBeneficiaryName,
+      bankAccountNumber: refundRequests.bankAccountNumber,
+      bankIfsc: refundRequests.bankIfsc,
+      status: refundRequests.status,
+      externalPaymentRef: refundRequests.externalPaymentRef,
+      executedAt: refundRequests.executedAt,
+      createdAt: refundRequests.createdAt,
+      authorizedByName: employees.displayName,
+    })
+    .from(refundRequests)
+    .leftJoin(employees, eq(employees.id, refundRequests.authorizedByEmployeeId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .orderBy(desc(refundRequests.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    refundCode: r.refund_code,
-    leadId: r.lead_id,
-    clientName: r.client_name,
-    originalReceiptId: r.original_receipt_id,
-    refundAmount: parseFloat(r.refund_amount),
+    refundCode: r.refundCode,
+    leadId: r.leadId,
+    clientName: r.clientName,
+    originalReceiptId: r.originalReceiptId,
+    refundAmount: parseFloat(r.refundAmount),
     currency: r.currency,
     reason: r.reason,
-    bankBeneficiaryName: r.bank_beneficiary_name,
-    bankAccountNumber: r.bank_account_number,
-    bankIfsc: r.bank_ifsc,
-    status: r.status,
-    authorizedByName: r.authorized_by_name,
-    externalPaymentRef: r.external_payment_ref,
-    executedAt: r.executed_at ? new Date(r.executed_at).toISOString() : null,
-    createdAt: new Date(r.created_at).toISOString(),
+    bankBeneficiaryName: r.bankBeneficiaryName,
+    bankAccountNumber: r.bankAccountNumber,
+    bankIfsc: r.bankIfsc,
+    status: r.status as any,
+    authorizedByName: r.authorizedByName,
+    externalPaymentRef: r.externalPaymentRef,
+    executedAt: toIso(r.executedAt),
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -786,40 +918,37 @@ export async function createRefundRequest(
   employeeId: string
 ): Promise<RefundRequest> {
   const code = `REF-${Date.now().toString().slice(-5)}`;
-  const res = await pool.query(
-    `INSERT INTO refund_requests
-     (id, refund_code, lead_id, client_name, original_receipt_id, refund_amount, reason,
-      bank_beneficiary_name, bank_account_number, bank_ifsc, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending_approval')
-     RETURNING *`,
-    [
-      `REF-${Date.now()}`,
-      code,
-      input.leadId || null,
-      input.clientName,
-      input.originalReceiptId || null,
-      input.refundAmount,
-      input.reason,
-      input.bankBeneficiaryName,
-      input.bankAccountNumber,
-      input.bankIfsc,
-    ]
-  );
-  const r = res.rows[0];
+  const [r] = await db
+    .insert(refundRequests)
+    .values({
+      id: `REF-${Date.now()}`,
+      refundCode: code,
+      leadId: input.leadId || null,
+      clientName: input.clientName,
+      originalReceiptId: input.originalReceiptId || null,
+      refundAmount: String(input.refundAmount),
+      reason: input.reason,
+      bankBeneficiaryName: input.bankBeneficiaryName,
+      bankAccountNumber: input.bankAccountNumber,
+      bankIfsc: input.bankIfsc,
+      status: 'pending_approval',
+    })
+    .returning();
+
   return {
     id: r.id,
-    refundCode: r.refund_code,
-    leadId: r.lead_id,
-    clientName: r.client_name,
-    originalReceiptId: r.original_receipt_id,
-    refundAmount: parseFloat(r.refund_amount),
+    refundCode: r.refundCode,
+    leadId: r.leadId,
+    clientName: r.clientName,
+    originalReceiptId: r.originalReceiptId,
+    refundAmount: parseFloat(r.refundAmount),
     currency: r.currency,
     reason: r.reason,
-    bankBeneficiaryName: r.bank_beneficiary_name,
-    bankAccountNumber: r.bank_account_number,
-    bankIfsc: r.bank_ifsc,
-    status: r.status,
-    createdAt: new Date(r.created_at).toISOString(),
+    bankBeneficiaryName: r.bankBeneficiaryName,
+    bankAccountNumber: r.bankAccountNumber,
+    bankIfsc: r.bankIfsc,
+    status: r.status as any,
+    createdAt: new Date(r.createdAt).toISOString(),
   };
 }
 
@@ -828,19 +957,20 @@ export async function decideRefundRequest(
   input: DecideRefundInput,
   employeeId: string
 ): Promise<RefundRequest> {
-  const executedAt = input.decision === 'executed_paid' ? new Date() : null;
-  const res = await pool.query(
-    `UPDATE refund_requests
-     SET status = $1,
-         authorized_by_employee_id = $2,
-         external_payment_ref = $3,
-         executed_at = $4,
-         updated_at = NOW()
-     WHERE id = $5
-     RETURNING *`,
-    [input.decision, employeeId, input.externalPaymentRef || null, executedAt, refundId]
-  );
-  if (res.rows.length === 0) throw new Error('Refund not found');
+  const executedAt = input.decision === 'executed_paid' ? new Date().toISOString() : null;
+  const updated = await db
+    .update(refundRequests)
+    .set({
+      status: input.decision,
+      authorizedByEmployeeId: employeeId,
+      externalPaymentRef: input.externalPaymentRef || null,
+      executedAt: executedAt,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(refundRequests.id, refundId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Refund not found');
 
   const refunds = await getRefundRequests();
   return refunds.find((r) => r.id === refundId)!;
@@ -850,28 +980,42 @@ export async function decideRefundRequest(
 // CFO-12 & CFO-13: Incentive Calculations & Disputes
 // ---------------------------------------------------------------------------
 export async function getIncentiveCalculations(): Promise<IncentiveCalculation[]> {
-  const res = await pool.query(
-    `SELECT ic.*, e.display_name AS approved_by_name
-     FROM incentive_calculations ic
-     LEFT JOIN employees e ON e.id = ic.approved_by_employee_id
-     ORDER BY ic.created_at DESC`
-  );
+  const rows = await db
+    .select({
+      id: incentiveCalculations.id,
+      calculationCode: incentiveCalculations.calculationCode,
+      periodId: incentiveCalculations.periodId,
+      schemeName: incentiveCalculations.schemeName,
+      schemeVersion: incentiveCalculations.schemeVersion,
+      totalIncentivePool: incentiveCalculations.totalIncentivePool,
+      clawbackReserve: incentiveCalculations.clawbackReserve,
+      payableIncentiveTotal: incentiveCalculations.payableIncentiveTotal,
+      status: incentiveCalculations.status,
+      payoutHandoffReference: incentiveCalculations.payoutHandoffReference,
+      approvedAt: incentiveCalculations.approvedAt,
+      employeeAllocations: incentiveCalculations.employeeAllocations,
+      createdAt: incentiveCalculations.createdAt,
+      approvedByName: employees.displayName,
+    })
+    .from(incentiveCalculations)
+    .leftJoin(employees, eq(employees.id, incentiveCalculations.approvedByEmployeeId))
+    .orderBy(desc(incentiveCalculations.createdAt));
 
-  return res.rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
-    calculationCode: r.calculation_code,
-    periodId: r.period_id,
-    schemeName: r.scheme_name,
-    schemeVersion: r.scheme_version,
-    totalIncentivePool: parseFloat(r.total_incentive_pool),
-    clawbackReserve: parseFloat(r.clawback_reserve),
-    payableIncentiveTotal: parseFloat(r.payable_incentive_total),
-    status: r.status,
-    payoutHandoffReference: r.payout_handoff_reference,
-    approvedByName: r.approved_by_name,
-    approvedAt: r.approved_at ? new Date(r.approved_at).toISOString() : null,
-    employeeAllocations: r.employee_allocations || [],
-    createdAt: new Date(r.created_at).toISOString(),
+    calculationCode: r.calculationCode,
+    periodId: r.periodId,
+    schemeName: r.schemeName,
+    schemeVersion: r.schemeVersion,
+    totalIncentivePool: parseFloat(r.totalIncentivePool),
+    clawbackReserve: parseFloat(r.clawbackReserve),
+    payableIncentiveTotal: parseFloat(r.payableIncentiveTotal),
+    status: r.status as any,
+    payoutHandoffReference: r.payoutHandoffReference,
+    approvedByName: r.approvedByName,
+    approvedAt: toIso(r.approvedAt),
+    employeeAllocations: (r.employeeAllocations as any) || [],
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -880,49 +1024,65 @@ export async function freezeIncentivePayout(
   input: FreezeIncentivePayoutInput,
   employeeId: string
 ): Promise<IncentiveCalculation> {
-  const res = await pool.query(
-    `UPDATE incentive_calculations
-     SET status = 'frozen_for_payout',
-         payout_handoff_reference = $1,
-         approved_by_employee_id = $2,
-         approved_at = NOW(),
-         updated_at = NOW()
-     WHERE id = $3
-     RETURNING *`,
-    [input.payoutHandoffReference, employeeId, calculationId]
-  );
-  if (res.rows.length === 0) throw new Error('Calculation not found');
+  const updated = await db
+    .update(incentiveCalculations)
+    .set({
+      status: 'frozen_for_payout',
+      payoutHandoffReference: input.payoutHandoffReference,
+      approvedByEmployeeId: employeeId,
+      approvedAt: sql`NOW()`,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(incentiveCalculations.id, calculationId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Calculation not found');
 
   const calcs = await getIncentiveCalculations();
   return calcs.find((c) => c.id === calculationId)!;
 }
 
 export async function getIncentiveDisputes(): Promise<IncentiveDispute[]> {
-  const res = await pool.query(
-    `SELECT idis.*,
-            e_sub.display_name AS employee_name,
-            e_res.display_name AS resolved_by_name
-     FROM incentive_disputes idis
-     JOIN employees e_sub ON e_sub.id = idis.employee_id
-     LEFT JOIN employees e_res ON e_res.id = idis.resolved_by_employee_id
-     ORDER BY idis.created_at DESC`
-  );
+  const eSub = alias(employees, 'e_sub');
+  const eRes = alias(employees, 'e_res');
 
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: incentiveDisputes.id,
+      disputeCode: incentiveDisputes.disputeCode,
+      calculationId: incentiveDisputes.calculationId,
+      employeeId: incentiveDisputes.employeeId,
+      disputedAmount: incentiveDisputes.disputedAmount,
+      employeeClaim: incentiveDisputes.employeeClaim,
+      supportingEvidence: incentiveDisputes.supportingEvidence,
+      status: incentiveDisputes.status,
+      resolutionAmount: incentiveDisputes.resolutionAmount,
+      decisionNotes: incentiveDisputes.decisionNotes,
+      resolvedAt: incentiveDisputes.resolvedAt,
+      createdAt: incentiveDisputes.createdAt,
+      employeeName: eSub.displayName,
+      resolvedByName: eRes.displayName,
+    })
+    .from(incentiveDisputes)
+    .innerJoin(eSub, eq(eSub.id, incentiveDisputes.employeeId))
+    .leftJoin(eRes, eq(eRes.id, incentiveDisputes.resolvedByEmployeeId))
+    .orderBy(desc(incentiveDisputes.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    disputeCode: r.dispute_code,
-    calculationId: r.calculation_id,
-    employeeId: r.employee_id,
-    employeeName: r.employee_name,
-    disputedAmount: parseFloat(r.disputed_amount),
-    employeeClaim: r.employee_claim,
-    supportingEvidence: r.supporting_evidence,
-    status: r.status,
-    resolutionAmount: r.resolution_amount ? parseFloat(r.resolution_amount) : null,
-    decisionNotes: r.decision_notes,
-    resolvedByName: r.resolved_by_name,
-    resolvedAt: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
-    createdAt: new Date(r.created_at).toISOString(),
+    disputeCode: r.disputeCode,
+    calculationId: r.calculationId,
+    employeeId: r.employeeId,
+    employeeName: r.employeeName || undefined,
+    disputedAmount: parseFloat(r.disputedAmount),
+    employeeClaim: r.employeeClaim,
+    supportingEvidence: r.supportingEvidence,
+    status: r.status as any,
+    resolutionAmount: r.resolutionAmount ? parseFloat(r.resolutionAmount) : null,
+    decisionNotes: r.decisionNotes,
+    resolvedByName: r.resolvedByName,
+    resolvedAt: toIso(r.resolvedAt),
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -931,19 +1091,20 @@ export async function resolveIncentiveDispute(
   input: ResolveIncentiveDisputeInput,
   employeeId: string
 ): Promise<IncentiveDispute> {
-  const res = await pool.query(
-    `UPDATE incentive_disputes
-     SET status = $1,
-         resolution_amount = $2,
-         decision_notes = $3,
-         resolved_by_employee_id = $4,
-         resolved_at = NOW(),
-         updated_at = NOW()
-     WHERE id = $5
-     RETURNING *`,
-    [input.resolution, input.resolutionAmount || null, input.decisionNotes, employeeId, disputeId]
-  );
-  if (res.rows.length === 0) throw new Error('Dispute not found');
+  const updated = await db
+    .update(incentiveDisputes)
+    .set({
+      status: input.resolution,
+      resolutionAmount: input.resolutionAmount != null ? String(input.resolutionAmount) : null,
+      decisionNotes: input.decisionNotes,
+      resolvedByEmployeeId: employeeId,
+      resolvedAt: sql`NOW()`,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(incentiveDisputes.id, disputeId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Dispute not found');
 
   const disputes = await getIncentiveDisputes();
   return disputes.find((d) => d.id === disputeId)!;
@@ -953,25 +1114,36 @@ export async function resolveIncentiveDispute(
 // CFO-14 & CFO-15: Reporting Periods & Reopening Requests
 // ---------------------------------------------------------------------------
 export async function getReportingPeriods(): Promise<ReportingPeriod[]> {
-  const res = await pool.query(
-    `SELECT rp.*, e.display_name AS certified_by_name
-     FROM reporting_periods rp
-     LEFT JOIN employees e ON e.id = rp.certified_by_employee_id
-     ORDER BY rp.start_date DESC`
-  );
+  const rows = await db
+    .select({
+      id: reportingPeriods.id,
+      periodLabel: reportingPeriods.periodLabel,
+      startDate: reportingPeriods.startDate,
+      endDate: reportingPeriods.endDate,
+      status: reportingPeriods.status,
+      certifiedAt: reportingPeriods.certifiedAt,
+      certificationHash: reportingPeriods.certificationHash,
+      lockGovernedWrites: reportingPeriods.lockGovernedWrites,
+      checklistState: reportingPeriods.checklistState,
+      createdAt: reportingPeriods.createdAt,
+      certifiedByName: employees.displayName,
+    })
+    .from(reportingPeriods)
+    .leftJoin(employees, eq(employees.id, reportingPeriods.certifiedByEmployeeId))
+    .orderBy(desc(reportingPeriods.startDate));
 
-  return res.rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
-    periodLabel: r.period_label,
-    startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date),
-    endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date),
-    status: r.status,
-    certifiedByName: r.certified_by_name,
-    certifiedAt: r.certified_at ? new Date(r.certified_at).toISOString() : null,
-    certificationHash: r.certification_hash,
-    lockGovernedWrites: r.lock_governed_writes,
-    checklistState: r.checklist_state || {},
-    createdAt: new Date(r.created_at).toISOString(),
+    periodLabel: r.periodLabel,
+    startDate: toDateString(r.startDate) || String(r.startDate),
+    endDate: toDateString(r.endDate) || String(r.endDate),
+    status: r.status as any,
+    certifiedByName: r.certifiedByName,
+    certifiedAt: toIso(r.certifiedAt),
+    certificationHash: r.certificationHash,
+    lockGovernedWrites: r.lockGovernedWrites,
+    checklistState: (r.checklistState as any) || {},
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -982,52 +1154,66 @@ export async function certifyPeriodClose(
 ): Promise<ReportingPeriod> {
   const hash = `HASH-${Date.now().toString(16).toUpperCase()}-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
 
-  const res = await pool.query(
-    `UPDATE reporting_periods
-     SET status = 'certified_closed',
-         certified_by_employee_id = $1,
-         certified_at = NOW(),
-         certification_hash = $2,
-         lock_governed_writes = true,
-         checklist_state = $3,
-         updated_at = NOW()
-     WHERE id = $4
-     RETURNING *`,
-    [employeeId, hash, JSON.stringify(input.checklistState), periodId]
-  );
-  if (res.rows.length === 0) throw new Error('Period not found');
+  const updated = await db
+    .update(reportingPeriods)
+    .set({
+      status: 'certified_closed',
+      certifiedByEmployeeId: employeeId,
+      certifiedAt: sql`NOW()`,
+      certificationHash: hash,
+      lockGovernedWrites: true,
+      checklistState: input.checklistState,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(reportingPeriods.id, periodId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Period not found');
 
   const periods = await getReportingPeriods();
   return periods.find((p) => p.id === periodId)!;
 }
 
 export async function getPeriodReopenRequests(): Promise<PeriodReopenRequest[]> {
-  const res = await pool.query(
-    `SELECT prr.*,
-            rp.period_label,
-            e_req.display_name AS requested_by_name,
-            e_auth.display_name AS authorized_by_name
-     FROM period_reopen_requests prr
-     JOIN reporting_periods rp ON rp.id = prr.period_id
-     JOIN employees e_req ON e_req.id = prr.requested_by_employee_id
-     LEFT JOIN employees e_auth ON e_auth.id = prr.authorized_by_employee_id
-     ORDER BY prr.created_at DESC`
-  );
+  const eReq = alias(employees, 'e_req');
+  const eAuth = alias(employees, 'e_auth');
 
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: periodReopenRequests.id,
+      periodId: periodReopenRequests.periodId,
+      reason: periodReopenRequests.reason,
+      impactAssessment: periodReopenRequests.impactAssessment,
+      affectedAccounts: periodReopenRequests.affectedAccounts,
+      status: periodReopenRequests.status,
+      approvedAt: periodReopenRequests.approvedAt,
+      unlockExpiresAt: periodReopenRequests.unlockExpiresAt,
+      newCloseVersion: periodReopenRequests.newCloseVersion,
+      createdAt: periodReopenRequests.createdAt,
+      periodLabel: reportingPeriods.periodLabel,
+      requestedByName: eReq.displayName,
+      authorizedByName: eAuth.displayName,
+    })
+    .from(periodReopenRequests)
+    .innerJoin(reportingPeriods, eq(reportingPeriods.id, periodReopenRequests.periodId))
+    .innerJoin(eReq, eq(eReq.id, periodReopenRequests.requestedByEmployeeId))
+    .leftJoin(eAuth, eq(eAuth.id, periodReopenRequests.authorizedByEmployeeId))
+    .orderBy(desc(periodReopenRequests.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    periodId: r.period_id,
-    periodLabel: r.period_label,
-    requestedByName: r.requested_by_name,
+    periodId: r.periodId,
+    periodLabel: r.periodLabel || undefined,
+    requestedByName: r.requestedByName || undefined,
     reason: r.reason,
-    impactAssessment: r.impact_assessment,
-    affectedAccounts: r.affected_accounts || [],
-    status: r.status,
-    authorizedByName: r.authorized_by_name,
-    approvedAt: r.approved_at ? new Date(r.approved_at).toISOString() : null,
-    unlockExpiresAt: r.unlock_expires_at ? new Date(r.unlock_expires_at).toISOString() : null,
-    newCloseVersion: r.new_close_version,
-    createdAt: new Date(r.created_at).toISOString(),
+    impactAssessment: r.impactAssessment,
+    affectedAccounts: (r.affectedAccounts as any) || [],
+    status: r.status as any,
+    authorizedByName: r.authorizedByName,
+    approvedAt: toIso(r.approvedAt),
+    unlockExpiresAt: toIso(r.unlockExpiresAt),
+    newCloseVersion: r.newCloseVersion,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -1035,20 +1221,17 @@ export async function createPeriodReopenRequest(
   input: CreatePeriodReopenRequestInput,
   employeeId: string
 ): Promise<PeriodReopenRequest> {
-  const res = await pool.query(
-    `INSERT INTO period_reopen_requests
-     (id, period_id, requested_by_employee_id, reason, impact_assessment, affected_accounts, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-     RETURNING *`,
-    [
-      `PRR-${Date.now()}`,
-      input.periodId,
-      employeeId,
-      input.reason,
-      input.impactAssessment,
-      JSON.stringify(input.affectedAccounts),
-    ]
-  );
+  await db
+    .insert(periodReopenRequests)
+    .values({
+      id: `PRR-${Date.now()}`,
+      periodId: input.periodId,
+      requestedByEmployeeId: employeeId,
+      reason: input.reason,
+      impactAssessment: input.impactAssessment,
+      affectedAccounts: input.affectedAccounts,
+      status: 'pending',
+    });
 
   const reqs = await getPeriodReopenRequests();
   return reqs[0];
@@ -1061,37 +1244,40 @@ export async function decidePeriodReopenRequest(
 ): Promise<PeriodReopenRequest> {
   const expiresAt =
     input.decision === 'approved'
-      ? new Date(Date.now() + input.unlockHours * 3600 * 1000)
+      ? new Date(Date.now() + input.unlockHours * 3600 * 1000).toISOString()
       : null;
 
-  const res = await pool.query(
-    `UPDATE period_reopen_requests
-     SET status = $1,
-         authorized_by_employee_id = $2,
-         approved_at = NOW(),
-         unlock_expires_at = $3,
-         new_close_version = $4,
-         updated_at = NOW()
-     WHERE id = $5
-     RETURNING *`,
-    [input.decision, employeeId, expiresAt, input.newCloseVersion || 'v1.1-corrected', requestId]
-  );
-  if (res.rows.length === 0) throw new Error('Request not found');
+  return await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(periodReopenRequests)
+      .set({
+        status: input.decision,
+        authorizedByEmployeeId: employeeId,
+        approvedAt: sql`NOW()`,
+        unlockExpiresAt: expiresAt,
+        newCloseVersion: input.newCloseVersion || 'v1.1-corrected',
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(periodReopenRequests.id, requestId))
+      .returning();
 
-  if (input.decision === 'approved') {
-    const r = res.rows[0];
-    await pool.query(
-      `UPDATE reporting_periods
-       SET status = 'reopened',
-           lock_governed_writes = false,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [r.period_id]
-    );
-  }
+    if (updated.length === 0) throw new Error('Request not found');
 
-  const reqs = await getPeriodReopenRequests();
-  return reqs.find((req) => req.id === requestId)!;
+    if (input.decision === 'approved') {
+      const r = updated[0];
+      await tx
+        .update(reportingPeriods)
+        .set({
+          status: 'reopened',
+          lockGovernedWrites: false,
+          updatedAt: sql`NOW()`,
+        })
+        .where(eq(reportingPeriods.id, r.periodId));
+    }
+
+    const reqs = await getPeriodReopenRequests();
+    return reqs.find((req) => req.id === requestId)!;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1099,26 +1285,25 @@ export async function decidePeriodReopenRequest(
 // ---------------------------------------------------------------------------
 export async function getVerticalBudgetLines(fiscalYear?: string): Promise<VerticalBudgetLine[]> {
   const fy = fiscalYear || 'FY26';
-  const res = await pool.query(
-    `SELECT * FROM vertical_budget_lines
-     WHERE fiscal_year = $1
-     ORDER BY cost_category ASC`,
-    [fy]
-  );
+  const rows = await db
+    .select()
+    .from(verticalBudgetLines)
+    .where(eq(verticalBudgetLines.fiscalYear, fy))
+    .orderBy(asc(verticalBudgetLines.costCategory));
 
-  return res.rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
-    budgetCode: r.budget_code,
-    fiscalYear: r.fiscal_year,
-    vertical: r.vertical,
-    costCategory: r.cost_category,
-    approvedBudget: parseFloat(r.approved_budget),
-    committedCosts: parseFloat(r.committed_costs),
-    actualCosts: parseFloat(r.actual_costs),
-    varianceAmount: parseFloat(r.variance_amount),
-    variancePct: r.variance_pct ? parseFloat(r.variance_pct) : null,
+    budgetCode: r.budgetCode,
+    fiscalYear: r.fiscalYear,
+    vertical: r.vertical as any,
+    costCategory: r.costCategory,
+    approvedBudget: parseFloat(r.approvedBudget),
+    committedCosts: parseFloat(r.committedCosts),
+    actualCosts: parseFloat(r.actualCosts),
+    varianceAmount: parseFloat(r.varianceAmount || '0'),
+    variancePct: r.variancePct ? parseFloat(r.variancePct) : null,
     notes: r.notes,
-    createdAt: new Date(r.created_at).toISOString(),
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -1126,14 +1311,16 @@ export async function updateBudgetVarianceNotes(
   budgetId: string,
   input: UpdateBudgetVarianceInput
 ): Promise<VerticalBudgetLine> {
-  const res = await pool.query(
-    `UPDATE vertical_budget_lines
-     SET notes = $1, updated_at = NOW()
-     WHERE id = $2
-     RETURNING *`,
-    [input.notes, budgetId]
-  );
-  if (res.rows.length === 0) throw new Error('Budget line not found');
+  const updated = await db
+    .update(verticalBudgetLines)
+    .set({
+      notes: input.notes,
+      updatedAt: sql`NOW()`,
+    })
+    .where(eq(verticalBudgetLines.id, budgetId))
+    .returning();
+
+  if (updated.length === 0) throw new Error('Budget line not found');
 
   const lines = await getVerticalBudgetLines();
   return lines.find((b) => b.id === budgetId)!;
@@ -1143,26 +1330,38 @@ export async function updateBudgetVarianceNotes(
 // CFO-17: Forecast Finance Reviews
 // ---------------------------------------------------------------------------
 export async function getForecastFinanceReviews(): Promise<ForecastFinanceReview[]> {
-  const res = await pool.query(
-    `SELECT ffr.*, e.display_name AS concurred_by_name
-     FROM forecast_finance_reviews ffr
-     LEFT JOIN employees e ON e.id = ffr.concurred_by_employee_id
-     ORDER BY ffr.created_at DESC`
-  );
+  const rows = await db
+    .select({
+      id: forecastFinanceReviews.id,
+      periodLabel: forecastFinanceReviews.periodLabel,
+      vertical: forecastFinanceReviews.vertical,
+      salesProjectedRevenue: forecastFinanceReviews.salesProjectedRevenue,
+      financeDiscountRatePct: forecastFinanceReviews.financeDiscountRatePct,
+      riskAdjustedRevenue: forecastFinanceReviews.riskAdjustedRevenue,
+      cashConversionPaceDays: forecastFinanceReviews.cashConversionPaceDays,
+      financeAssumptions: forecastFinanceReviews.financeAssumptions,
+      concurrenceStatus: forecastFinanceReviews.concurrenceStatus,
+      concurredAt: forecastFinanceReviews.concurredAt,
+      createdAt: forecastFinanceReviews.createdAt,
+      concurredByName: employees.displayName,
+    })
+    .from(forecastFinanceReviews)
+    .leftJoin(employees, eq(employees.id, forecastFinanceReviews.concurredByEmployeeId))
+    .orderBy(desc(forecastFinanceReviews.createdAt));
 
-  return res.rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
-    periodLabel: r.period_label,
-    vertical: r.vertical,
-    salesProjectedRevenue: parseFloat(r.sales_projected_revenue),
-    financeDiscountRatePct: parseFloat(r.finance_discount_rate_pct),
-    riskAdjustedRevenue: parseFloat(r.risk_adjusted_revenue),
-    cashConversionPaceDays: r.cash_conversion_pace_days,
-    financeAssumptions: r.finance_assumptions,
-    concurrenceStatus: r.concurrence_status,
-    concurredByName: r.concurred_by_name,
-    concurredAt: new Date(r.concurred_at).toISOString(),
-    createdAt: new Date(r.created_at).toISOString(),
+    periodLabel: r.periodLabel,
+    vertical: r.vertical as any,
+    salesProjectedRevenue: parseFloat(r.salesProjectedRevenue),
+    financeDiscountRatePct: parseFloat(r.financeDiscountRatePct),
+    riskAdjustedRevenue: parseFloat(r.riskAdjustedRevenue),
+    cashConversionPaceDays: r.cashConversionPaceDays,
+    financeAssumptions: r.financeAssumptions,
+    concurrenceStatus: r.concurrenceStatus as any,
+    concurredByName: r.concurredByName,
+    concurredAt: toIso(r.concurredAt) || new Date().toISOString(),
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -1173,26 +1372,21 @@ export async function submitForecastConcurrence(
   const discountFactor = 1 - input.financeDiscountRatePct / 100;
   const riskAdjustedRevenue = input.salesProjectedRevenue * discountFactor;
 
-  const res = await pool.query(
-    `INSERT INTO forecast_finance_reviews
-     (id, period_label, vertical, sales_projected_revenue, finance_discount_rate_pct,
-      risk_adjusted_revenue, cash_conversion_pace_days, finance_assumptions,
-      concurrence_status, concurred_by_employee_id, concurred_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-     RETURNING *`,
-    [
-      `FFR-${Date.now()}`,
-      input.periodLabel,
-      input.vertical,
-      input.salesProjectedRevenue,
-      input.financeDiscountRatePct,
-      riskAdjustedRevenue,
-      input.cashConversionPaceDays,
-      input.financeAssumptions,
-      input.concurrenceStatus,
-      employeeId,
-    ]
-  );
+  await db
+    .insert(forecastFinanceReviews)
+    .values({
+      id: `FFR-${Date.now()}`,
+      periodLabel: input.periodLabel,
+      vertical: input.vertical,
+      salesProjectedRevenue: String(input.salesProjectedRevenue),
+      financeDiscountRatePct: String(input.financeDiscountRatePct),
+      riskAdjustedRevenue: String(riskAdjustedRevenue),
+      cashConversionPaceDays: input.cashConversionPaceDays,
+      financeAssumptions: input.financeAssumptions,
+      concurrenceStatus: input.concurrenceStatus,
+      concurredByEmployeeId: employeeId,
+      concurredAt: sql`NOW()`,
+    });
 
   const reviews = await getForecastFinanceReviews();
   return reviews[0];
@@ -1308,37 +1502,46 @@ export async function generateFinancePackPdf(
 }
 
 export async function getFinancePackSchedules(): Promise<FinancePackSchedule[]> {
-  const res = await pool.query(`SELECT * FROM finance_pack_schedules ORDER BY created_at DESC`);
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select()
+    .from(financePackSchedules)
+    .orderBy(desc(financePackSchedules.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
     title: r.title,
-    cadence: r.cadence,
-    recipients: r.recipients || [],
-    includeFullLedger: r.include_full_ledger,
-    isActive: r.is_active,
-    lastDeliveredAt: r.last_delivered_at ? new Date(r.last_delivered_at).toISOString() : null,
-    createdAt: new Date(r.created_at).toISOString(),
+    cadence: r.cadence as any,
+    recipients: (r.recipients as any) || [],
+    includeFullLedger: r.includeFullLedger,
+    isActive: r.isActive,
+    lastDeliveredAt: toIso(r.lastDeliveredAt),
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
 export async function createFinancePackSchedule(
   input: CreateFinanceScheduleInput
 ): Promise<FinancePackSchedule> {
-  const res = await pool.query(
-    `INSERT INTO finance_pack_schedules (id, title, cadence, recipients, include_full_ledger, is_active)
-     VALUES ($1, $2, $3, $4, $5, true)
-     RETURNING *`,
-    [`FPS-${Date.now()}`, input.title, input.cadence, JSON.stringify(input.recipients), input.includeFullLedger]
-  );
-  const r = res.rows[0];
+  const [r] = await db
+    .insert(financePackSchedules)
+    .values({
+      id: `FPS-${Date.now()}`,
+      title: input.title,
+      cadence: input.cadence,
+      recipients: input.recipients,
+      includeFullLedger: input.includeFullLedger,
+      isActive: true,
+    })
+    .returning();
+
   return {
     id: r.id,
     title: r.title,
-    cadence: r.cadence,
-    recipients: r.recipients || [],
-    includeFullLedger: r.include_full_ledger,
-    isActive: r.is_active,
-    createdAt: new Date(r.created_at).toISOString(),
+    cadence: r.cadence as any,
+    recipients: (r.recipients as any) || [],
+    includeFullLedger: r.includeFullLedger,
+    isActive: r.isActive,
+    createdAt: new Date(r.createdAt).toISOString(),
   };
 }
 
@@ -1346,29 +1549,42 @@ export async function createFinancePackSchedule(
 // CFO-19: Finance Policies & Approval Limits (DoA)
 // ---------------------------------------------------------------------------
 export async function getFinancePolicies(): Promise<FinancePolicy[]> {
-  const res = await pool.query(
-    `SELECT fp.*,
-            e_p.display_name AS proposed_by_name,
-            e_a.display_name AS approved_by_name
-     FROM finance_policies fp
-     LEFT JOIN employees e_p ON e_p.id = fp.proposed_by_employee_id
-     LEFT JOIN employees e_a ON e_a.id = fp.approved_by_employee_id
-     ORDER BY fp.effective_date DESC`
-  );
+  const eP = alias(employees, 'e_p');
+  const eA = alias(employees, 'e_a');
 
-  return res.rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: financePolicies.id,
+      policyCode: financePolicies.policyCode,
+      title: financePolicies.title,
+      category: financePolicies.category,
+      version: financePolicies.version,
+      effectiveDate: financePolicies.effectiveDate,
+      rulesSummary: financePolicies.rulesSummary,
+      approvalLimits: financePolicies.approvalLimits,
+      status: financePolicies.status,
+      createdAt: financePolicies.createdAt,
+      proposedByName: eP.displayName,
+      approvedByName: eA.displayName,
+    })
+    .from(financePolicies)
+    .leftJoin(eP, eq(eP.id, financePolicies.proposedByEmployeeId))
+    .leftJoin(eA, eq(eA.id, financePolicies.approvedByEmployeeId))
+    .orderBy(desc(financePolicies.effectiveDate));
+
+  return rows.map((r) => ({
     id: r.id,
-    policyCode: r.policy_code,
+    policyCode: r.policyCode,
     title: r.title,
-    category: r.category,
+    category: r.category as any,
     version: r.version,
-    effectiveDate: r.effective_date instanceof Date ? r.effective_date.toISOString().split('T')[0] : String(r.effective_date),
-    rulesSummary: r.rules_summary,
-    approvalLimits: r.approval_limits || {},
-    status: r.status,
-    proposedByName: r.proposed_by_name,
-    approvedByName: r.approved_by_name,
-    createdAt: new Date(r.created_at).toISOString(),
+    effectiveDate: toDateString(r.effectiveDate) || String(r.effectiveDate),
+    rulesSummary: r.rulesSummary,
+    approvalLimits: (r.approvalLimits as any) || {},
+    status: r.status as any,
+    proposedByName: r.proposedByName || undefined,
+    approvedByName: r.approvedByName,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -1377,24 +1593,20 @@ export async function proposeFinancePolicy(
   employeeId: string
 ): Promise<FinancePolicy> {
   const code = `POL-2026-${Date.now().toString().slice(-4)}`;
-  const res = await pool.query(
-    `INSERT INTO finance_policies
-     (id, policy_code, title, category, version, effective_date, rules_summary, approval_limits,
-      status, proposed_by_employee_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
-     RETURNING *`,
-    [
-      `POL-${Date.now()}`,
-      code,
-      input.title,
-      input.category,
-      input.version,
-      input.effectiveDate,
-      input.rulesSummary,
-      JSON.stringify(input.approvalLimits),
-      employeeId,
-    ]
-  );
+  await db
+    .insert(financePolicies)
+    .values({
+      id: `POL-${Date.now()}`,
+      policyCode: code,
+      title: input.title,
+      category: input.category,
+      version: input.version,
+      effectiveDate: input.effectiveDate,
+      rulesSummary: input.rulesSummary,
+      approvalLimits: input.approvalLimits,
+      status: 'active',
+      proposedByEmployeeId: employeeId,
+    });
 
   const policies = await getFinancePolicies();
   return policies[0];

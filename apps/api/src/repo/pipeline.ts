@@ -13,11 +13,35 @@ import type {
   ReopenInput,
   StageChangeInput,
 } from '@finverse/contracts';
-import { pool } from './db';
+import { eq, and, or, ne, inArray, desc, sql } from 'drizzle-orm';
+import { db } from './db';
+import {
+  leads,
+  teams,
+  employees,
+  enquiries,
+  proposals,
+  qualifications,
+  lossRecords,
+  outcomeRequests,
+  stageEvents,
+  leadEvents,
+  leadAudit,
+  leadTasks,
+  reminders,
+  contactSuppressions,
+} from '../db/schema';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
 import { requireLeadForRead, requireLeadForWrite, attributionFor, type ScopedLead } from '../wealth/scope';
-import { LOSS_REASONS, STAGE_RULE_VERSION, WEALTH_STAGE_TRANSITIONS, ENQUIRY_SOURCES, canTransition, WEALTH_PRODUCTS } from '../wealth/rules';
+import {
+  LOSS_REASONS,
+  STAGE_RULE_VERSION,
+  WEALTH_STAGE_TRANSITIONS,
+  ENQUIRY_SOURCES,
+  canTransition,
+  WEALTH_PRODUCTS,
+} from '../wealth/rules';
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -32,8 +56,11 @@ async function ownedLeadStrict(scope: Scope, leadId: string): Promise<ScopedLead
 }
 
 async function assertWealthAssignment(scope: Scope): Promise<void> {
-  const { rows } = await pool.query(`SELECT vertical FROM teams WHERE id = $1`, [scope.teams[0] ?? '']);
-  if (rows[0]?.vertical !== 'wealth' || !scope.verticals.includes('wealth')) {
+  const [team] = await db
+    .select({ vertical: teams.vertical })
+    .from(teams)
+    .where(eq(teams.id, scope.teams[0] ?? ''));
+  if (team?.vertical !== 'wealth' || !scope.verticals.includes('wealth')) {
     throw forbidden('Self-sourced enquiries require a wealth assignment.');
   }
 }
@@ -52,18 +79,27 @@ export async function correctProspect(scope: Scope, leadId: string, input: Prosp
     next.display_name = input.displayName;
   }
   if (input.phone !== undefined && input.phone !== lead.phone) {
-    // [ASSUMPTION] protected identity change: possible duplicate check pauses the change for review.
-    const dup = await pool.query(
-      `SELECT id FROM leads WHERE phone = $1 AND id <> $2`,
-      [input.phone, leadId]
-    );
-    if ((dup.rowCount ?? 0) > 0) {
+    const [dup] = await db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(and(eq(leads.phone, input.phone), ne(leads.id, leadId)))
+      .limit(1);
+
+    if (dup) {
       const reqId = id('REQ');
-      await pool.query(
-        `INSERT INTO outcome_requests (id, lead_id, actor_employee_id, type, payload, status)
-         VALUES ($1, $2, $3, 'correction', $4, 'pending')`,
-        [reqId, leadId, scope.employeeId, JSON.stringify({ kind: 'identity-change-review', field: 'phone', requested: input.phone, reason: input.reason })]
-      );
+      await db.insert(outcomeRequests).values({
+        id: reqId,
+        leadId,
+        actorEmployeeId: scope.employeeId,
+        type: 'correction',
+        payload: {
+          kind: 'identity-change-review',
+          field: 'phone',
+          requested: input.phone,
+          reason: input.reason,
+        },
+        status: 'pending',
+      });
       return { status: 'pending-review', requestId: reqId, changed: false, audit: [] as AuditEntry[] };
     }
     fields.push(['phone', lead.phone, input.phone]);
@@ -82,52 +118,81 @@ export async function correctProspect(scope: Scope, leadId: string, input: Prosp
       fieldErrors: { displayName: ['Change at least one field.'] },
     });
   }
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      `UPDATE leads SET display_name = $2, phone = $3, email = $4, preferred_language = $5,
-         updated_at = now(), record_version = record_version + 1
-       WHERE id = $1`,
-      [leadId, next.display_name, next.phone, next.email, next.preferred_language]
-    );
+
+  return await db.transaction(async (tx) => {
+    await tx
+      .update(leads)
+      .set({
+        displayName: next.display_name!,
+        phone: next.phone!,
+        email: next.email,
+        preferredLanguage: next.preferred_language!,
+        updatedAt: sql`now()`,
+        recordVersion: sql`${leads.recordVersion} + 1`,
+      })
+      .where(eq(leads.id, leadId));
+
     const audit: AuditEntry[] = [];
     for (const [field, before, after] of fields) {
       const auditId = id('AUD');
-      await client.query(
-        `INSERT INTO lead_audit (id, lead_id, actor_employee_id, field, before_value, after_value, reason)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [auditId, leadId, scope.employeeId, field, before, after, input.reason]
-      );
+      const [audRow] = await tx
+        .insert(leadAudit)
+        .values({
+          id: auditId,
+          leadId,
+          actorEmployeeId: scope.employeeId,
+          field,
+          beforeValue: before,
+          afterValue: after,
+          reason: input.reason,
+        })
+        .returning();
+
       audit.push({
-        id: auditId,
-        field,
-        beforeValue: before,
-        afterValue: after,
-        reason: input.reason,
+        id: audRow.id,
+        field: audRow.field,
+        beforeValue: audRow.beforeValue,
+        afterValue: audRow.afterValue,
+        reason: audRow.reason,
         actorName: scope.displayName,
-        occurredAt: new Date().toISOString(),
+        occurredAt: new Date(audRow.occurredAt).toISOString(),
       });
     }
-    await client.query('COMMIT');
-    return { status: 'saved', requestId: null, changed: true, audit };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+
+    const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id);
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      kind: 'task-updated',
+      note: `Prospect details corrected (${fields.map(([f]) => f).join(', ')}): ${input.reason}`,
+      actorRole,
+      actorTeamId: actorTeam,
+      assignmentId: actorAssignment,
+    });
+
+    return { status: 'saved', changed: true, audit };
+  });
 }
 
 export async function listAudit(scope: Scope, leadId: string): Promise<AuditEntry[]> {
   await ownedLead(scope, leadId);
-  const { rows } = await pool.query(
-    `SELECT a.*, e.display_name AS actor_name FROM lead_audit a
-     JOIN employees e ON e.id = a.actor_employee_id
-     WHERE a.lead_id = $1 ORDER BY a.occurred_at DESC`,
-    [leadId]
-  );
-  return rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: leadAudit.id,
+      field: leadAudit.field,
+      before_value: leadAudit.beforeValue,
+      after_value: leadAudit.afterValue,
+      reason: leadAudit.reason,
+      actor_name: employees.displayName,
+      occurred_at: leadAudit.occurredAt,
+    })
+    .from(leadAudit)
+    .innerJoin(employees, eq(employees.id, leadAudit.actorEmployeeId))
+    .where(eq(leadAudit.leadId, leadId))
+    .orderBy(desc(leadAudit.occurredAt));
+
+  return rows.map((r) => ({
     id: r.id,
     field: r.field,
     beforeValue: r.before_value,
@@ -150,77 +215,116 @@ export async function createEnquiry(scope: Scope, input: EnquiryInput): Promise<
       fieldErrors: { source: ['Choose an approved source.'] },
     });
   }
-  const dup = await pool.query(`SELECT id FROM leads WHERE phone = $1`, [input.phone]);
-  const duplicateOf = dup.rows[0]?.id ?? null;
+
+  const [dup] = await db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(eq(leads.phone, input.phone))
+    .limit(1);
+
+  const duplicateOf = dup?.id ?? null;
   const enquiryId = id('ENQ');
   const status = duplicateOf ? 'duplicate' : 'pending-validation';
-  const { rows } = await pool.query(
-    `INSERT INTO enquiries (id, created_by, display_name, phone, email, product, source, permission_evidence, need, status, duplicate_of)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     RETURNING id, display_name, status, duplicate_of, published_lead_id, created_at`,
-    [enquiryId, scope.employeeId, input.displayName, input.phone, input.email || null, input.product, input.source, input.permissionEvidence, input.need, status, duplicateOf]
-  );
-  const r = rows[0];
+
+  const [r] = await db
+    .insert(enquiries)
+    .values({
+      id: enquiryId,
+      createdBy: scope.employeeId,
+      displayName: input.displayName,
+      phone: input.phone,
+      email: input.email || null,
+      product: input.product,
+      source: input.source,
+      permissionEvidence: input.permissionEvidence,
+      need: input.need,
+      status,
+      duplicateOf,
+    })
+    .returning();
+
   return {
     id: r.id,
-    displayName: r.display_name,
-    status: r.status,
-    duplicateOf: r.duplicate_of,
-    publishedLeadId: r.published_lead_id,
-    createdAt: new Date(r.created_at).toISOString(),
+    displayName: r.displayName,
+    status: r.status as Enquiry['status'],
+    duplicateOf: r.duplicateOf,
+    publishedLeadId: r.publishedLeadId,
+    createdAt: new Date(r.createdAt).toISOString(),
   };
 }
 
 export async function publishEnquiry(scope: Scope, enquiryId: string) {
   await assertWealthAssignment(scope);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(`SELECT * FROM enquiries WHERE id = $1 FOR UPDATE`, [enquiryId]);
-    const enq = rows[0];
-    if (!enq || enq.created_by !== scope.employeeId) {
-      await client.query('ROLLBACK');
+  return await db.transaction(async (tx) => {
+    const [enq] = await tx
+      .select()
+      .from(enquiries)
+      .where(eq(enquiries.id, enquiryId))
+      .for('update');
+
+    if (!enq || enq.createdBy !== scope.employeeId) {
       throw notFound();
     }
     if (enq.status !== 'pending-validation') {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', `Enquiry is already ${enq.status}.`);
     }
+
     const leadId = `FV-5${Math.floor(100000 + Math.random() * 900000)}`;
-    await client.query(
-      `INSERT INTO leads (id, vertical, display_name, email, phone, preferred_language, product, source, stage, owner_employee_id, team_id)
-       VALUES ($1, 'wealth', $2, $3, $4, 'English', $5, $6, 'new', NULL, $7)`,
-      [leadId, enq.display_name, enq.email, enq.phone, enq.product, enq.source, scope.teams[0] ?? null]
-    );
-    await client.query(`UPDATE enquiries SET status = 'published', published_lead_id = $2 WHERE id = $1`, [enquiryId, leadId]);
-    await client.query(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-       VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-      [id('EVT'), leadId, scope.employeeId, `Manual intake published (created by ${scope.displayName}; self-ownership not assumed). Permission evidence: ${enq.permission_evidence}.`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
-    );
-    await client.query('COMMIT');
+    await tx.insert(leads).values({
+      id: leadId,
+      vertical: 'wealth',
+      displayName: enq.displayName,
+      email: enq.email,
+      phone: enq.phone,
+      preferredLanguage: 'English',
+      product: enq.product,
+      source: enq.source,
+      stage: 'new',
+      ownerEmployeeId: null,
+      teamId: scope.teams[0] ?? null,
+    });
+
+    await tx
+      .update(enquiries)
+      .set({ status: 'published', publishedLeadId: leadId })
+      .where(eq(enquiries.id, enquiryId));
+
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      kind: 'note',
+      note: `Manual intake published (created by ${scope.displayName}; self-ownership not assumed). Permission evidence: ${enq.permissionEvidence}.`,
+      actorRole: scope.role,
+      actorTeamId: scope.teams[0] ?? null,
+      assignmentId: scope.assignmentId,
+    });
+
     return { enquiryId, leadId, status: 'published' as const };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function listEnquiries(scope: Scope): Promise<Enquiry[]> {
-  const { rows } = await pool.query(
-    `SELECT id, display_name, status, duplicate_of, published_lead_id, created_at FROM enquiries
-     WHERE created_by = $1 ORDER BY created_at DESC`,
-    [scope.employeeId]
-  );
-  return rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: enquiries.id,
+      displayName: enquiries.displayName,
+      status: enquiries.status,
+      duplicateOf: enquiries.duplicateOf,
+      publishedLeadId: enquiries.publishedLeadId,
+      createdAt: enquiries.createdAt,
+    })
+    .from(enquiries)
+    .where(eq(enquiries.createdBy, scope.employeeId))
+    .orderBy(desc(enquiries.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    displayName: r.display_name,
-    status: r.status,
-    duplicateOf: r.duplicate_of,
-    publishedLeadId: r.published_lead_id,
-    createdAt: new Date(r.created_at).toISOString(),
+    displayName: r.displayName,
+    status: r.status as Enquiry['status'],
+    duplicateOf: r.duplicateOf,
+    publishedLeadId: r.publishedLeadId,
+    createdAt: new Date(r.createdAt).toISOString(),
   }));
 }
 
@@ -232,22 +336,38 @@ export async function saveQualification(scope: Scope, leadId: string, input: Qua
     });
   }
   const qualId = id('QUAL');
-  await pool.query(
-    `INSERT INTO qualifications (id, lead_id, actor_employee_id, need, product, expected_value, currency, time_horizon, checklist, checklist_version, next_step)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'wealth-fit-v1', $10)`,
-    [qualId, leadId, scope.employeeId, input.need, input.product, input.expectedValue ?? null, input.currency ?? null, input.timeHorizon, JSON.stringify(input.checklist), input.nextStep]
-  );
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), leadId, scope.employeeId, `Qualification saved (checklist wealth-fit-v1). Need: ${input.need}. Estimate (not verified revenue): ${input.expectedValue ?? 'n/a'} ${input.currency ?? ''}`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
-  );
+  await db.insert(qualifications).values({
+    id: qualId,
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    need: input.need,
+    product: input.product,
+    expectedValue: input.expectedValue ? String(input.expectedValue) : null,
+    currency: input.currency ?? null,
+    timeHorizon: input.timeHorizon,
+    checklist: input.checklist as any,
+    checklistVersion: 'wealth-fit-v1',
+    nextStep: input.nextStep,
+  });
+
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'note',
+    note: `Qualification saved (checklist wealth-fit-v1). Need: ${input.need}. Estimate (not verified revenue): ${input.expectedValue ?? 'n/a'} ${input.currency ?? ''}`,
+    actorRole: scope.role,
+    actorTeamId: scope.teams[0] ?? null,
+    assignmentId: scope.assignmentId,
+  });
+
   return { id: qualId, recommendedNextStep: input.nextStep };
 }
 
 export async function moveStage(scope: Scope, leadId: string, input: StageChangeInput) {
   const lead = await ownedLeadStrict(scope, leadId);
   const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id);
+
   if (input.toStage === 'converted' || input.toStage === 'lost') {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Converted follows approval rules and Lost uses the loss form.', {
       fieldErrors: { toStage: ['Use Submit conversion (SC-20) or Mark lost (SC-21) for this transition.'] },
@@ -259,75 +379,115 @@ export async function moveStage(scope: Scope, leadId: string, input: StageChange
       fieldErrors: { toStage: [`Allowed from ${lead.stage}: ${allowed}.`] },
     });
   }
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      `INSERT INTO stage_events (id, lead_id, actor_employee_id, from_stage, to_stage, reason, rule_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id('STG'), leadId, scope.employeeId, lead.stage, input.toStage, input.reason, STAGE_RULE_VERSION]
-    );
-    await client.query(
-      `UPDATE leads SET stage = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-      [leadId, input.toStage]
-    );
-    await client.query(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-       VALUES ($1, $2, $3, 'task-updated', $4, $5, $6, $7)`,
-      [id('EVT'), leadId, scope.employeeId, `Stage moved ${lead.stage} -> ${input.toStage} (${input.reason})`, actorRole, actorTeam, actorAssignment]
-    );
-    await client.query('COMMIT');
+
+  return await db.transaction(async (tx) => {
+    await tx.insert(stageEvents).values({
+      id: id('STG'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      fromStage: lead.stage,
+      toStage: input.toStage,
+      reason: input.reason,
+      ruleVersion: STAGE_RULE_VERSION,
+    });
+
+    await tx
+      .update(leads)
+      .set({
+        stage: input.toStage,
+        updatedAt: sql`now()`,
+        recordVersion: sql`${leads.recordVersion} + 1`,
+      })
+      .where(eq(leads.id, leadId));
+
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      kind: 'task-updated',
+      note: `Stage moved ${lead.stage} -> ${input.toStage} (${input.reason})`,
+      actorRole,
+      actorTeamId: actorTeam,
+      assignmentId: actorAssignment,
+    });
+
     return { ok: true, stage: input.toStage };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function createProposal(scope: Scope, leadId: string, input: ProposalInput): Promise<ProposalRecord> {
   await ownedLeadStrict(scope, leadId);
   const proposalId = id('PROP');
-  const { rows } = await pool.query(
-    `INSERT INTO proposals (id, lead_id, actor_employee_id, product, template_version, terms, valid_until, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft') RETURNING *`,
-    [proposalId, leadId, scope.employeeId, input.product, input.templateVersion, input.terms, input.validUntil]
-  );
-  return proposalView(rows[0]);
+  const [row] = await db
+    .insert(proposals)
+    .values({
+      id: proposalId,
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      product: input.product,
+      templateVersion: input.templateVersion,
+      terms: input.terms as any,
+      validUntil: input.validUntil,
+      status: 'draft',
+    })
+    .returning();
+
+  return proposalView(row);
 }
 
 export async function submitProposal(scope: Scope, proposalId: string) {
-  const { rows } = await pool.query(`SELECT * FROM proposals WHERE id = $1 AND actor_employee_id = $2`, [proposalId, scope.employeeId]);
-  const proposal = rows[0];
+  const [proposal] = await db
+    .select()
+    .from(proposals)
+    .where(and(eq(proposals.id, proposalId), eq(proposals.actorEmployeeId, scope.employeeId)));
   if (!proposal) throw notFound();
-  if (proposal.status !== 'draft') throw new HttpError(409, 'DUPLICATE_OPEN_TASK', `Proposal is already ${proposal.status}.`);
-  await pool.query(`UPDATE proposals SET status = 'pending-approval', version = version + 1 WHERE id = $1`, [proposalId]);
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), proposal.lead_id, scope.employeeId, `Proposal ${proposalId} submitted for approval (pending until an authorized approver decides).`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
-  );
+  if (proposal.status !== 'draft') {
+    throw new HttpError(409, 'DUPLICATE_OPEN_TASK', `Proposal is already ${proposal.status}.`);
+  }
+
+  await db
+    .update(proposals)
+    .set({
+      status: 'pending-approval',
+      version: sql`${proposals.version} + 1`,
+    })
+    .where(eq(proposals.id, proposalId));
+
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId: proposal.leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'note',
+    note: `Proposal ${proposalId} submitted for approval (pending until an authorized approver decides).`,
+    actorRole: scope.role,
+    actorTeamId: scope.teams[0] ?? null,
+    assignmentId: scope.assignmentId,
+  });
+
   return { ok: true, status: 'pending-approval' };
 }
 
 export async function listProposals(scope: Scope, leadId: string): Promise<ProposalRecord[]> {
   await ownedLead(scope, leadId);
-  const { rows } = await pool.query(`SELECT * FROM proposals WHERE lead_id = $1 ORDER BY created_at DESC`, [leadId]);
+  const rows = await db
+    .select()
+    .from(proposals)
+    .where(eq(proposals.leadId, leadId))
+    .orderBy(desc(proposals.createdAt));
   return rows.map(proposalView);
 }
 
 function proposalView(r: any): ProposalRecord {
   return {
     id: r.id,
-    leadId: r.lead_id,
+    leadId: r.leadId ?? r.lead_id,
     product: r.product,
-    templateVersion: r.template_version,
+    templateVersion: r.templateVersion ?? r.template_version,
     terms: r.terms,
-    validUntil: r.valid_until,
+    validUntil: r.validUntil ?? r.valid_until,
     status: r.status,
     version: r.version,
-    createdAt: new Date(r.created_at).toISOString(),
+    createdAt: new Date(r.createdAt ?? r.created_at).toISOString(),
   };
 }
 
@@ -338,25 +498,46 @@ export async function requestConversion(scope: Scope, leadId: string, input: Con
       fieldErrors: { winMilestone: ['Conversion requires the Qualified stage.'] },
     });
   }
-  const pending = await pool.query(
-    `SELECT id FROM outcome_requests WHERE lead_id = $1 AND type = 'conversion' AND status = 'pending'`,
-    [leadId]
-  );
-  if ((pending.rowCount ?? 0) > 0) {
+
+  const [pending] = await db
+    .select({ id: outcomeRequests.id })
+    .from(outcomeRequests)
+    .where(
+      and(
+        eq(outcomeRequests.leadId, leadId),
+        eq(outcomeRequests.type, 'conversion'),
+        eq(outcomeRequests.status, 'pending')
+      )
+    )
+    .limit(1);
+
+  if (pending) {
     throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'A conversion request is already pending for this lead.');
   }
+
   const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id);
   const reqId = id('REQ');
-  await pool.query(
-    `INSERT INTO outcome_requests (id, lead_id, actor_employee_id, type, payload, status)
-     VALUES ($1, $2, $3, 'conversion', $4, 'pending')`,
-    [reqId, leadId, scope.employeeId, JSON.stringify({ ...input, submittedAs: { stage: lead.stage, recordVersion: lead.record_version } })]
-  );
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), leadId, scope.employeeId, `Conversion submitted (Pending conversion — not a win until approved). Value: ${input.value} ${input.currency}.`, actorRole, actorTeam, actorAssignment]
-  );
+
+  await db.insert(outcomeRequests).values({
+    id: reqId,
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    type: 'conversion',
+    payload: { ...input, submittedAs: { stage: lead.stage, recordVersion: lead.record_version } },
+    status: 'pending',
+  });
+
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'note',
+    note: `Conversion submitted (Pending conversion — not a win until approved). Value: ${input.value} ${input.currency}.`,
+    actorRole,
+    actorTeamId: actorTeam,
+    assignmentId: actorAssignment,
+  });
+
   return { requestId: reqId, status: 'pending' as const };
 }
 
@@ -372,61 +553,102 @@ export async function markLost(scope: Scope, leadId: string, input: LossInput) {
       fieldErrors: { reason: ['Loss requires an allowed reason.'] },
     });
   }
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const pendingConversion = await client.query(
-      `SELECT id FROM outcome_requests WHERE lead_id = $1 AND type = 'conversion' AND status = 'pending'`,
-      [leadId]
-    );
-    if ((pendingConversion.rowCount ?? 0) > 0) {
-      await client.query('ROLLBACK');
+
+  return await db.transaction(async (tx) => {
+    const [pendingConversion] = await tx
+      .select({ id: outcomeRequests.id })
+      .from(outcomeRequests)
+      .where(
+        and(
+          eq(outcomeRequests.leadId, leadId),
+          eq(outcomeRequests.type, 'conversion'),
+          eq(outcomeRequests.status, 'pending')
+        )
+      )
+      .limit(1);
+
+    if (pendingConversion) {
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'A conversion request is pending — resolve it before recording a loss.');
     }
+
     const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id);
-    await client.query(
-      `INSERT INTO loss_records (id, lead_id, actor_employee_id, reason, explanation, competitor, future_contact)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id('LOSS'), leadId, scope.employeeId, input.reason, input.explanation, input.competitor ?? null, input.futureContact ?? null]
+
+    await tx.insert(lossRecords).values({
+      id: id('LOSS'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      reason: input.reason,
+      explanation: input.explanation,
+      competitor: input.competitor ?? null,
+      futureContact: input.futureContact ?? null,
+    });
+
+    await tx.insert(stageEvents).values({
+      id: id('STG'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      fromStage: lead.stage,
+      toStage: 'lost',
+      reason: input.reason,
+      ruleVersion: STAGE_RULE_VERSION,
+    });
+
+    await tx
+      .update(leads)
+      .set({
+        stage: 'lost',
+        updatedAt: sql`now()`,
+        recordVersion: sql`${leads.recordVersion} + 1`,
+      })
+      .where(eq(leads.id, leadId));
+
+    await tx
+      .update(leadTasks)
+      .set({ status: 'cancelled', completedAt: sql`now()` })
+      .where(and(eq(leadTasks.leadId, leadId), eq(leadTasks.status, 'open')));
+
+    await tx.execute(
+      sql`UPDATE reminders r SET status = 'cancelled' FROM lead_tasks t WHERE r.task_id = t.id AND t.lead_id = ${leadId} AND r.status = 'scheduled'`
     );
-    await client.query(
-      `INSERT INTO stage_events (id, lead_id, actor_employee_id, from_stage, to_stage, reason, rule_version)
-       VALUES ($1, $2, $3, $4, 'lost', $5, $6)`,
-      [id('STG'), leadId, scope.employeeId, lead.stage, input.reason, STAGE_RULE_VERSION]
-    );
-    await client.query(`UPDATE leads SET stage = 'lost', updated_at = now(), record_version = record_version + 1 WHERE id = $1`, [leadId]);
-    await client.query(`UPDATE lead_tasks SET status = 'cancelled', completed_at = now() WHERE lead_id = $1 AND status = 'open'`, [leadId]);
-    await client.query(`UPDATE reminders r SET status = 'cancelled' FROM lead_tasks t WHERE r.task_id = t.id AND t.lead_id = $1 AND r.status = 'scheduled'`, [leadId]);
+
     if (input.futureContact && /opt.?out|stop|suppress/i.test(input.futureContact)) {
-      await client.query(
-        `INSERT INTO contact_suppressions (id, lead_id, created_by, channels, reason, source, active)
-         VALUES ($1, $2, $3, ARRAY['voice','whatsapp','sms','email'], $4, 'loss-form', true)`,
-        [id('SUP'), leadId, scope.employeeId, input.futureContact]
-      );
+      await tx.insert(contactSuppressions).values({
+        id: id('SUP'),
+        leadId,
+        createdBy: scope.employeeId,
+        channels: ['voice', 'whatsapp', 'sms', 'email'],
+        reason: input.futureContact,
+        source: 'loss-form',
+        active: true,
+      });
     }
-    await client.query(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-       VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-      [id('EVT'), leadId, scope.employeeId, `Loss recorded: ${input.reason} — ${input.explanation}`, actorRole, actorTeam, actorAssignment]
-    );
-    await client.query('COMMIT');
+
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      kind: 'note',
+      note: `Loss recorded: ${input.reason} — ${input.explanation}`,
+      actorRole,
+      actorTeamId: actorTeam,
+      assignmentId: actorAssignment,
+    });
+
     return { ok: true, stage: 'lost' as const };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 async function createRequest(scope: Scope, leadId: string, type: string, payload: Record<string, unknown>) {
   await ownedLeadStrict(scope, leadId);
   const reqId = id('REQ');
-  await pool.query(
-    `INSERT INTO outcome_requests (id, lead_id, actor_employee_id, type, payload, status)
-     VALUES ($1, $2, $3, $4, $5, 'pending')`,
-    [reqId, leadId, scope.employeeId, type, JSON.stringify(payload)]
-  );
+  await db.insert(outcomeRequests).values({
+    id: reqId,
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    type,
+    payload: payload as any,
+    status: 'pending',
+  });
   return { requestId: reqId, status: 'pending' as const };
 }
 
@@ -438,12 +660,22 @@ export const requestHandoff = (scope: Scope, leadId: string, input: HandoffInput
 
 export async function requestHelp(scope: Scope, leadId: string, input: HelpRequestInput) {
   if (input.recordReference && input.recordReference !== leadId) {
-    const params: unknown[] = [input.recordReference, scope.verticals, scope.employeeId, scope.teams];
-    const { rows } = await pool.query(
-      `SELECT id FROM leads l WHERE l.id = $1 AND l.vertical = ANY($2) AND (l.owner_employee_id = $3 OR l.team_id = ANY($4))`,
-      params
-    );
-    if (!rows[0]) {
+    const [row] = await db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(
+        and(
+          eq(leads.id, input.recordReference),
+          inArray(leads.vertical, scope.verticals),
+          or(
+            eq(leads.ownerEmployeeId, scope.employeeId),
+            inArray(leads.teamId, scope.teams)
+          )
+        )
+      )
+      .limit(1);
+
+    if (!row) {
       throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
         fieldErrors: { recordReference: ['Reference a record you may identify.'] },
       });
@@ -455,61 +687,86 @@ export async function requestHelp(scope: Scope, leadId: string, input: HelpReque
 
 export async function listRequests(scope: Scope, leadId: string) {
   await ownedLead(scope, leadId);
-  const { rows } = await pool.query(
-    `SELECT * FROM outcome_requests WHERE lead_id = $1 ORDER BY created_at DESC`,
-    [leadId]
-  );
-  return rows.map((r: any) => ({
+  const rows = await db
+    .select()
+    .from(outcomeRequests)
+    .where(eq(outcomeRequests.leadId, leadId))
+    .orderBy(desc(outcomeRequests.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
-    leadId: r.lead_id,
+    leadId: r.leadId,
     type: r.type,
     status: r.status,
     payload: r.payload,
-    decisionReason: r.decision_reason,
-    decisionEvidence: r.decision_evidence ?? {},
-    decidedBy: r.decided_by ?? null,
-    createdAt: new Date(r.created_at).toISOString(),
-    decidedAt: r.decided_at ? new Date(r.decided_at).toISOString() : null,
+    decisionReason: r.decisionReason,
+    decisionEvidence: (r.decisionEvidence as Record<string, unknown>) ?? {},
+    decidedBy: r.decidedBy ?? null,
+    createdAt: new Date(r.createdAt).toISOString(),
+    decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
   }));
 }
 
 export async function approveProposal(scope: Scope, proposalId: string) {
   if (scope.role !== 'TL') throw forbidden('Only an authorized approver can approve proposals.');
-  const { rows } = await pool.query(
-    `SELECT p.*, l.team_id FROM proposals p JOIN leads l ON l.id = p.lead_id WHERE p.id = $1`,
-    [proposalId]
-  );
-  if (!rows[0]) throw notFound();
-  const proposal = rows[0];
-  if (proposal.actor_employee_id === scope.employeeId) {
+
+  const [row] = await db
+    .select({
+      id: proposals.id,
+      actorEmployeeId: proposals.actorEmployeeId,
+      status: proposals.status,
+      teamId: leads.teamId,
+    })
+    .from(proposals)
+    .innerJoin(leads, eq(leads.id, proposals.leadId))
+    .where(eq(proposals.id, proposalId));
+
+  if (!row) throw notFound();
+  if (row.actorEmployeeId === scope.employeeId) {
     throw forbidden('You cannot approve your own proposal.');
   }
-  if (!scope.teams.includes(proposal.team_id)) throw notFound();
-  if (proposal.status !== 'pending-approval') {
-    throw new HttpError(409, 'DUPLICATE_OPEN_TASK', `Proposal is already ${proposal.status}.`);
+  if (!row.teamId || !scope.teams.includes(row.teamId)) throw notFound();
+  if (row.status !== 'pending-approval') {
+    throw new HttpError(409, 'DUPLICATE_OPEN_TASK', `Proposal is already ${row.status}.`);
   }
-  await pool.query(
-    `UPDATE proposals SET status = 'approved', approver_employee_id = $2, decided_at = now() WHERE id = $1`,
-    [proposalId, scope.employeeId]
-  );
+
+  await db
+    .update(proposals)
+    .set({
+      status: 'approved',
+      approverEmployeeId: scope.employeeId,
+      decidedAt: sql`now()`,
+    })
+    .where(eq(proposals.id, proposalId));
+
   return { ok: true, status: 'approved' as const };
 }
 
 export async function sendProposal(scope: Scope, proposalId: string) {
-  const { rows } = await pool.query(`SELECT * FROM proposals WHERE id = $1`, [proposalId]);
-  const proposal = rows[0];
-  if (!proposal || proposal.actor_employee_id !== scope.employeeId) throw notFound();
+  const [proposal] = await db.select().from(proposals).where(eq(proposals.id, proposalId));
+  if (!proposal || proposal.actorEmployeeId !== scope.employeeId) throw notFound();
   if (proposal.status !== 'approved') {
     throw new HttpError(422, 'VALIDATION_FAILED', 'Only approved proposals can be sent.', {
       fieldErrors: { terms: ['Submit for approval first. An edited proposal must be approved again.'] },
     });
   }
-  await pool.query(`UPDATE proposals SET status = 'sent', sent_at = now() WHERE id = $1`, [proposalId]);
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), proposal.lead_id, scope.employeeId, `Proposal ${proposalId} sent (SIMULATED — no provider integration). Proposal sent is a pipeline milestone, not revenue.`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
-  );
+
+  await db
+    .update(proposals)
+    .set({ status: 'sent', sentAt: sql`now()` })
+    .where(eq(proposals.id, proposalId));
+
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId: proposal.leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'note',
+    note: `Proposal ${proposalId} sent (SIMULATED — no provider integration). Proposal sent is a pipeline milestone, not revenue.`,
+    actorRole: scope.role,
+    actorTeamId: scope.teams[0] ?? null,
+    assignmentId: scope.assignmentId,
+  });
+
   return { ok: true, status: 'sent' as const };
 }
 
@@ -520,26 +777,31 @@ export async function decideRequest(
   reason: string,
   evidence?: Record<string, unknown>
 ) {
-  // Approval boundary: only TL role with team scope may decide. Callers can never approve their own requests.
   if (scope.role !== 'TL') throw forbidden('Only an authorized decision-maker can decide requests.');
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      `SELECT r.*, l.team_id FROM outcome_requests r JOIN leads l ON l.id = r.lead_id WHERE r.id = $1 FOR UPDATE`,
-      [requestId]
-    );
-    const req = rows[0];
-    if (!req || !scope.teams.includes(req.team_id)) {
-      await client.query('ROLLBACK');
+
+  return await db.transaction(async (tx) => {
+    const [req] = await tx
+      .select({
+        id: outcomeRequests.id,
+        leadId: outcomeRequests.leadId,
+        actorEmployeeId: outcomeRequests.actorEmployeeId,
+        type: outcomeRequests.type,
+        payload: outcomeRequests.payload,
+        status: outcomeRequests.status,
+        teamId: leads.teamId,
+      })
+      .from(outcomeRequests)
+      .innerJoin(leads, eq(leads.id, outcomeRequests.leadId))
+      .where(eq(outcomeRequests.id, requestId))
+      .for('update');
+
+    if (!req || !req.teamId || !scope.teams.includes(req.teamId)) {
       throw notFound();
     }
-    if (req.actor_employee_id === scope.employeeId) {
-      await client.query('ROLLBACK');
+    if (req.actorEmployeeId === scope.employeeId) {
       throw forbidden('You cannot decide your own request.');
     }
     if (req.status !== 'pending') {
-      await client.query('ROLLBACK');
       throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'This request is already decided.');
     }
 
@@ -552,91 +814,155 @@ export async function decideRequest(
       resolvedStatus = 'rejected';
     }
 
-    const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, req.team_id);
-    await client.query(
-      `UPDATE outcome_requests SET status = $2, decided_by = $3, decision_reason = $4, decision_evidence = $5, decided_at = now() WHERE id = $1`,
-      [requestId, resolvedStatus, scope.employeeId, reason, JSON.stringify(evidence ?? {})]
-    );
+    const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, req.teamId);
+
+    await tx
+      .update(outcomeRequests)
+      .set({
+        status: resolvedStatus,
+        decidedBy: scope.employeeId,
+        decisionReason: reason,
+        decisionEvidence: (evidence ?? {}) as any,
+        decidedAt: sql`now()`,
+      })
+      .where(eq(outcomeRequests.id, requestId));
 
     if (resolvedStatus === 'approved' && req.type === 'reopen') {
       const payload = (req.payload ?? {}) as Record<string, unknown>;
       const toStage = String(payload.requestedNextStage ?? 'contacted');
-      const { rows: stageRows } = await client.query(`SELECT stage FROM leads WHERE id = $1`, [req.lead_id]);
-      const currentStage = String(stageRows[0]?.stage ?? '');
+      const [stageRow] = await tx.select({ stage: leads.stage }).from(leads).where(eq(leads.id, req.leadId));
+      const currentStage = String(stageRow?.stage ?? '');
       const targetOk = !['converted', 'lost'].includes(toStage);
       const reopenAllowed = currentStage === 'lost' ? targetOk : canTransition(currentStage, toStage);
       if (!reopenAllowed) {
-        await client.query('ROLLBACK');
         throw new HttpError(422, 'VALIDATION_FAILED', 'Requested reopen stage is not an allowed transition.', {
-          fieldErrors: { requestedNextStage: [`Allowed from ${currentStage}: ${(WEALTH_STAGE_TRANSITIONS[currentStage] ?? []).join(', ') || 'none (use reopen)'}.`] },
+          fieldErrors: {
+            requestedNextStage: [
+              `Allowed from ${currentStage}: ${(WEALTH_STAGE_TRANSITIONS[currentStage] ?? []).join(', ') || 'none (use reopen)'}.`,
+            ],
+          },
         });
       }
-      await client.query(
-        `UPDATE leads SET stage = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-        [req.lead_id, toStage]
-      );
-      await client.query(
-        `INSERT INTO stage_events (id, lead_id, actor_employee_id, from_stage, to_stage, reason, rule_version)
-         VALUES ($1, $2, $3, $4, $5, 'reopen approved', $6)`,
-        [id('STG'), req.lead_id, scope.employeeId, currentStage, toStage, STAGE_RULE_VERSION]
-      );
-      await client.query(
-        `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-         VALUES ($1, $2, $3, 'other', $4, $5, 'normal', 'open')`,
-        [id('TASK'), req.lead_id, req.actor_employee_id, String((payload as any).nextAction ?? 'Reopened lead follow-up'), new Date(Date.now() + 86_400_000)]
-      );
+
+      await tx
+        .update(leads)
+        .set({
+          stage: toStage,
+          updatedAt: sql`now()`,
+          recordVersion: sql`${leads.recordVersion} + 1`,
+        })
+        .where(eq(leads.id, req.leadId));
+
+      await tx.insert(stageEvents).values({
+        id: id('STG'),
+        leadId: req.leadId,
+        actorEmployeeId: scope.employeeId,
+        fromStage: currentStage,
+        toStage,
+        reason: 'reopen approved',
+        ruleVersion: STAGE_RULE_VERSION,
+      });
+
+      await tx.insert(leadTasks).values({
+        id: id('TASK'),
+        leadId: req.leadId,
+        ownerEmployeeId: req.actorEmployeeId,
+        action: 'other',
+        purpose: String((payload as any).nextAction ?? 'Reopened lead follow-up'),
+        dueAt: new Date(Date.now() + 86_400_000).toISOString(),
+        priority: 'normal',
+        status: 'open',
+      });
     }
+
     if (resolvedStatus === 'approved' && req.type === 'conversion') {
-      const { rows: stageRows } = await client.query(`SELECT stage FROM leads WHERE id = $1 FOR UPDATE`, [req.lead_id]);
-      const currentStage = String(stageRows[0]?.stage ?? '');
+      const [stageRow] = await tx
+        .select({ stage: leads.stage })
+        .from(leads)
+        .where(eq(leads.id, req.leadId))
+        .for('update');
+
+      const currentStage = String(stageRow?.stage ?? '');
       if (currentStage !== 'qualified') {
-        await client.query('ROLLBACK');
-        throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'Lead state changed since submission (now ' + currentStage + ') — resubmit a new conversion version.');
+        throw new HttpError(
+          409,
+          'DUPLICATE_OPEN_TASK',
+          'Lead state changed since submission (now ' + currentStage + ') — resubmit a new conversion version.'
+        );
       }
-      await client.query(
-        `UPDATE leads SET stage = 'converted', updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-        [req.lead_id]
-      );
-      await client.query(
-        `INSERT INTO stage_events (id, lead_id, actor_employee_id, from_stage, to_stage, reason, rule_version)
-         VALUES ($1, $2, $3, $4, 'converted', 'conversion approved', $5)`,
-        [id('STG'), req.lead_id, scope.employeeId, currentStage, STAGE_RULE_VERSION]
-      );
+
+      await tx
+        .update(leads)
+        .set({
+          stage: 'converted',
+          updatedAt: sql`now()`,
+          recordVersion: sql`${leads.recordVersion} + 1`,
+        })
+        .where(eq(leads.id, req.leadId));
+
+      await tx.insert(stageEvents).values({
+        id: id('STG'),
+        leadId: req.leadId,
+        actorEmployeeId: scope.employeeId,
+        fromStage: currentStage,
+        toStage: 'converted',
+        reason: 'conversion approved',
+        ruleVersion: STAGE_RULE_VERSION,
+      });
     }
+
     if (resolvedStatus === 'approved' && req.type === 'correction') {
       const payload = (req.payload ?? {}) as Record<string, unknown>;
       if (payload.kind === 'reschedule-approval' && payload.taskId) {
-        await client.query(
-          `UPDATE lead_tasks SET original_due_at = COALESCE(original_due_at, due_at), due_at = $2, deferral_count = deferral_count + 1
-           WHERE id = $1 AND lead_id = $3`,
-          [String(payload.taskId), new Date(String(payload.requestedDueAt)), req.lead_id]
-        );
-        await client.query(`UPDATE reminders SET status = 'cancelled' WHERE task_id = $1 AND status = 'scheduled'`, [String(payload.taskId)]);
+        await tx
+          .update(leadTasks)
+          .set({
+            originalDueAt: sql`COALESCE(${leadTasks.originalDueAt}, ${leadTasks.dueAt})`,
+            dueAt: new Date(String(payload.requestedDueAt)).toISOString(),
+            deferralCount: sql`${leadTasks.deferralCount} + 1`,
+          })
+          .where(and(eq(leadTasks.id, String(payload.taskId)), eq(leadTasks.leadId, req.leadId)));
+
+        await tx
+          .update(reminders)
+          .set({ status: 'cancelled' })
+          .where(and(eq(reminders.taskId, String(payload.taskId)), eq(reminders.status, 'scheduled')));
       }
+
       if (payload.kind === 'identity-change-review' && payload.field === 'phone') {
-        const { rows: prior } = await client.query(`SELECT phone FROM leads WHERE id = $1`, [req.lead_id]);
-        await client.query(
-          `UPDATE leads SET phone = $2, updated_at = now(), record_version = record_version + 1 WHERE id = $1`,
-          [req.lead_id, String(payload.requested)]
-        );
-        await client.query(
-          `INSERT INTO lead_audit (id, lead_id, actor_employee_id, field, before_value, after_value, reason)
-           VALUES ($1, $2, $3, 'phone', $4, $5, $6)`,
-          [id('AUD'), req.lead_id, scope.employeeId, prior[0]?.phone ?? null, String(payload.requested), `approved identity-change review: ${String(payload.reason ?? '')}`]
-        );
+        const [prior] = await tx.select({ phone: leads.phone }).from(leads).where(eq(leads.id, req.leadId));
+        await tx
+          .update(leads)
+          .set({
+            phone: String(payload.requested),
+            updatedAt: sql`now()`,
+            recordVersion: sql`${leads.recordVersion} + 1`,
+          })
+          .where(eq(leads.id, req.leadId));
+
+        await tx.insert(leadAudit).values({
+          id: id('AUD'),
+          leadId: req.leadId,
+          actorEmployeeId: scope.employeeId,
+          field: 'phone',
+          beforeValue: prior?.phone ?? null,
+          afterValue: String(payload.requested),
+          reason: `approved identity-change review: ${String(payload.reason ?? '')}`,
+        });
       }
     }
-    await client.query(
-      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-       VALUES ($1, $2, $3, 'task-updated', $4, $5, $6, $7)`,
-      [id('EVT'), req.lead_id, scope.employeeId, `Request ${requestId} (${req.type}) ${resolvedStatus}: ${reason}`, actorRole, actorTeam, actorAssignment]
-    );
-    await client.query('COMMIT');
+
+    await tx.insert(leadEvents).values({
+      id: id('EVT'),
+      leadId: req.leadId,
+      actorEmployeeId: scope.employeeId,
+      kind: 'task-updated',
+      note: `Request ${requestId} (${req.type}) ${resolvedStatus}: ${reason}`,
+      actorRole,
+      actorTeamId: actorTeam,
+      assignmentId: actorAssignment,
+    });
+
     return { ok: true, status: resolvedStatus };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

@@ -1,6 +1,9 @@
 import { resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { sql } from 'drizzle-orm';
+import * as schema from '../apps/api/src/db/schema';
 import { hashPassword } from './password';
 
 loadEnv({ path: resolve(process.cwd(), '../../.env') });
@@ -14,6 +17,8 @@ async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is not set');
   const pool = new Pool({ connectionString: databaseUrl });
+  const db = drizzle(pool, { schema });
+
   try {
     const demoHash = hashPassword('demo1234');
 
@@ -24,10 +29,10 @@ async function main(): Promise<void> {
       ['TEAM-WEALTH-GAMMA', 'Wealth Gamma', 'wealth'],
     ];
     for (const [id, name, vertical] of teams) {
-      await pool.query(
-        'INSERT INTO teams (id, name, vertical) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
-        [id, name, vertical]
-      );
+      await db
+        .insert(schema.teams)
+        .values({ id, name, vertical })
+        .onConflictDoNothing();
     }
 
     const employees: Array<[string, string, string]> = [
@@ -42,14 +47,22 @@ async function main(): Promise<void> {
       ['EMP-009', 'vikram@finverse.demo', 'Vikram Malhotra'],
       ['EMP-010', 'rajiv@finverse.demo', 'Rajiv Mehta'],
       ['EMP-011', 'ananya@finverse.demo', 'Ananya Roy'],
+      ['EMP-012', 'priya@finverse.demo', 'Priya Sharma'],
     ];
     for (const [id, email, displayName] of employees) {
-      await pool.query(
-        `INSERT INTO employees (id, email, password_hash, display_name, status)
-         VALUES ($1, $2, $3, $4, 'active')
-         ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
-        [id, email, demoHash, displayName]
-      );
+      await db
+        .insert(schema.employees)
+        .values({
+          id,
+          email,
+          passwordHash: demoHash,
+          displayName,
+          status: 'active',
+        })
+        .onConflictDoUpdate({
+          target: schema.employees.id,
+          set: { passwordHash: demoHash },
+        });
     }
 
     const assignments: Array<[string, string, string, string, string]> = [
@@ -60,6 +73,7 @@ async function main(): Promise<void> {
       ['ASG-BANK-001', 'EMP-004', 'SC', 'banking', 'TEAM-BANKING-ALPHA'],
       ['ASG-WEALTH-005', 'EMP-005', 'TL', 'wealth', 'TEAM-WEALTH-GAMMA'],
       ['ASG-WEALTH-006', 'EMP-006', 'SC', 'wealth', 'TEAM-WEALTH-GAMMA'],
+      ['ASG-WEALTH-012', 'EMP-012', 'SC', 'wealth', 'TEAM-WEALTH-ALPHA'],
       ['ASG-WEALTH-MG-A', 'EMP-007', 'MG', 'wealth', 'TEAM-WEALTH-ALPHA'],
       ['ASG-WEALTH-MG-B', 'EMP-007', 'MG', 'wealth', 'TEAM-WEALTH-BETA'],
       ['ASG-WEALTH-MG-C', 'EMP-007', 'MG', 'wealth', 'TEAM-WEALTH-GAMMA'],
@@ -75,11 +89,17 @@ async function main(): Promise<void> {
       ['ASG-EXEC-CFO-B', 'EMP-011', 'CFO', 'banking', 'TEAM-BANKING-ALPHA'],
     ];
     for (const [id, employeeId, role, vertical, teamId] of assignments) {
-      await pool.query(
-        `INSERT INTO assignments (id, employee_id, role, vertical, team_id, effective_from, effective_to)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NULL) ON CONFLICT (id) DO NOTHING`,
-        [id, employeeId, role, vertical, teamId]
-      );
+      await db
+        .insert(schema.assignments)
+        .values({
+          id,
+          employeeId,
+          role,
+          vertical,
+          teamId,
+          effectiveFrom: sql`CURRENT_DATE`,
+        })
+        .onConflictDoNothing();
     }
 
     const leads: Array<{
@@ -99,11 +119,22 @@ async function main(): Promise<void> {
       { id: 'FV-1104', vertical: 'wealth', name: 'Prospect K', email: null, phone: '+91 98765 40014', product: 'V1 Savings Plus', source: 'Campaign C12', stage: 'new', owner: null as unknown as string, team: 'TEAM-WEALTH-GAMMA' },
     ];
     for (const l of leads) {
-      await pool.query(
-        `INSERT INTO leads (id, vertical, display_name, email, phone, preferred_language, product, source, stage, owner_employee_id, team_id)
-         VALUES ($1, $2, $3, $4, $5, 'English', $6, $7, $8, $9, $10) ON CONFLICT (id) DO NOTHING`,
-        [l.id, l.vertical, l.name, l.email, l.phone, l.product, l.source, l.stage, l.owner, l.team]
-      );
+      await db
+        .insert(schema.leads)
+        .values({
+          id: l.id,
+          vertical: l.vertical,
+          displayName: l.name,
+          email: l.email,
+          phone: l.phone,
+          preferredLanguage: 'English',
+          product: l.product,
+          source: l.source,
+          stage: l.stage,
+          ownerEmployeeId: l.owner || null,
+          teamId: l.team,
+        })
+        .onConflictDoNothing();
     }
 
     let taskSeq = 0;
@@ -116,11 +147,19 @@ async function main(): Promise<void> {
 
     for (const [leadId, owner, action, purpose, dueAt, priority] of tasks) {
       taskSeq += 1;
-      await pool.query(
-        `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'open') ON CONFLICT (id) DO NOTHING`,
-        [`TASK-SEED-${taskSeq}`, leadId, owner, action, purpose, dueAt, priority]
-      );
+      await db
+        .insert(schema.leadTasks)
+        .values({
+          id: `TASK-SEED-${taskSeq}`,
+          leadId,
+          ownerEmployeeId: owner,
+          action,
+          purpose,
+          dueAt: dueAt.toISOString(),
+          priority,
+          status: 'open',
+        })
+        .onConflictDoNothing();
     }
 
     let eventSeq = 0;
@@ -136,31 +175,69 @@ async function main(): Promise<void> {
     ];
     for (const [leadId, actor, kind, note] of events) {
       eventSeq += 1;
-      await pool.query(
-        `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note)
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
-        [`EVT-SEED-${eventSeq}`, leadId, actor, kind, note]
-      );
+      await db
+        .insert(schema.leadEvents)
+        .values({
+          id: `EVT-SEED-${eventSeq}`,
+          leadId,
+          actorEmployeeId: actor,
+          kind,
+          note,
+        })
+        .onConflictDoNothing();
     }
 
-    await pool.query(
-      `INSERT INTO availability_changes (id, employee_id, status, note)
-       VALUES ('AVL-SEED-1', 'EMP-001', 'available', 'Synthetic demo availability') ON CONFLICT (id) DO NOTHING`
-    );
-    await pool.query(
-      `INSERT INTO reviews (id, employee_id, reviewer_employee_id, period, scorecard, commitments)
-       VALUES ('REV-SEED-1', 'EMP-001', 'EMP-003', 'September', '{"contactRate": 0.62, "followUps": 18, "note": "Synthetic demo scorecard"}', '[]')
-       ON CONFLICT (id) DO NOTHING`
-    );
-    await pool.query(
-      `INSERT INTO reviews (id, employee_id, reviewer_employee_id, period, scorecard, commitments)
-       VALUES ('REV-SEED-2', 'EMP-002', 'EMP-003', 'September', '{"contactRate": 0.55, "followUps": 14, "note": "Synthetic demo scorecard"}', '[]')
-       ON CONFLICT (id) DO NOTHING`
-    );
+    await db
+      .insert(schema.availabilityChanges)
+      .values([
+        {
+          id: 'AVL-SEED-1',
+          employeeId: 'EMP-001',
+          status: 'available',
+          note: 'Synthetic demo availability',
+        },
+        {
+          id: 'AVL-SEED-12',
+          employeeId: 'EMP-012',
+          status: 'available',
+          note: 'Synthetic demo availability',
+        },
+      ])
+      .onConflictDoNothing();
 
-    for (const table of ['teams', 'employees', 'assignments', 'leads', 'lead_tasks', 'lead_events']) {
-      const { rows } = await pool.query(`SELECT count(*)::int AS n FROM ${table}`);
-      console.log(`[seed] ${table}: ${rows[0].n} rows`);
+    await db
+      .insert(schema.reviews)
+      .values([
+        {
+          id: 'REV-SEED-1',
+          employeeId: 'EMP-001',
+          reviewerEmployeeId: 'EMP-003',
+          period: 'September',
+          scorecard: { contactRate: 0.62, followUps: 18, note: 'Synthetic demo scorecard' },
+          commitments: [],
+        },
+        {
+          id: 'REV-SEED-2',
+          employeeId: 'EMP-002',
+          reviewerEmployeeId: 'EMP-003',
+          period: 'September',
+          scorecard: { contactRate: 0.55, followUps: 14, note: 'Synthetic demo scorecard' },
+          commitments: [],
+        },
+      ])
+      .onConflictDoNothing();
+
+    const monitoredTables = [
+      { name: 'teams', table: schema.teams },
+      { name: 'employees', table: schema.employees },
+      { name: 'assignments', table: schema.assignments },
+      { name: 'leads', table: schema.leads },
+      { name: 'lead_tasks', table: schema.leadTasks },
+      { name: 'lead_events', table: schema.leadEvents },
+    ];
+    for (const t of monitoredTables) {
+      const [res] = await db.select({ count: sql<number>`count(*)::int` }).from(t.table);
+      console.log(`[seed] ${t.name}: ${res.count} rows`);
     }
     console.log('[seed] done (synthetic demo data only; demo password: demo1234)');
   } finally {

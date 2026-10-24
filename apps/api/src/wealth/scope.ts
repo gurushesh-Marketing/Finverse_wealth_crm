@@ -1,4 +1,6 @@
-import { pool } from '../repo/db';
+import { eq, and, or, inArray, sql } from 'drizzle-orm';
+import { db } from '../repo/db';
+import { leads } from '../db/schema';
 import type { Scope } from '../repo/users';
 import { forbidden, notFound } from '../lib/errors';
 
@@ -20,6 +22,19 @@ export function readScopeSql(scope: Scope, params: unknown[], alias = 'l'): stri
   return `${alias}.vertical = ANY($${verticalIdx}) AND ${ownerSql}`;
 }
 
+export function readScopeCondition(scope: Scope) {
+  let ownerCond = sql`FALSE`;
+  if (scope.role === 'SC') {
+    ownerCond = eq(leads.ownerEmployeeId, scope.employeeId);
+  } else if (scope.role === 'TL') {
+    ownerCond = or(
+      eq(leads.ownerEmployeeId, scope.employeeId),
+      inArray(leads.teamId, scope.teams)
+    )!;
+  }
+  return and(inArray(leads.vertical, scope.verticals), ownerCond);
+}
+
 export interface ScopedLead {
   id: string;
   owner_employee_id: string | null;
@@ -34,11 +49,24 @@ export interface ScopedLead {
 }
 
 export async function requireLeadForRead(scope: Scope, leadId: string): Promise<ScopedLead> {
-  const params: unknown[] = [leadId];
-  const where = readScopeSql(scope, params);
-  const { rows } = await pool.query<ScopedLead>(`SELECT l.* FROM leads l WHERE l.id = $1 AND ${where}`, params);
-  if (!rows[0]) throw notFound();
-  return rows[0];
+  const [row] = await db
+    .select({
+      id: leads.id,
+      owner_employee_id: leads.ownerEmployeeId,
+      team_id: leads.teamId,
+      vertical: leads.vertical,
+      stage: leads.stage,
+      display_name: leads.displayName,
+      phone: leads.phone,
+      email: leads.email,
+      preferred_language: leads.preferredLanguage,
+      record_version: leads.recordVersion,
+    })
+    .from(leads)
+    .where(and(eq(leads.id, leadId), readScopeCondition(scope)));
+
+  if (!row) throw notFound();
+  return row as ScopedLead;
 }
 
 export async function requireLeadForWrite(scope: Scope, leadId: string): Promise<ScopedLead> {

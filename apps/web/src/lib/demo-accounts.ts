@@ -42,6 +42,7 @@ export const DEMO_GROUPS: DemoGroup[] = [
         accounts: [
           { role: 'Sales Caller', name: 'Asha Rao', scope: 'Wealth · Wealth Alpha', email: 'asha@finverse.demo', status: IMPL },
           { role: 'Sales Caller', name: 'Ravi Menon', scope: 'Wealth · Wealth Beta', email: 'ravi@finverse.demo', status: IMPL },
+          { role: 'Sales Caller', name: 'Priya Sharma', scope: 'Wealth · Wealth Alpha', email: 'priya@finverse.demo', status: IMPL },
         ],
       },
       {

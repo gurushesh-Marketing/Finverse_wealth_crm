@@ -1,10 +1,12 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { DocumentRecord, DocumentRequestInput, DocumentRequestRecord } from '@finverse/contracts';
-import { pool } from './db';
+import { eq, and, or, inArray, desc, sql } from 'drizzle-orm';
+import { db } from './db';
+import { documents, documentRequests, leads, leadEvents } from '../db/schema';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
-import { requireLeadForRead, requireLeadForWrite, attributionFor } from '../wealth/scope';
+import { requireLeadForWrite, attributionFor } from '../wealth/scope';
 
 const UPLOAD_ROOT = resolve(__dirname, '../../../.uploads');
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -15,62 +17,94 @@ function id(prefix: string): string {
 }
 
 async function ownedLead(scope: Scope, leadId: string): Promise<any> {
-  const { rows } = await pool.query(
-    `SELECT l.* FROM leads l WHERE l.id = $1
-       AND l.vertical = ANY($2) AND (l.owner_employee_id = $3 OR l.team_id = ANY($4))`,
-    [leadId, scope.verticals, scope.employeeId, scope.teams]
-  );
-  if (!rows[0]) throw notFound();
-  return rows[0];
+  const [lead] = await db
+    .select()
+    .from(leads)
+    .where(
+      and(
+        eq(leads.id, leadId),
+        inArray(leads.vertical, scope.verticals),
+        or(
+          eq(leads.ownerEmployeeId, scope.employeeId),
+          inArray(leads.teamId, scope.teams)
+        )
+      )
+    );
+  if (!lead) throw notFound();
+  return lead;
 }
 
 export async function createDocumentRequest(scope: Scope, leadId: string, input: DocumentRequestInput): Promise<DocumentRequestRecord> {
   const lead = await ownedLead(scope, leadId);
-  if (lead.owner_employee_id !== scope.employeeId) throw forbidden('Only the current owner can request documents.');
+  if (lead.ownerEmployeeId !== scope.employeeId) throw forbidden('Only the current owner can request documents.');
   const reqId = id('DOCREQ');
   const token = id('UPL');
   const expiresAt = new Date(Date.now() + 7 * 86_400_000);
-  const { rows } = await pool.query(
-    `INSERT INTO document_requests (id, lead_id, actor_employee_id, checklist, requested_files, upload_token, expires_at, due_at, reminder_enabled, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open') RETURNING *`,
-    [reqId, leadId, scope.employeeId, input.checklist, input.requestedFiles, token, expiresAt, new Date(input.dueAt), input.reminderEnabled]
-  );
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), leadId, scope.employeeId, `Document request created (${input.checklist}): ${input.requestedFiles.join(', ')}. Secure upload link expires ${expiresAt.toUTCString()}.`, scope.role, scope.teams[0] ?? null, scope.assignmentId]
-  );
-  const r = rows[0];
+
+  const [r] = await db
+    .insert(documentRequests)
+    .values({
+      id: reqId,
+      leadId,
+      actorEmployeeId: scope.employeeId,
+      checklist: input.checklist,
+      requestedFiles: input.requestedFiles,
+      uploadToken: token,
+      expiresAt: expiresAt.toISOString(),
+      dueAt: new Date(input.dueAt).toISOString(),
+      reminderEnabled: input.reminderEnabled,
+      status: 'open',
+    })
+    .returning();
+
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'note',
+    note: `Document request created (${input.checklist}): ${input.requestedFiles.join(', ')}. Secure upload link expires ${expiresAt.toUTCString()}.`,
+    actorRole: scope.role,
+    actorTeamId: scope.teams[0] ?? null,
+    assignmentId: scope.assignmentId,
+  });
+
   return docRequestView(r);
 }
 
 function docRequestView(r: any): DocumentRequestRecord {
   return {
     id: r.id,
-    leadId: r.lead_id,
+    leadId: r.leadId ?? r.lead_id,
     checklist: r.checklist,
-    requestedFiles: r.requested_files,
-    uploadToken: r.upload_token,
-    expiresAt: new Date(r.expires_at).toISOString(),
-    dueAt: new Date(r.due_at).toISOString(),
+    requestedFiles: r.requestedFiles ?? r.requested_files,
+    uploadToken: r.uploadToken ?? r.upload_token,
+    expiresAt: new Date(r.expiresAt ?? r.expires_at).toISOString(),
+    dueAt: new Date(r.dueAt ?? r.due_at).toISOString(),
     status: r.status,
   };
 }
 
 export async function listDocumentRequests(scope: Scope, leadId: string): Promise<DocumentRequestRecord[]> {
   await ownedLead(scope, leadId);
-  const { rows } = await pool.query(`SELECT * FROM document_requests WHERE lead_id = $1 ORDER BY created_at DESC`, [leadId]);
+  const rows = await db
+    .select()
+    .from(documentRequests)
+    .where(eq(documentRequests.leadId, leadId))
+    .orderBy(desc(documentRequests.createdAt));
   return rows.map(docRequestView);
 }
 
 export async function rotateUploadToken(scope: Scope, requestId: string): Promise<DocumentRequestRecord> {
-  const { rows } = await pool.query(
-    `UPDATE document_requests SET upload_token = $2, expires_at = $3
-     WHERE id = $1 AND actor_employee_id = $4 RETURNING *`,
-    [requestId, id('UPL'), new Date(Date.now() + 7 * 86_400_000), scope.employeeId]
-  );
-  if (!rows[0]) throw notFound();
-  return docRequestView(rows[0]);
+  const [row] = await db
+    .update(documentRequests)
+    .set({
+      uploadToken: id('UPL'),
+      expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    })
+    .where(and(eq(documentRequests.id, requestId), eq(documentRequests.actorEmployeeId, scope.employeeId)))
+    .returning();
+  if (!row) throw notFound();
+  return docRequestView(row);
 }
 
 export interface UploadInput {
@@ -85,11 +119,11 @@ export interface UploadInput {
 export async function uploadDocument(scope: Scope, input: UploadInput): Promise<DocumentRecord> {
   const lead = await requireLeadForWrite(scope, input.leadId);
   if (input.requestId) {
-    const { rows: reqRows } = await pool.query(
-      `SELECT id FROM document_requests WHERE id = $1 AND lead_id = $2`,
-      [input.requestId, input.leadId]
-    );
-    if (!reqRows[0]) {
+    const [req] = await db
+      .select({ id: documentRequests.id })
+      .from(documentRequests)
+      .where(and(eq(documentRequests.id, input.requestId), eq(documentRequests.leadId, input.leadId)));
+    if (!req) {
       throw new HttpError(422, 'VALIDATION_FAILED', 'Check the highlighted fields.', {
         fieldErrors: { requestId: ['Request does not belong to this lead.'] },
       });
@@ -123,82 +157,116 @@ export async function uploadDocument(scope: Scope, input: UploadInput): Promise<
   mkdirSync(dirname(absPath), { recursive: true });
   writeFileSync(absPath, bytes);
 
-  const { rows: versionRows } = await pool.query(
-    `SELECT COALESCE(MAX(version), 0) AS v FROM documents WHERE lead_id = $1 AND document_type = $2`,
-    [input.leadId, input.documentType]
-  );
-  const version = Number(versionRows[0].v) + 1;
-  const { rows } = await pool.query(
-    `INSERT INTO documents (id, lead_id, request_id, uploaded_by, document_type, filename, storage_path, mime_type, size_bytes, version, scan_status, validation_status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending') RETURNING *`,
-    [docId, input.leadId, input.requestId ?? null, scope.employeeId, input.documentType, input.filename, relPath, input.mimeType, bytes.length, version, scanStatus]
-  );
+  const [versionRow] = await db
+    .select({ v: sql<number>`COALESCE(MAX(${documents.version}), 0)` })
+    .from(documents)
+    .where(and(eq(documents.leadId, input.leadId), eq(documents.documentType, input.documentType)));
+  const version = Number(versionRow?.v ?? 0) + 1;
+
+  const [doc] = await db
+    .insert(documents)
+    .values({
+      id: docId,
+      leadId: input.leadId,
+      requestId: input.requestId ?? null,
+      uploadedBy: scope.employeeId,
+      documentType: input.documentType,
+      filename: input.filename,
+      storagePath: relPath,
+      mimeType: input.mimeType,
+      sizeBytes: bytes.length,
+      version,
+      scanStatus,
+      validationStatus: 'pending',
+    })
+    .returning();
+
   if (scanStatus === 'clean') {
-    await pool.query(`UPDATE documents SET scan_status = 'clean' WHERE id = $1`, [docId]);
+    await db.update(documents).set({ scanStatus: 'clean' }).where(eq(documents.id, docId));
   }
-  if (lead.owner_employee_id !== scope.employeeId) {
-    // uploader on behalf of customer allowed only for scope members; attribution preserved above
-  }
-  const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id);
-  await pool.query(
-    `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
-     VALUES ($1, $2, $3, 'note', $4, $5, $6, $7)`,
-    [id('EVT'), input.leadId, scope.employeeId, `Document uploaded: ${input.filename} (${input.documentType}, v${version}, scan: ${scanStatus}, validation: pending — uploaded evidence is not verified evidence).`, actorRole, actorTeam, actorAssignment]
-  );
-  return docView(rows[0]);
+  const [actorRole, actorTeam, actorAssignment] = attributionFor(scope, lead.team_id ?? (lead as any).teamId);
+  await db.insert(leadEvents).values({
+    id: id('EVT'),
+    leadId: input.leadId,
+    actorEmployeeId: scope.employeeId,
+    kind: 'note',
+    note: `Document uploaded: ${input.filename} (${input.documentType}, v${version}, scan: ${scanStatus}, validation: pending — uploaded evidence is not verified evidence).`,
+    actorRole,
+    actorTeamId: actorTeam,
+    assignmentId: actorAssignment,
+  });
+  return docView(doc);
 }
 
 function docView(r: any): DocumentRecord {
   return {
     id: r.id,
-    leadId: r.lead_id,
-    documentType: r.document_type,
+    leadId: r.leadId ?? r.lead_id,
+    documentType: r.documentType ?? r.document_type,
     filename: r.filename,
-    mimeType: r.mime_type,
-    sizeBytes: r.size_bytes,
+    mimeType: r.mimeType ?? r.mime_type,
+    sizeBytes: r.sizeBytes ?? r.size_bytes,
     version: r.version,
-    scanStatus: r.scan_status,
-    validationStatus: r.validation_status,
-    rejectReason: r.reject_reason,
-    createdAt: new Date(r.created_at).toISOString(),
+    scanStatus: r.scanStatus ?? r.scan_status,
+    validationStatus: r.validationStatus ?? r.validation_status,
+    rejectReason: r.rejectReason ?? r.reject_reason,
+    createdAt: new Date(r.createdAt ?? r.created_at).toISOString(),
   };
 }
 
 export async function listDocuments(scope: Scope, leadId: string): Promise<DocumentRecord[]> {
   await ownedLead(scope, leadId);
-  const { rows } = await pool.query(`SELECT * FROM documents WHERE lead_id = $1 ORDER BY created_at DESC`, [leadId]);
+  const rows = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.leadId, leadId))
+    .orderBy(desc(documents.createdAt));
   return rows.map(docView);
 }
 
 export async function downloadDocument(scope: Scope, documentId: string): Promise<{ filename: string; mimeType: string; bytes: Buffer }> {
-  const { rows } = await pool.query(
-    `SELECT d.*, l.vertical, l.owner_employee_id, l.team_id FROM documents d JOIN leads l ON l.id = d.lead_id WHERE d.id = $1`,
-    [documentId]
-  );
-  const row = rows[0];
+  const [row] = await db
+    .select({
+      filename: documents.filename,
+      mimeType: documents.mimeType,
+      storagePath: documents.storagePath,
+      scanStatus: documents.scanStatus,
+      vertical: leads.vertical,
+      ownerEmployeeId: leads.ownerEmployeeId,
+      teamId: leads.teamId,
+    })
+    .from(documents)
+    .innerJoin(leads, eq(leads.id, documents.leadId))
+    .where(eq(documents.id, documentId));
+
   if (!row) throw notFound();
   const inScope =
     row.vertical && scope.verticals.includes(row.vertical) &&
-    (row.owner_employee_id === scope.employeeId || scope.teams.includes(row.team_id));
+    (row.ownerEmployeeId === scope.employeeId || (row.teamId && scope.teams.includes(row.teamId)));
   if (!inScope) throw notFound();
-  if (row.scan_status === 'quarantined') throw forbidden('This file is quarantined and unavailable.');
-  const absPath = resolve(UPLOAD_ROOT, row.storage_path);
+  if (row.scanStatus === 'quarantined') throw forbidden('This file is quarantined and unavailable.');
+  const absPath = resolve(UPLOAD_ROOT, row.storagePath);
   if (!existsSync(absPath)) throw notFound();
-  return { filename: row.filename, mimeType: row.mime_type, bytes: readFileSync(absPath) };
+  return { filename: row.filename, mimeType: row.mimeType, bytes: readFileSync(absPath) };
 }
 
 export async function reviewDocument(scope: Scope, documentId: string, accept: boolean, reason?: string) {
-  // Caller cannot self-verify independent evidence; review is an authorized TL action.
   if (scope.role !== 'TL') throw forbidden('Only an authorized reviewer can validate evidence.');
-  const { rows } = await pool.query(
-    `SELECT d.*, l.team_id FROM documents d JOIN leads l ON l.id = d.lead_id WHERE d.id = $1`,
-    [documentId]
-  );
-  const row = rows[0];
-  if (!row || !scope.teams.includes(row.team_id)) throw notFound();
-  await pool.query(
-    `UPDATE documents SET validation_status = $2, reject_reason = $3 WHERE id = $1`,
-    [documentId, accept ? 'accepted' : 'rejected', accept ? null : reason ?? 'Not acceptable']
-  );
+  const [row] = await db
+    .select({
+      teamId: leads.teamId,
+    })
+    .from(documents)
+    .innerJoin(leads, eq(leads.id, documents.leadId))
+    .where(eq(documents.id, documentId));
+
+  if (!row || !row.teamId || !scope.teams.includes(row.teamId)) throw notFound();
+  await db
+    .update(documents)
+    .set({
+      validationStatus: accept ? 'accepted' : 'rejected',
+      rejectReason: accept ? null : reason ?? 'Not acceptable',
+    })
+    .where(eq(documents.id, documentId));
   return { ok: true, validationStatus: accept ? 'accepted' : 'rejected' };
 }

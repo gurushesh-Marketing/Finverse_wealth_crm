@@ -9,7 +9,19 @@ import type {
   ReviewRecord,
   ReviewResponseInput,
 } from '@finverse/contracts';
-import { pool } from './db';
+import { eq, and, gte, lte, desc, asc, count, sql } from 'drizzle-orm';
+import { db } from './db';
+import {
+  calls,
+  leadTasks,
+  qualifications,
+  lossRecords,
+  outcomeRequests,
+  reportExports,
+  reviews,
+  employees,
+  leads,
+} from '../db/schema';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
 
@@ -52,32 +64,127 @@ function periodBounds(period: ReportPeriod): { start: Date; end: Date } {
   return { start, end };
 }
 
-async function count(sql: string, params: unknown[]): Promise<number> {
-  const { rows } = await pool.query<{ n: string }>(sql, params);
-  return Number(rows[0]?.n ?? 0);
-}
-
 export async function computePerformance(scope: Scope, period: ReportPeriod): Promise<PerformanceReport> {
   const { start, end } = periodBounds(period);
-  const p = [scope.employeeId, start, end];
-  const verifiedCalls = await count(
-    `SELECT count(*) AS n FROM calls WHERE actor_employee_id = $1 AND started_at BETWEEN $2 AND $3 AND evidence_status = 'provider-verified'`, p);
-  const simulatedCalls = await count(
-    `SELECT count(*) AS n FROM calls WHERE actor_employee_id = $1 AND started_at BETWEEN $2 AND $3 AND evidence_status = 'simulated' AND direction = 'outbound'`, p);
-  const manualActivities = await count(
-    `SELECT count(*) AS n FROM calls WHERE actor_employee_id = $1 AND started_at BETWEEN $2 AND $3 AND evidence_status = 'manual'`, p);
-  const followUpsCompleted = await count(
-    `SELECT count(*) AS n FROM lead_tasks WHERE owner_employee_id = $1 AND completed_at BETWEEN $2 AND $3 AND status = 'completed'`, p);
-  const followUpsDue = await count(
-    `SELECT count(*) AS n FROM lead_tasks WHERE owner_employee_id = $1 AND due_at BETWEEN $2 AND $3 AND status = 'open'`, p);
-  const qualified = await count(
-    `SELECT count(*) AS n FROM qualifications WHERE actor_employee_id = $1 AND created_at BETWEEN $2 AND $3`, p);
-  const losses = await count(
-    `SELECT count(*) AS n FROM loss_records WHERE actor_employee_id = $1 AND created_at BETWEEN $2 AND $3`, p);
-  const conversionsPending = await count(
-    `SELECT count(*) AS n FROM outcome_requests WHERE actor_employee_id = $1 AND created_at BETWEEN $2 AND $3 AND type = 'conversion' AND status = 'pending'`, p);
-  const conversionsApproved = await count(
-    `SELECT count(*) AS n FROM outcome_requests WHERE actor_employee_id = $1 AND created_at BETWEEN $2 AND $3 AND type = 'conversion' AND status = 'approved'`, p);
+
+  const [verifiedCallsRes] = await db
+    .select({ n: count() })
+    .from(calls)
+    .where(
+      and(
+        eq(calls.actorEmployeeId, scope.employeeId),
+        gte(calls.startedAt, sql`${start}`),
+        lte(calls.startedAt, sql`${end}`),
+        eq(calls.evidenceStatus, 'provider-verified')
+      )
+    );
+  const verifiedCalls = Number(verifiedCallsRes?.n ?? 0);
+
+  const [simulatedCallsRes] = await db
+    .select({ n: count() })
+    .from(calls)
+    .where(
+      and(
+        eq(calls.actorEmployeeId, scope.employeeId),
+        gte(calls.startedAt, sql`${start}`),
+        lte(calls.startedAt, sql`${end}`),
+        eq(calls.evidenceStatus, 'simulated'),
+        eq(calls.direction, 'outbound')
+      )
+    );
+  const simulatedCalls = Number(simulatedCallsRes?.n ?? 0);
+
+  const [manualActivitiesRes] = await db
+    .select({ n: count() })
+    .from(calls)
+    .where(
+      and(
+        eq(calls.actorEmployeeId, scope.employeeId),
+        gte(calls.startedAt, sql`${start}`),
+        lte(calls.startedAt, sql`${end}`),
+        eq(calls.evidenceStatus, 'manual')
+      )
+    );
+  const manualActivities = Number(manualActivitiesRes?.n ?? 0);
+
+  const [followUpsCompletedRes] = await db
+    .select({ n: count() })
+    .from(leadTasks)
+    .where(
+      and(
+        eq(leadTasks.ownerEmployeeId, scope.employeeId),
+        gte(leadTasks.completedAt, sql`${start}`),
+        lte(leadTasks.completedAt, sql`${end}`),
+        eq(leadTasks.status, 'completed')
+      )
+    );
+  const followUpsCompleted = Number(followUpsCompletedRes?.n ?? 0);
+
+  const [followUpsDueRes] = await db
+    .select({ n: count() })
+    .from(leadTasks)
+    .where(
+      and(
+        eq(leadTasks.ownerEmployeeId, scope.employeeId),
+        gte(leadTasks.dueAt, sql`${start}`),
+        lte(leadTasks.dueAt, sql`${end}`),
+        eq(leadTasks.status, 'open')
+      )
+    );
+  const followUpsDue = Number(followUpsDueRes?.n ?? 0);
+
+  const [qualifiedRes] = await db
+    .select({ n: count() })
+    .from(qualifications)
+    .where(
+      and(
+        eq(qualifications.actorEmployeeId, scope.employeeId),
+        gte(qualifications.createdAt, sql`${start}`),
+        lte(qualifications.createdAt, sql`${end}`)
+      )
+    );
+  const qualified = Number(qualifiedRes?.n ?? 0);
+
+  const [lossesRes] = await db
+    .select({ n: count() })
+    .from(lossRecords)
+    .where(
+      and(
+        eq(lossRecords.actorEmployeeId, scope.employeeId),
+        gte(lossRecords.createdAt, sql`${start}`),
+        lte(lossRecords.createdAt, sql`${end}`)
+      )
+    );
+  const losses = Number(lossesRes?.n ?? 0);
+
+  const [conversionsPendingRes] = await db
+    .select({ n: count() })
+    .from(outcomeRequests)
+    .where(
+      and(
+        eq(outcomeRequests.actorEmployeeId, scope.employeeId),
+        gte(outcomeRequests.createdAt, sql`${start}`),
+        lte(outcomeRequests.createdAt, sql`${end}`),
+        eq(outcomeRequests.type, 'conversion'),
+        eq(outcomeRequests.status, 'pending')
+      )
+    );
+  const conversionsPending = Number(conversionsPendingRes?.n ?? 0);
+
+  const [conversionsApprovedRes] = await db
+    .select({ n: count() })
+    .from(outcomeRequests)
+    .where(
+      and(
+        eq(outcomeRequests.actorEmployeeId, scope.employeeId),
+        gte(outcomeRequests.createdAt, sql`${start}`),
+        lte(outcomeRequests.createdAt, sql`${end}`),
+        eq(outcomeRequests.type, 'conversion'),
+        eq(outcomeRequests.status, 'approved')
+      )
+    );
+  const conversionsApproved = Number(conversionsApprovedRes?.n ?? 0);
+
   const totalTasks = followUpsCompleted + followUpsDue;
 
   const metrics: MetricInspection[] = [
@@ -138,11 +245,15 @@ export async function createExport(scope: Scope, period: ReportPeriod): Promise<
     stream.on('error', reject);
   });
   const expiresAt = new Date(Date.now() + 7 * 86_400_000);
-  await pool.query(
-    `INSERT INTO report_exports (id, employee_id, period, snapshot_at, metric_version, storage_path, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [exportId, scope.employeeId, report.period, report.asOf, report.metricVersion, relPath, expiresAt]
-  );
+  await db.insert(reportExports).values({
+    id: exportId,
+    employeeId: scope.employeeId,
+    period: report.period,
+    snapshotAt: report.asOf,
+    metricVersion: report.metricVersion,
+    storagePath: relPath,
+    expiresAt: expiresAt.toISOString(),
+  });
   return {
     id: exportId,
     period: report.period,
@@ -154,55 +265,90 @@ export async function createExport(scope: Scope, period: ReportPeriod): Promise<
 }
 
 export async function downloadExport(scope: Scope, exportId: string): Promise<{ filename: string; bytes: Buffer }> {
-  const { rows } = await pool.query(`SELECT * FROM report_exports WHERE id = $1`, [exportId]);
-  const row = rows[0];
-  if (!row || row.employee_id !== scope.employeeId) throw notFound();
-  if (row.revoked_at || new Date(row.expires_at).getTime() < Date.now()) {
+  const [row] = await db.select().from(reportExports).where(eq(reportExports.id, exportId));
+  if (!row || row.employeeId !== scope.employeeId) throw notFound();
+  if (row.revokedAt || new Date(row.expiresAt).getTime() < Date.now()) {
     throw forbidden('This export is revoked or expired.');
   }
-  const absPath = resolve(EXPORT_ROOT, row.storage_path);
+  const absPath = resolve(EXPORT_ROOT, row.storagePath);
   if (!existsSync(absPath)) throw notFound();
   return { filename: `finverse-performance-${row.period}.pdf`, bytes: readFileSync(absPath) };
 }
 
 export async function listReviews(scope: Scope): Promise<ReviewRecord[]> {
-  const { rows } = await pool.query(
-    `SELECT r.*, e.display_name AS reviewer_name FROM reviews r
-     JOIN employees e ON e.id = r.reviewer_employee_id
-     WHERE r.employee_id = $1 ORDER BY r.created_at DESC`,
-    [scope.employeeId]
-  );
-  return rows.map((r: any) => ({
+  const rows = await db
+    .select({
+      id: reviews.id,
+      period: reviews.period,
+      reviewerName: employees.displayName,
+      scorecard: reviews.scorecard,
+      selfReflection: reviews.selfReflection,
+      commitments: reviews.commitments,
+      employeeResponse: reviews.employeeResponse,
+      acknowledgedAt: reviews.acknowledgedAt,
+      createdAt: reviews.createdAt,
+    })
+    .from(reviews)
+    .innerJoin(employees, eq(employees.id, reviews.reviewerEmployeeId))
+    .where(eq(reviews.employeeId, scope.employeeId))
+    .orderBy(desc(reviews.createdAt));
+
+  return rows.map((r) => ({
     id: r.id,
     period: r.period,
-    reviewerName: r.reviewer_name,
-    scorecard: r.scorecard,
-    selfReflection: r.self_reflection,
-    commitments: r.commitments ?? [],
-    employeeResponse: r.employee_response,
-    acknowledgedAt: r.acknowledged_at ? new Date(r.acknowledged_at).toISOString() : null,
+    reviewerName: r.reviewerName,
+    scorecard: (r.scorecard as Record<string, unknown>) ?? {},
+    selfReflection: r.selfReflection,
+    commitments: (r.commitments as any) ?? [],
+    employeeResponse: r.employeeResponse,
+    acknowledgedAt: r.acknowledgedAt ? new Date(r.acknowledgedAt).toISOString() : null,
   }));
 }
 
 export async function respondToReview(scope: Scope, reviewId: string, input: ReviewResponseInput) {
-  const { rows } = await pool.query(`SELECT * FROM reviews WHERE id = $1 AND employee_id = $2`, [reviewId, scope.employeeId]);
-  const review = rows[0];
+  const [review] = await db
+    .select()
+    .from(reviews)
+    .where(and(eq(reviews.id, reviewId), eq(reviews.employeeId, scope.employeeId)));
   if (!review) throw notFound();
-  if (review.acknowledged_at) {
+  if (review.acknowledgedAt) {
     throw new HttpError(409, 'DUPLICATE_OPEN_TASK', 'This review is already acknowledged.');
   }
   const commitments = input.commitments.map((c) => ({ ...c, completed: false }));
-  for (const c of commitments) {
-    await pool.query(
-      `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, due_at, priority, status)
-       SELECT $1, l.id, $2, 'other', $3, $4, 'normal', 'open'
-       FROM leads l WHERE l.owner_employee_id = $2 ORDER BY l.id LIMIT 1`,
-      [id('TASK'), scope.employeeId, `One-to-one commitment: ${c.text}`, new Date(c.dueAt)]
-    );
-  }
-  await pool.query(
-    `UPDATE reviews SET self_reflection = $2, commitments = $3, employee_response = $4, acknowledged_at = now() WHERE id = $1`,
-    [reviewId, input.selfReflection, JSON.stringify(commitments), input.employeeResponse ?? null]
-  );
+
+  await db.transaction(async (tx) => {
+    for (const c of commitments) {
+      const [lead] = await tx
+        .select({ id: leads.id })
+        .from(leads)
+        .where(eq(leads.ownerEmployeeId, scope.employeeId))
+        .orderBy(asc(leads.id))
+        .limit(1);
+
+      if (lead) {
+        await tx.insert(leadTasks).values({
+          id: id('TASK'),
+          leadId: lead.id,
+          ownerEmployeeId: scope.employeeId,
+          action: 'other',
+          purpose: `One-to-one commitment: ${c.text}`,
+          dueAt: new Date(c.dueAt).toISOString(),
+          priority: 'normal',
+          status: 'open',
+        });
+      }
+    }
+
+    await tx
+      .update(reviews)
+      .set({
+        selfReflection: input.selfReflection,
+        commitments: commitments,
+        employeeResponse: input.employeeResponse ?? null,
+        acknowledgedAt: sql`now()`,
+      })
+      .where(eq(reviews.id, reviewId));
+  });
+
   return { ok: true, acknowledged: true };
 }
