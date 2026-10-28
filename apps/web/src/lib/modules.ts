@@ -16,12 +16,7 @@ import {
   Target,
   Users,
   FilePlus2,
-  UploadCloud,
-  ListChecks,
-  Copy,
-  Send,
-  Database,
-  FileSpreadsheet,
+  DollarSign,
   type LucideIcon,
 } from 'lucide-react';
 import type { WorkspaceSession } from '@finverse/contracts';
@@ -330,6 +325,42 @@ const ALL_MODULES: Module[] = [
     requiredVerticals: ['real_estate', 'real-estate'],
     requiredActions: ['review.acknowledge'],
     href: '/real-estate/reviews',
+  },
+  {
+    key: 'rel.portfolio',
+    label: 'Portfolio',
+    description: 'Active qualified prospects, stages & loan facilities',
+    icon: LayoutDashboard,
+    requiredVerticals: ['wealth', 'banking', 'markets', 'real-estate', 'real_estate'],
+    requiredActions: ['deal.read'],
+    href: '/rel/portfolio',
+  },
+  {
+    key: 'rel.handoffs',
+    label: 'Handoff queue',
+    description: 'Inbound qualified prospects from sales callers',
+    icon: ArrowLeftRight,
+    requiredVerticals: ['wealth', 'banking', 'markets', 'real-estate', 'real_estate'],
+    requiredActions: ['handoff.decide', 'deal.read'],
+    href: '/rel/handoffs',
+  },
+  {
+    key: 'rel.institutions',
+    label: 'Partner institutions',
+    description: 'Bank partner proposals, term sheets & sanctions',
+    icon: Handshake,
+    requiredVerticals: ['wealth', 'banking', 'markets', 'real-estate', 'real_estate'],
+    requiredActions: ['partner.coordinate', 'deal.read'],
+    href: '/rel/institutions',
+  },
+  {
+    key: 'rel.reports',
+    label: 'Review pack',
+    description: 'Portfolio review pack & verified outcome summary',
+    icon: BarChart3,
+    requiredVerticals: ['wealth', 'banking', 'markets', 'real-estate', 'real_estate'],
+    requiredActions: ['report.read:personal'],
+    href: '/rel/reports',
   },
   {
     key: 'management.overview',
@@ -961,69 +992,24 @@ const ALL_MODULES: Module[] = [
     requiredActions: ['hr.request:read'],
     href: '/hr/requests',
   },
-  // Data Entry Workspace (DE-01 through DE-07, Deck P263–P276)
+  {
+    key: 'hr.payroll',
+    label: 'Payroll preview',
+    description: 'Effective-dated compensation records and non-overlapping 28th–27th payroll preview',
+    icon: DollarSign,
+    requiredVerticals: [],
+    requiredActions: ['hr.overview:read'],
+    href: '/hr/payroll',
+  },
+  // Data Entry: manual vertical-scoped record creation and database read-back.
   {
     key: 'dataentry.intake',
-    label: 'New enquiry',
-    description: 'Capture source-backed enquiry with validation (DE-01)',
+    label: 'Enter & verify',
+    description: 'Save a prospect manually and verify the persisted record',
     icon: FilePlus2,
     requiredVerticals: [],
-    requiredActions: ['intake.enquiry:create'],
+    requiredActions: ['intake.record:create'],
     href: '/data-entry/intake',
-  },
-  {
-    key: 'dataentry.batches',
-    label: 'Upload batches',
-    description: 'Upload and map CSV intake data files (DE-02)',
-    icon: UploadCloud,
-    requiredVerticals: [],
-    requiredActions: ['intake.batch:upload'],
-    href: '/data-entry/batches',
-  },
-  {
-    key: 'dataentry.validation',
-    label: 'Validation',
-    description: 'Filter and correct rejected intake rows (DE-03)',
-    icon: ListChecks,
-    requiredVerticals: [],
-    requiredActions: ['intake.row:correct'],
-    href: '/data-entry/validation',
-  },
-  {
-    key: 'dataentry.duplicates',
-    label: 'Duplicate review',
-    description: 'Review candidate duplicates with restricted summary (DE-04)',
-    icon: Copy,
-    requiredVerticals: [],
-    requiredActions: ['intake.duplicate:review'],
-    href: '/data-entry/duplicates',
-  },
-  {
-    key: 'dataentry.publish',
-    label: 'Publish allocation',
-    description: 'Publish validated intake to frontline queues (DE-05)',
-    icon: Send,
-    requiredVerticals: [],
-    requiredActions: ['intake.batch:publish'],
-    href: '/data-entry/publish',
-  },
-  {
-    key: 'dataentry.sources',
-    label: 'Source register',
-    description: 'Maintain source evidence and collection provenance (DE-06)',
-    icon: Database,
-    requiredVerticals: [],
-    requiredActions: ['intake.source:manage'],
-    href: '/data-entry/sources',
-  },
-  {
-    key: 'dataentry.reports',
-    label: 'Quality reports',
-    description: 'Reconcile intake turnaround and scoped exports (DE-07)',
-    icon: FileSpreadsheet,
-    requiredVerticals: [],
-    requiredActions: ['intake.report:export'],
-    href: '/data-entry/reports',
   },
 ];
 
@@ -1056,7 +1042,7 @@ export function getAccessibleModuleGroups(session: WorkspaceSession): ModuleGrou
     { key: 'national', label: isBanking ? 'Banking National Manager' : isMarkets ? 'Markets National Manager' : isRealEstate ? 'Real Estate National Manager' : 'National Manager', modules: ALL_MODULES.filter((m) => m.key.startsWith('national.')) },
     { key: 'regional', label: isBanking ? 'Banking Regional Manager' : isMarkets ? 'Markets Regional Manager' : isRealEstate ? 'Real Estate Regional Manager' : 'Regional Manager', modules: ALL_MODULES.filter((m) => m.key.startsWith('regional.')) },
     { key: 'manager', label: isBanking ? 'Banking Manager' : isMarkets ? 'Markets Manager' : isRealEstate ? 'Real Estate Manager' : 'Wealth Manager', modules: ALL_MODULES.filter((m) => m.key.startsWith('manager.')) },
-    { key: 'management', label: isBanking ? 'Banking Team Lead' : isMarkets ? 'Markets Team Lead' : isRealEstate ? 'Real Estate Team Lead' : 'Team lead', modules: ALL_MODULES.filter((m) => m.key.startsWith('management.')) },
+    { key: 'rel', label: isBanking ? 'Banking Relationship Manager' : isMarkets ? 'Markets Relationship Manager' : isRealEstate ? 'Real Estate Relationship Manager' : 'Wealth Relationship Manager', modules: ALL_MODULES.filter((m) => m.key.startsWith('rel.')) },
     { key: 'wealth', label: 'Wealth', modules: ALL_MODULES.filter((m) => m.key.startsWith('wealth.')) },
     { key: 'banking', label: 'Commercial Banking', modules: ALL_MODULES.filter((m) => m.key.startsWith('banking.')) },
     { key: 'markets', label: 'Markets & Securities', modules: ALL_MODULES.filter((m) => m.key.startsWith('markets.')) },
@@ -1064,7 +1050,7 @@ export function getAccessibleModuleGroups(session: WorkspaceSession): ModuleGrou
   ];
   return groups
     .map((g) => {
-      // Role scoping: DE in data-entry; HR in hr; SA in superadmin; CFO in finance; CEO in executive; NM in national; RM in regional; MG in manager; TL in management; SC in caller operational
+      // Role scoping: DE in data-entry; HR in hr; SA in superadmin; CFO in finance; CEO in executive; NM in national; RM in regional; MG in manager; REL in rel; SC in caller operational
       if (session.role === 'DE' && g.key !== 'data-entry') {
         return { ...g, modules: [] };
       }
@@ -1110,10 +1096,13 @@ export function getAccessibleModuleGroups(session: WorkspaceSession): ModuleGrou
       if (session.role === 'MG' && g.key !== 'manager') {
         return { ...g, modules: [] };
       }
-      if (session.role === 'TL' && g.key !== 'management') {
+      if ((session.role === 'REL' || session.role === 'TL') && g.key !== 'rel') {
         return { ...g, modules: [] };
       }
-      if (session.role === 'SC' && (g.key === 'management' || g.key === 'manager' || g.key === 'regional' || g.key === 'national' || g.key === 'ceo' || g.key === 'cfo' || g.key === 'superadmin' || g.key === 'hr' || g.key === 'data-entry')) {
+      if (session.role !== 'REL' && session.role !== 'TL' && g.key === 'rel') {
+        return { ...g, modules: [] };
+      }
+      if (session.role === 'SC' && (g.key === 'rel' || g.key === 'manager' || g.key === 'regional' || g.key === 'national' || g.key === 'ceo' || g.key === 'cfo' || g.key === 'superadmin' || g.key === 'hr' || g.key === 'data-entry')) {
         return { ...g, modules: [] };
       }
       return { ...g, modules: g.modules.filter((m) => canAccessModule(session, m)) };
@@ -1139,7 +1128,7 @@ export function landingPath(session: WorkspaceSession): string {
   if (session.role === 'NM') return '/national/overview';
   if (session.role === 'RM') return '/regional/overview';
   if (session.role === 'MG') return '/manager/overview';
-  if (session.role === 'TL') return '/management/team';
+  if (session.role === 'REL' || session.role === 'TL') return '/rel/portfolio';
   if (session.verticalGrants.includes('banking')) return '/banking/dashboard';
   if (session.verticalGrants.includes('markets')) return '/markets/dashboard';
   if (session.verticalGrants.includes('real_estate') || session.verticalGrants.includes('real-estate')) return '/real-estate/dashboard';

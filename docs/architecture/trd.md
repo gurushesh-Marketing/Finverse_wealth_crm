@@ -50,9 +50,13 @@ export interface ApiErrorResponse {
 ## 2. Actual Implemented REST API Routes by Role
 
 ### 2.1 Authentication & Session (`/api/auth/*`)
-- `POST /api/auth/login`: Authenticates credentials (`email`, `password`), resolves active effective assignment, sets HTTP-only signed session cookie, returns user profile and workspace manifest.
+- `POST /api/auth/login`: Authenticates credentials (`email` or `username`, `password`), resolves active effective assignment, sets HTTP-only signed session cookie, returns user profile, must-change-password status, and workspace manifest.
 - `POST /api/auth/logout`: Invalidates session, clears cookie, emits audit event.
 - `GET /api/auth/me`: Resolves current session, verifies assignment validity at `NOW()`, returns active employee context.
+- `POST /api/auth/forgot-password`: Requests single-use password reset link using verified email or username. Protects against account enumeration by always returning neutral confirmation. Hashes token with SHA-256 and writes to `account_recovery_requests` and `local_delivery_outbox` with channel label `Local Delivery Adapter (Demo: No External Email Service)`.
+- `POST /api/auth/reset-password`: Consumes unexpired single-use recovery token, replaces password hash (scrypt), resets `must_change_password`, invalidates token, and revokes all active sessions. Inactive, pending, rejected, and offboarded profiles are blocked.
+- `POST /api/auth/change-password`: Authenticated session endpoint for mandatory first login or profile password update. Resets `must_change_password` flag to `false`.
+- `GET /api/auth/local-delivery`: Development-only delivery outbox inspector for evaluating generated token links without external email provider.
 
 ### 2.2 Frontline Sales Caller & Pipeline (`/api/*` via `wealthRouter` & `leadsRouter`)
 - `GET /api/my-day`: Returns today's tasks, overdue follow-ups, appointments, and caller availability (`SC-01`).
@@ -160,6 +164,15 @@ export interface ApiErrorResponse {
 - **National Manager (`/api/national/*`):** Regional benchmarking (`NM-02`), national targets (`NM-03`), product economics (`NM-04`), product rule proposals (`NM-05`), national forecast (`NM-06`), cross-region transfers (`NM-07`), inter-vertical referrals (`NM-08`), national escalations (`NM-09`), RM reviews (`NM-10`), national PDF packs (`NM-11`).
 - **CEO (`/api/ceo/*`):** Executive operating picture (`CEO-01`), cross-vertical comparisons (`CEO-02`), NM scorecards (`CEO-03`), corporate targets (`CEO-04`), consolidated forecast (`CEO-05`), growth initiatives (`CEO-06`), priority conflicts (`CEO-07`), operating risks (`CEO-08`), NM reviews (`CEO-09`), board PDF pack (`CEO-10`), commitment follow-through (`CEO-11`).
 - **CFO (`/api/cfo/*`):** Revenue & cash overview (`CFO-01`), sales handoff verification (`CFO-02`), revenue recognition entries (`CFO-03`), receivable invoices (`CFO-04`), bank receipts import (`CFO-05`), invoice-receipt matching (`CFO-06`), suspense reconciliation (`CFO-07`), 3-way reconciliation freeze (`CFO-08`), ageing schedule (`CFO-09`), refunds (`CFO-10`), credit notes (`CFO-11`), incentive pools (`CFO-12`), disputes (`CFO-13`), period close certification (`CFO-14`), period reopening (`CFO-15`), budget variance (`CFO-16`), finance concurrence (`CFO-17`), certified finance PDF pack (`CFO-18`), DoA limits policy (`CFO-19`).
+
+### 2.6 Human Resources & Superadmin Endpoints
+- **HR Onboarding & Joiners (`/api/hr/*`):**
+  - `POST /api/hr/onboarding/submit`: Submits new employee onboarding with 4 fields (`fullName`, `primaryMobile`, `whatsappNumber` [optional or same], `email`). Server checks email/mobile uniqueness, generates sequential `EMP-xxx` via `employee_id_seq`, creates `employees` row with `status: 'pending_approval'`, and creates separate audit row in `hr_lifecycle_requests` with `status: 'submitted'`. HR never enters passwords or employee IDs.
+  - `GET /api/hr/requests`: Lists pending and historical HR lifecycle requests.
+- **Superadmin Account Activation & Governance (`/api/superadmin/*`):**
+  - `GET /api/superadmin/onboarding/requests`: Lists pending candidate submissions awaiting administrative approval.
+  - `POST /api/superadmin/onboarding/approve`: Validates vertical placement, team assignment, and reporting Relationship Manager eligibility. Creates login username, provisions one-time temporary password (scrypt hashed), sets `must_change_password: true`, activates employee, atomically creates effective assignment, and returns temporary credentials once.
+  - `POST /api/superadmin/onboarding/reject`: Rejects candidate record with documented reason; marks employee and request as `'rejected'`. Blocked from login and lead receipt.
 
 ---
 

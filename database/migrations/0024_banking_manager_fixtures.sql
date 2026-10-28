@@ -10,12 +10,12 @@ ON CONFLICT (id) DO NOTHING;
 -- Reuses active demo scrypt hash from existing demo employee
 INSERT INTO employees (id, email, password_hash, display_name, status)
 SELECT 'EMP-017', 'kunal@finverse.demo', password_hash, 'Kunal Shah', 'active'
-FROM employees WHERE email = 'rohan@finverse.demo' LIMIT 1
+FROM employees LIMIT 1
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO employees (id, email, password_hash, display_name, status)
 SELECT 'EMP-018', 'priyas@finverse.demo', password_hash, 'Priya Sen', 'active'
-FROM employees WHERE email = 'rohan@finverse.demo' LIMIT 1
+FROM employees LIMIT 1
 ON CONFLICT (id) DO NOTHING;
 
 -- Assignments for Kunal Shah (MG on Banking Alpha & Beta)

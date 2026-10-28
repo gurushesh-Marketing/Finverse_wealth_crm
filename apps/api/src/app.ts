@@ -16,6 +16,10 @@ import { createCfoRouter } from './routes/cfo';
 import { createSuperadminRouter } from './routes/superadmin';
 import { createHrRouter } from './routes/hr';
 import { dataEntryRouter } from './routes/data-entry';
+import { createLeaveRouter } from './routes/leave';
+import { createAttendanceRouter } from './routes/attendance';
+import { createPayrollRouter } from './routes/payroll';
+import { relRouter } from './routes/rel';
 
 // Routing model:
 // - Development: Vite dev server proxies /api to http://localhost:4000 (one origin per browser).
@@ -45,6 +49,11 @@ export function createApp(): Express {
   app.use('/api/superadmin', createSuperadminRouter());
   app.use('/api/hr', createHrRouter());
   app.use('/api/data-entry', dataEntryRouter());
+  app.use('/api/leave', createLeaveRouter());
+  app.use('/api/attendance', createAttendanceRouter());
+  app.use('/api/payroll', createPayrollRouter());
+  app.use('/api/compensation', createPayrollRouter());
+  app.use('/api/rel', relRouter());
   app.use('/api', (_req, res) => {
     res.status(404).json(errorBody('NOT_FOUND', 'API route not found.'));
   });

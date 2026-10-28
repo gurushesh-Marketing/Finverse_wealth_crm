@@ -1,4 +1,7 @@
 import type {
+  SaApproveOnboardingInput,
+  SaRejectOnboardingInput,
+  SaApproveOnboardingResponse,
   SaCreateAccountInput,
   SaGrantScopeInput,
   SaAdditionalScopeInput,
@@ -31,6 +34,13 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const superadminApi = {
   getOverview: () => req<any>('/overview'),
+
+  // Onboarding Requests from HR
+  listOnboardingRequests: () => req<any[]>('/onboarding/requests'),
+  approveOnboarding: (data: SaApproveOnboardingInput) =>
+    req<SaApproveOnboardingResponse>('/onboarding/approve', { method: 'POST', body: JSON.stringify(data) }),
+  rejectOnboarding: (data: SaRejectOnboardingInput) =>
+    req<any>('/onboarding/reject', { method: 'POST', body: JSON.stringify(data) }),
 
   // SA-01
   provisionAccount: (data: SaCreateAccountInput) =>

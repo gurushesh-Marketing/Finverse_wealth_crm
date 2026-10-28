@@ -22,6 +22,7 @@ import {
   X,
   Play,
   RotateCcw,
+  Copy,
 } from 'lucide-react';
 import { superadminApi } from '../lib/superadmin-api';
 import { Card, CardContent } from '../components/ui/card';
@@ -369,16 +370,83 @@ export function SuperadminOverviewPage() {
   );
 }
 
+const TEAMS_BY_VERT: Record<string, { id: string; name: string }[]> = {
+  wealth: [
+    { id: 'TEAM-WEALTH-ALPHA', name: 'Wealth Alpha' },
+    { id: 'TEAM-WEALTH-BETA', name: 'Wealth Beta' },
+    { id: 'TEAM-WEALTH-GAMMA', name: 'Wealth Gamma' },
+  ],
+  banking: [
+    { id: 'TEAM-BANKING-ALPHA', name: 'Banking Alpha' },
+    { id: 'TEAM-BANKING-BETA', name: 'Banking Beta' },
+  ],
+  markets: [
+    { id: 'TEAM-MARKETS-ALPHA', name: 'Markets Alpha' },
+    { id: 'TEAM-MARKETS-BETA', name: 'Markets Beta' },
+  ],
+  real_estate: [
+    { id: 'TEAM-REALESTATE-ALPHA', name: 'Real Estate Alpha (Luxury Residential)' },
+    { id: 'TEAM-REALESTATE-BETA', name: 'Real Estate Beta (Commercial Mandates)' },
+  ],
+};
+
+const MANAGERS_BY_VERT: Record<string, { id: string; name: string; role: string; teamId?: string }[]> = {
+  wealth: [
+    { id: 'EMP-003', name: 'Tara Iyer (REL · Wealth Alpha/Beta)', role: 'REL', teamId: 'TEAM-WEALTH-ALPHA' },
+    { id: 'EMP-007', name: 'Neel Verma (MG · Wealth Manager)', role: 'MG', teamId: 'TEAM-WEALTH-ALPHA' },
+    { id: 'EMP-008', name: 'Kavita Rao (RM · Wealth)', role: 'RM' },
+  ],
+  banking: [
+    { id: 'EMP-016', name: 'Rohan Sen (REL · Banking Alpha)', role: 'REL', teamId: 'TEAM-BANKING-ALPHA' },
+    { id: 'EMP-017', name: 'Kunal Shah (MG · Branch Manager, Banking Alpha)', role: 'MG', teamId: 'TEAM-BANKING-ALPHA' },
+    { id: 'EMP-018', name: 'Priya Sen (REL · Banking Beta)', role: 'REL', teamId: 'TEAM-BANKING-BETA' },
+    { id: 'EMP-019', name: 'Arjun Mehta (RM · Banking)', role: 'RM' },
+  ],
+  markets: [
+    { id: 'EMP-005', name: 'Meera Nair (REL · Markets Alpha)', role: 'REL', teamId: 'TEAM-MARKETS-ALPHA' },
+    { id: 'EMP-022', name: 'Manish Vyas (MG · Trading Manager, Markets Alpha)', role: 'MG', teamId: 'TEAM-MARKETS-ALPHA' },
+    { id: 'EMP-023', name: 'Tarun Sen (REL · Markets Beta)', role: 'REL', teamId: 'TEAM-MARKETS-BETA' },
+    { id: 'EMP-024', name: 'Rajesh Bansal (RM · Markets)', role: 'RM' },
+  ],
+  real_estate: [
+    { id: 'EMP-027', name: 'Neha Gupta (REL · Real Estate Alpha)', role: 'REL', teamId: 'TEAM-REALESTATE-ALPHA' },
+    { id: 'EMP-028', name: 'Vikramaditya Singhania (MG · Advisory Manager, Real Estate Alpha)', role: 'MG', teamId: 'TEAM-REALESTATE-ALPHA' },
+    { id: 'EMP-032', name: 'Pooja Reddy (REL · Real Estate Beta)', role: 'REL', teamId: 'TEAM-REALESTATE-BETA' },
+    { id: 'EMP-029', name: 'Siddharth Malhotra (RM · Real Estate)', role: 'RM' },
+  ],
+};
+
 // =============================================================================
-// 2. Employees & Users Page (SA-01 & SA-07)
+// 2. Employees & Users Page (HR Onboarding, SA-01 & SA-07)
 // =============================================================================
 export function SuperadminEmployeesPage() {
-  const [tab, setTab] = useState<'create' | 'recovery'>('create');
+  const [tab, setTab] = useState<'onboarding' | 'create' | 'recovery'>('onboarding');
+  const [onboardings, setOnboardings] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [recoveries, setRecoveries] = useState<any[]>([]);
   const [outbox, setOutbox] = useState<any[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Approval modal state
+  const [approvingReq, setApprovingReq] = useState<any | null>(null);
+  const [approveRole, setApproveRole] = useState<'SC' | 'REL' | 'MG' | 'RM' | 'NM' | 'DE' | 'HR' | 'SA'>('SC');
+  const [approveVertical, setApproveVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
+  const [approveTeamId, setApproveTeamId] = useState('TEAM-WEALTH-ALPHA');
+  const [approveManagerId, setApproveManagerId] = useState('EMP-003');
+  const [approveUsername, setApproveUsername] = useState('');
+  const [approveSubmitting, setApproveSubmitting] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
+
+  // Active credentials display modal
+  const [provisionedResult, setProvisionedResult] = useState<any | null>(null);
+  const [copiedPass, setCopiedPass] = useState(false);
+
+  // Reject modal state
+  const [rejectingReq, setRejectingReq] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   // SA-01 Form State
   const [name, setName] = useState('');
@@ -395,11 +463,13 @@ export function SuperadminEmployeesPage() {
 
   const loadLists = useCallback(() => {
     Promise.all([
-      superadminApi.listInvitations(),
-      superadminApi.listAccountRecoveries(),
+      superadminApi.listOnboardingRequests().catch(() => []),
+      superadminApi.listInvitations().catch(() => []),
+      superadminApi.listAccountRecoveries().catch(() => []),
       superadminApi.listLocalDeliveryOutbox().catch(() => []),
     ])
-      .then(([invs, recs, out]) => {
+      .then(([onb, invs, recs, out]) => {
+        setOnboardings(onb);
         setInvitations(invs);
         setRecoveries(recs);
         setOutbox(out);
@@ -410,6 +480,77 @@ export function SuperadminEmployeesPage() {
   useEffect(() => {
     loadLists();
   }, [loadLists]);
+
+  const openApproveModal = (r: any) => {
+    setApprovingReq(r);
+    const vert = r.proposed_vertical || r.target_vertical || 'wealth';
+    const canonicalVert = (vert === 'real-estate' ? 'real_estate' : vert) as any;
+    setApproveVertical(canonicalVert);
+    setApproveRole(r.proposed_role || r.target_role || 'SC');
+    const teams = TEAMS_BY_VERT[canonicalVert] || [];
+    setApproveTeamId(r.proposed_team_id || r.target_team_id || teams[0]?.id || '');
+    const mgrs = MANAGERS_BY_VERT[canonicalVert] || [];
+    setApproveManagerId(r.proposed_superior_id || r.supervisor_employee_id || mgrs[0]?.id || '');
+    // Permanent non-editable login username is the Employee ID (EMP-xxx)
+    setApproveUsername(r.employee_id);
+    setApproveError(null);
+  };
+
+  const handleApproveVerticalChange = (v: any) => {
+    setApproveVertical(v);
+    const teams = TEAMS_BY_VERT[v] || [];
+    setApproveTeamId(teams[0]?.id || '');
+    const mgrs = MANAGERS_BY_VERT[v] || [];
+    setApproveManagerId(mgrs[0]?.id || '');
+  };
+
+  const handleApproveSubmit = async () => {
+    if (!approvingReq) return;
+    setApproveSubmitting(true);
+    setApproveError(null);
+    try {
+      const res = await superadminApi.approveOnboarding({
+        requestId: approvingReq.request_id || approvingReq.id,
+        role: approveRole,
+        vertical: approveVertical,
+        teamId: approveTeamId,
+        reportingManagerId: approveManagerId || undefined,
+        username: approvingReq.employee_id,
+      });
+      setApprovingReq(null);
+      setProvisionedResult(res);
+      loadLists();
+    } catch (err: any) {
+      setApproveError(err?.message || 'Failed to approve onboarding.');
+    } finally {
+      setApproveSubmitting(false);
+    }
+  };
+
+  const handleRejectSubmit = async () => {
+    if (!rejectingReq) return;
+    if (!rejectReason.trim()) {
+      setRejectError('Rejection reason is required.');
+      return;
+    }
+    setRejectSubmitting(true);
+    setRejectError(null);
+    try {
+      const targetReqId = rejectingReq.request_id || rejectingReq.id;
+      await superadminApi.rejectOnboarding({
+        requestId: targetReqId,
+        rejectionReason: rejectReason.trim(),
+      });
+      setMessage({ type: 'success', text: `Onboarding request ${targetReqId} has been rejected.` });
+      setRejectingReq(null);
+      setRejectReason('');
+      loadLists();
+    } catch (err: any) {
+      setRejectError(err?.message || 'Failed to reject request.');
+    } finally {
+      setRejectSubmitting(false);
+    }
+  };
 
   const handleCreateAccount = async () => {
     if (!name || !email) {
@@ -468,7 +609,16 @@ export function SuperadminEmployeesPage() {
   return (
     <div className="space-y-6">
       {/* Subtab selection */}
-      <div className="max-w-7xl mx-auto px-4 pt-4 flex gap-2">
+      <div className="max-w-7xl mx-auto px-4 pt-4 flex flex-wrap gap-2">
+        <Button
+          variant={tab === 'onboarding' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => { setTab('onboarding'); setMessage(null); }}
+          className={tab === 'onboarding' ? 'bg-[#113F3D] text-white' : ''}
+        >
+          <Users className="w-3.5 h-3.5 mr-1.5" />
+          Pending HR Onboardings ({onboardings.filter((o) => o.status === 'submitted' || o.status === 'pending_approval' || o.status === 'pending_admin' || o.employee_status === 'pending_approval').length})
+        </Button>
         <Button
           variant={tab === 'create' ? 'default' : 'outline'}
           size="sm"
@@ -476,7 +626,7 @@ export function SuperadminEmployeesPage() {
           className={tab === 'create' ? 'bg-[#113F3D] text-white' : ''}
         >
           <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-          SA-01 Create Account & Invitation
+          SA-01 Direct Account Provisioning
         </Button>
         <Button
           variant={tab === 'recovery' ? 'default' : 'outline'}
@@ -498,7 +648,145 @@ export function SuperadminEmployeesPage() {
         </div>
       )}
 
-      {tab === 'create' ? (
+      {tab === 'onboarding' ? (
+        <DeckFrame
+          actionCode="SA-ONBOARD"
+          moduleLabel="EMPLOYEES & USERS"
+          title="Review HR Onboarding Submissions & Activate Accounts"
+          steps={[
+            'Verify candidate personal details, verified email, and contact numbers.',
+            'Review HR proposed placement (Role, Vertical, Team, Superior) and make audited corrections if necessary.',
+            'Approve and provision one-time temporary password. The permanent login username is the Employee ID (EMP-xxx).',
+          ]}
+          whenCheckFails="Cross-vertical or unauthorized manager assignments return 422; missing fields return 400."
+          permissionEvidence="Super Admin alone can provision credentials and assign scopes. Plaintext temporary password is shown only once and requires initial login change."
+          submitDisabled={true}
+          submitLabel="Select Action in Table Below"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Pending Joiner Proposals from HR
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  HR has registered these candidates and proposed placement. Review placement, apply audited corrections if required, and activate credentials.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadLists} className="gap-1.5 text-xs">
+                <RefreshCw className="size-3" /> Refresh Queue
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b">
+                  <tr>
+                    <th className="py-2.5 px-4">Request / Employee ID</th>
+                    <th className="py-2.5 px-4">Full Name</th>
+                    <th className="py-2.5 px-4">Contact Details</th>
+                    <th className="py-2.5 px-4">Proposed Placement</th>
+                    <th className="py-2.5 px-4">Submitted</th>
+                    <th className="py-2.5 px-4">Status</th>
+                    <th className="py-2.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {onboardings.length > 0 ? (
+                    onboardings.map((r: any) => {
+                      const isPending =
+                        r.status === 'submitted' ||
+                        r.status === 'pending_approval' ||
+                        r.status === 'pending_admin' ||
+                        r.employee_status === 'pending_approval';
+
+                      return (
+                        <tr key={r.request_id || r.id} className="hover:bg-slate-50/50">
+                          <td className="py-2.5 px-4">
+                            <div className="font-mono font-bold text-slate-900">{r.employee_id}</div>
+                            <div className="font-mono text-[10px] text-slate-400">{r.request_id || r.id}</div>
+                          </td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-900">{r.employee_name || r.full_name}</td>
+                          <td className="py-2.5 px-4 space-y-0.5">
+                            <div className="font-mono text-slate-800">{r.email || r.work_email || r.employee_email}</div>
+                            <div className="text-[11px] text-slate-500">
+                              📱 {r.primary_mobile || '—'} {r.whatsapp_number ? `· 💬 ${r.whatsapp_number}` : ''}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-4 text-xs font-medium">
+                            <span className="font-bold text-slate-900">{r.proposed_role || r.target_role || 'SC'}</span>
+                            {' · '}
+                            <span className="capitalize text-slate-700">{r.proposed_vertical || r.target_vertical || 'wealth'}</span>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {r.proposed_team_name || r.proposed_team_id || r.target_team_name || r.target_team_id || '—'}
+                            </div>
+                            {(r.proposed_superior_name || r.supervisor_name) && (
+                              <div className="text-[10px] text-slate-400">
+                                Superior: {r.proposed_superior_name || r.supervisor_name}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-500">
+                            {r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Today'}
+                          </td>
+                          <td className="py-2.5 px-4">
+                            <Badge
+                              className={`text-[10px] ${
+                                r.status === 'activated_by_admin' || r.status === 'active'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                  : r.status === 'rejected'
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300'
+                              }`}
+                            >
+                              {isPending ? 'Pending Approval' : r.status?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="py-2.5 px-4 text-right">
+                            {isPending ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => openApproveModal(r)}
+                                  className="h-7 text-xs bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                                >
+                                  Approve & Activate
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setRejectingReq(r);
+                                    setRejectReason('');
+                                    setRejectError(null);
+                                  }}
+                                  className="h-7 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700 border-rose-200"
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">
+                                {r.status === 'activated_by_admin' ? 'Activated' : 'Processed'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        No pending onboarding requests from HR.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </DeckFrame>
+      ) : tab === 'create' ? (
         <DeckFrame
           actionCode="SA-01"
           moduleLabel="EMPLOYEES & USERS"
@@ -771,6 +1059,275 @@ export function SuperadminEmployeesPage() {
           </div>
         </Card>
       </div>
+
+      {/* Onboarding Approval & Placement Modal */}
+      {approvingReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <Card className="w-full max-w-lg shadow-xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Approve & Activate Employee</h3>
+                <p className="text-xs text-slate-500">Configure role placement, team scope, and initial login username.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovingReq(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <CardContent className="p-6 space-y-4">
+              <div className="rounded-md bg-slate-50 p-3 border border-slate-200 text-xs space-y-1">
+                <div className="font-semibold text-slate-800">
+                  {approvingReq.employee_name || approvingReq.full_name} · <span className="font-mono text-emerald-700">{approvingReq.employee_id}</span>
+                </div>
+                <div className="text-slate-500 font-mono text-[11px]">{approvingReq.email || approvingReq.work_email}</div>
+                <div className="text-[11px] text-slate-500">📱 {approvingReq.primary_mobile || '—'}</div>
+              </div>
+
+              {approveError && (
+                <div className="p-3 text-xs rounded border border-rose-200 bg-rose-50 text-rose-800">
+                  {approveError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700">Role</label>
+                  <Select
+                    value={approveRole}
+                    onChange={(e) => setApproveRole(e.target.value as any)}
+                    className="mt-1 w-full"
+                  >
+                    <option value="SC">Sales Caller (SC)</option>
+                    <option value="REL">Relationship Manager (REL)</option>
+                    <option value="MG">Branch/Wealth Manager (MG)</option>
+                    <option value="RM">Regional Manager (RM)</option>
+                    <option value="NM">National Manager (NM)</option>
+                    <option value="DE">Data Entry (DE)</option>
+                    <option value="HR">Human Resources (HR)</option>
+                    <option value="SA">Super Admin (SA)</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Vertical</label>
+                  <Select
+                    value={approveVertical}
+                    onChange={(e) => handleApproveVerticalChange(e.target.value)}
+                    className="mt-1 w-full"
+                  >
+                    <option value="wealth">Wealth Management</option>
+                    <option value="banking">Corporate Banking</option>
+                    <option value="markets">Trading & Markets</option>
+                    <option value="real_estate">Real Estate</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Assigned Team</label>
+                  <Select
+                    value={approveTeamId}
+                    onChange={(e) => setApproveTeamId(e.target.value)}
+                    className="mt-1 w-full"
+                  >
+                    {(TEAMS_BY_VERT[approveVertical] || []).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Reporting Relationship Manager</label>
+                  <Select
+                    value={approveManagerId}
+                    onChange={(e) => setApproveManagerId(e.target.value)}
+                    className="mt-1 w-full"
+                  >
+                    <option value="">None / Not Applicable</option>
+                    {(MANAGERS_BY_VERT[approveVertical] || []).map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="font-semibold text-slate-700">
+                    Permanent Login Username (Employee ID) <span className="text-emerald-700">✓ Immutable</span>
+                  </label>
+                  <Input
+                    value={approvingReq.employee_id}
+                    disabled
+                    readOnly
+                    className="mt-1 font-mono text-xs bg-slate-100 text-slate-800 font-bold border-slate-300 cursor-not-allowed select-all"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    System-enforced immutable login username is the Employee ID (<span className="font-mono font-medium">{approvingReq.employee_id}</span>). SA provisions a one-time temporary password below.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setApprovingReq(null)}
+                  disabled={approveSubmitting}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleApproveSubmit}
+                  disabled={approveSubmitting}
+                  className="text-xs bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                >
+                  {approveSubmitting ? 'Activating…' : 'Activate & Generate Temporary Password'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Provisioned Credentials One-Time Display Modal */}
+      {provisionedResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+          <Card className="w-full max-w-md shadow-2xl border-emerald-300 bg-white">
+            <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50/60 px-6 py-4">
+              <CheckCircle2 className="size-5 text-emerald-600" />
+              <div>
+                <h3 className="text-base font-bold text-emerald-950">Employee Account Activated</h3>
+                <p className="text-xs text-emerald-800">One-Time Initial Credential Provisioning</p>
+              </div>
+            </div>
+            <CardContent className="p-6 space-y-4 text-xs">
+              <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 uppercase tracking-wide text-[11px] text-amber-800">
+                  <ShieldCheck className="size-4" /> Single-Display Temporary Credential
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Plaintext credentials are never stored or logged in Finverse CRM. Transmit this temporary password to the employee securely. A password change is enforced on initial login.
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                <div>
+                  <span className="text-slate-500 font-medium">Employee ID:</span>{' '}
+                  <span className="font-mono font-bold text-slate-900">{provisionedResult.employeeId}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Login Username:</span>{' '}
+                  <span className="font-mono font-bold text-slate-900">{provisionedResult.username}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">One-Time Temporary Password:</span>
+                  <div className="mt-1 flex items-center justify-between p-2.5 rounded bg-slate-100 border border-slate-300 font-mono text-sm font-bold text-slate-900 select-all">
+                    <span>{provisionedResult.temporaryPassword}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (provisionedResult.temporaryPassword) {
+                          navigator.clipboard.writeText(provisionedResult.temporaryPassword);
+                          setCopiedPass(true);
+                          setTimeout(() => setCopiedPass(false), 2000);
+                        }
+                      }}
+                      className="px-2 py-1 rounded bg-white hover:bg-slate-50 border text-xs text-slate-700 flex items-center gap-1 font-sans"
+                    >
+                      <Copy className="size-3" />
+                      {copiedPass ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t">
+                <Button
+                  className="w-full bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                  onClick={() => {
+                    setProvisionedResult(null);
+                    setCopiedPass(false);
+                  }}
+                >
+                  Acknowledge & Close
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Reject Onboarding Request Modal */}
+      {rejectingReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <Card className="w-full max-w-md shadow-xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Reject Onboarding Request</h3>
+                <p className="text-xs text-slate-500">Record an audited reason for rejecting this candidate.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectingReq(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <CardContent className="p-6 space-y-4">
+              <div className="rounded-md bg-slate-50 p-3 border border-slate-200 text-xs">
+                Candidate: <span className="font-semibold text-slate-800">{rejectingReq.employee_name || rejectingReq.full_name}</span> ({rejectingReq.employee_id})
+              </div>
+
+              {rejectError && (
+                <div className="p-3 text-xs rounded border border-rose-200 bg-rose-50 text-rose-800">
+                  {rejectError}
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700">
+                  Rejection Reason <span className="text-rose-500">*</span>
+                </label>
+                <Textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g. Ineligible role qualifications, duplicate identity application, or cancelled placement."
+                  rows={3}
+                  className="mt-1 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRejectingReq(null)}
+                  disabled={rejectSubmitting}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleRejectSubmit}
+                  disabled={rejectSubmitting}
+                  className="text-xs bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  {rejectSubmitting ? 'Rejecting…' : 'Confirm Rejection'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -23,8 +23,28 @@ import {
   Plus,
   Check,
   X,
+  Shield,
+  Briefcase,
+  Home,
+  MapPin,
+  Calendar,
+  Sparkles,
+  Building2,
+  DollarSign,
 } from 'lucide-react';
 import { hrApi } from '../lib/hr-api';
+import { leaveApi } from '../lib/leave-api';
+import { attendanceApi } from '../lib/attendance-api';
+import { PayrollPreviewTab } from '../components/payroll/PayrollPreviewTab';
+import type {
+  LeaveRequestRecord,
+  ApproverConfigRecord,
+  ResourceViewPayload,
+  DailyResourceBreakdownItem,
+  CalendarHolidayRecord,
+  AttendanceRecord,
+  AttendanceRegularizationRecord,
+} from '@finverse/contracts';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -385,18 +405,82 @@ export function HrOverviewPage() {
 // ============================================================================
 // 2. HR-01: Request a New Employee Account (/hr/joiners)
 // ============================================================================
+// ============================================================================
+// 2. HR-01: Onboard New Employee (4-Field Submission & Generated ID) (/hr/joiners)
+// ============================================================================
+// Teams and Managers for HR Candidate Placement Proposals
+// ============================================================================
+const HR_TEAMS_BY_VERT: Record<string, { id: string; name: string }[]> = {
+  wealth: [
+    { id: 'TEAM-WEALTH-ALPHA', name: 'Wealth Alpha' },
+    { id: 'TEAM-WEALTH-BETA', name: 'Wealth Beta' },
+    { id: 'TEAM-WEALTH-GAMMA', name: 'Wealth Gamma' },
+  ],
+  banking: [
+    { id: 'TEAM-BANKING-ALPHA', name: 'Banking Alpha' },
+    { id: 'TEAM-BANKING-BETA', name: 'Banking Beta' },
+  ],
+  markets: [
+    { id: 'TEAM-MARKETS-ALPHA', name: 'Markets Alpha' },
+    { id: 'TEAM-MARKETS-BETA', name: 'Markets Beta' },
+  ],
+  real_estate: [
+    { id: 'TEAM-REALESTATE-ALPHA', name: 'Real Estate Alpha (Luxury Residential)' },
+    { id: 'TEAM-REALESTATE-BETA', name: 'Real Estate Beta (Commercial Mandates)' },
+  ],
+};
+
+const HR_MANAGERS_BY_VERT: Record<string, { id: string; name: string; role: string; teamId?: string }[]> = {
+  wealth: [
+    { id: 'EMP-003', name: 'Tara Iyer (REL · Wealth Alpha/Beta)', role: 'REL', teamId: 'TEAM-WEALTH-ALPHA' },
+    { id: 'EMP-007', name: 'Neel Verma (MG · Wealth Manager)', role: 'MG', teamId: 'TEAM-WEALTH-ALPHA' },
+    { id: 'EMP-008', name: 'Kavita Rao (RM · Wealth)', role: 'RM' },
+  ],
+  banking: [
+    { id: 'EMP-016', name: 'Rohan Sen (REL · Banking Alpha)', role: 'REL', teamId: 'TEAM-BANKING-ALPHA' },
+    { id: 'EMP-017', name: 'Kunal Shah (MG · Branch Manager, Banking Alpha)', role: 'MG', teamId: 'TEAM-BANKING-ALPHA' },
+    { id: 'EMP-018', name: 'Priya Sen (REL · Banking Beta)', role: 'REL', teamId: 'TEAM-BANKING-BETA' },
+    { id: 'EMP-019', name: 'Arjun Mehta (RM · Banking)', role: 'RM' },
+  ],
+  markets: [
+    { id: 'EMP-005', name: 'Meera Nair (REL · Markets Alpha)', role: 'REL', teamId: 'TEAM-MARKETS-ALPHA' },
+    { id: 'EMP-022', name: 'Manish Vyas (MG · Trading Manager, Markets Alpha)', role: 'MG', teamId: 'TEAM-MARKETS-ALPHA' },
+    { id: 'EMP-023', name: 'Tarun Sen (REL · Markets Beta)', role: 'REL', teamId: 'TEAM-MARKETS-BETA' },
+    { id: 'EMP-024', name: 'Rajesh Bansal (RM · Markets)', role: 'RM' },
+  ],
+  real_estate: [
+    { id: 'EMP-027', name: 'Neha Gupta (REL · Real Estate Alpha)', role: 'REL', teamId: 'TEAM-REALESTATE-ALPHA' },
+    { id: 'EMP-028', name: 'Vikramaditya Singhania (MG · Advisory Manager, Real Estate Alpha)', role: 'MG', teamId: 'TEAM-REALESTATE-ALPHA' },
+    { id: 'EMP-032', name: 'Pooja Reddy (REL · Real Estate Beta)', role: 'REL', teamId: 'TEAM-REALESTATE-BETA' },
+    { id: 'EMP-029', name: 'Siddharth Malhotra (RM · Real Estate)', role: 'RM' },
+  ],
+};
+
 export function HrJoinersPage() {
-  const [employeeName, setEmployeeName] = useState('');
-  const [workEmail, setWorkEmail] = useState('');
-  const [employmentType, setEmploymentType] = useState<'permanent' | 'intern' | 'contract'>('permanent');
-  const [proposedRole, setProposedRole] = useState('SC');
-  const [vertical, setVertical] = useState('wealth');
-  const [teamId, setTeamId] = useState('TEAM-WEALTH-ALPHA');
-  const [startDate, setStartDate] = useState('2026-10-28');
-  const [approvalsSummary, setApprovalsSummary] = useState('Approved by Hiring Authority');
-  const [requiredTraining, setRequiredTraining] = useState('Wealth Foundations & Statutory Conduct');
+  const [fullName, setFullName] = useState('');
+  const [primaryMobile, setPrimaryMobile] = useState('');
+  const [sameAsMobile, setSameAsMobile] = useState(true);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [email, setEmail] = useState('');
+
+  // Proposed Placement State (HR proposes role, vertical, team, superior)
+  const [proposedRole, setProposedRole] = useState<'SC' | 'REL' | 'TL' | 'MG' | 'RM' | 'NM' | 'DE' | 'HR' | 'SA'>('SC');
+  const [proposedVertical, setProposedVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
+  const [proposedTeamId, setProposedTeamId] = useState('TEAM-WEALTH-ALPHA');
+  const [proposedSuperiorId, setProposedSuperiorId] = useState('EMP-007');
 
   const [submitting, setSubmitting] = useState(false);
+  const [submittedEmployee, setSubmittedEmployee] = useState<{
+    employeeId: string;
+    requestId: string;
+    status: string;
+    email: string;
+    fullName: string;
+    proposedRole: string;
+    proposedVertical: string;
+    proposedTeamId?: string | null;
+    proposedSuperiorId?: string | null;
+  } | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [requests, setRequests] = useState<any[]>([]);
 
@@ -413,27 +497,75 @@ export function HrJoinersPage() {
     void loadRequests();
   }, [loadRequests]);
 
+  const handleMobileChange = (val: string) => {
+    setPrimaryMobile(val);
+    if (sameAsMobile) {
+      setWhatsappNumber(val);
+    }
+  };
+
+  const handleSameAsMobileToggle = (checked: boolean) => {
+    setSameAsMobile(checked);
+    if (checked) {
+      setWhatsappNumber(primaryMobile);
+    }
+  };
+
+  const handleVerticalChange = (vert: 'wealth' | 'banking' | 'markets' | 'real_estate') => {
+    setProposedVertical(vert);
+    const teams = HR_TEAMS_BY_VERT[vert] || [];
+    setProposedTeamId(teams[0]?.id || '');
+    const mgrs = HR_MANAGERS_BY_VERT[vert] || [];
+    setProposedSuperiorId(mgrs[0]?.id || '');
+  };
+
   const handleSubmit = async () => {
+    if (!fullName.trim() || !primaryMobile.trim() || !email.trim()) {
+      setMessage({ type: 'error', text: 'Full name, primary mobile, and corporate email address are required.' });
+      return;
+    }
+
     try {
       setSubmitting(true);
       setMessage(null);
-      const res = await hrApi.requestAccount({
-        employeeName,
-        workEmail,
-        employmentType,
-        proposedRole: proposedRole as any,
-        vertical: vertical as any,
-        teamId,
-        startDate,
-        approvalsSummary,
-        requiredTraining,
+      const effectiveWhatsapp = sameAsMobile ? primaryMobile.trim() : (whatsappNumber.trim() || undefined);
+
+      const res = await hrApi.submitOnboarding({
+        fullName: fullName.trim(),
+        primaryMobile: primaryMobile.trim(),
+        whatsappNumber: effectiveWhatsapp,
+        email: email.trim(),
+        proposedRole,
+        proposedVertical,
+        proposedTeamId: proposedTeamId || undefined,
+        proposedSuperiorId: proposedSuperiorId || undefined,
       });
-      setMessage({ type: 'success', text: `Request ${res.requestId} created. Placement routed to Super Admin provisioning queue.` });
-      setEmployeeName('');
-      setWorkEmail('');
+
+      setSubmittedEmployee({
+        employeeId: res.employeeId,
+        requestId: res.requestId,
+        status: res.status,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        proposedRole,
+        proposedVertical,
+        proposedTeamId,
+        proposedSuperiorId,
+      });
+
+      setMessage({
+        type: 'success',
+        text: `Employee record created with immutable ID ${res.employeeId}. Proposed placement forwarded to Super Admin pending queue.`,
+      });
+
+      setFullName('');
+      setPrimaryMobile('');
+      setWhatsappNumber('');
+      setEmail('');
+      setSameAsMobile(true);
       void loadRequests();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err?.message || 'Failed to submit account request.' });
+      setMessage({ type: 'error', text: err?.message || 'Failed to submit onboarding request.' });
     } finally {
       setSubmitting(false);
     }
@@ -442,161 +574,289 @@ export function HrJoinersPage() {
   return (
     <DeckFrame
       actionCode="HR-01"
-      moduleLabel="JOINERS"
-      title="Request a new employee account"
-      subtitle="Company function · assigned permission scope · illustrative records"
+      moduleLabel="ONBOARDING"
+      title="Create Pending Employee Record"
+      subtitle="HR Employee Onboarding · Automated Sequence ID · Proposed Placement · Super Admin Gated Activation"
       steps={[
-        'Create the employee lifecycle request with approved placement.',
-        'Attach role, supervisor, employment dates and required training.',
-        'Submit for approvals and Super Admin provisioning.',
+        'HR registers employee candidate identity (Name, Mobile, WhatsApp, Email) and proposes role, vertical, team, and superior.',
+        'Server automatically generates a unique, immutable Employee ID (EMP-xxx) and pending approval request record.',
+        'Super Admin reviews proposal, makes audited placement adjustments where required, and provisions initial credentials.',
       ]}
-      whenCheckFails="Incomplete placement leaves access pending, never a default company-wide dashboard."
-      permissionEvidence="HR cannot issue the role grant directly. Resolve duplicate employee identity through an audited process."
+      whenCheckFails="Duplicate email address or primary mobile number returns 409 Conflict; missing fields return 422."
+      permissionEvidence="HR never types an employee ID, sees passwords, or activates accounts. The permanent login username is the server-generated Employee ID."
       onSubmit={handleSubmit}
       submitting={submitting}
-      submitLabel="Continue"
+      submitLabel="Submit for Super Admin Approval"
     >
-      <div className="space-y-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CAPTURE</div>
-        <div className="text-base font-semibold text-foreground">Request a new employee account</div>
+      <div className="space-y-5">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          EMPLOYEE IDENTITY REGISTRATION & PLACEMENT PROPOSAL
+        </div>
+        <div className="text-base font-semibold text-foreground">
+          Enter Candidate Details & Propose Organizational Placement
+        </div>
 
         {message && (
           <div
-            className={`p-3 text-xs rounded border ${
-              message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+            className={`p-3.5 text-xs rounded-md border ${
+              message.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
             }`}
           >
             {message.text}
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
-          <div>
-            <label className="text-xs font-medium text-foreground">Employee</label>
+        {submittedEmployee && (
+          <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-3">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-semibold text-sm">
+              <CheckCircle2 className="size-5 text-emerald-600" />
+              Employee Record Queued for Super Admin Approval
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+              <div>
+                <span className="text-muted-foreground">Generated Employee ID:</span>{' '}
+                <span className="font-mono font-bold text-foreground text-sm bg-white dark:bg-slate-900 px-2 py-0.5 rounded border">
+                  {submittedEmployee.employeeId}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Onboarding Status:</span>{' '}
+                <Badge className="bg-amber-100 text-amber-800 border-amber-300">
+                  Pending Super Admin Approval
+                </Badge>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Full Name:</span>{' '}
+                <span className="font-medium text-foreground">{submittedEmployee.fullName}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Work Email:</span>{' '}
+                <span className="font-mono text-foreground">{submittedEmployee.email}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Proposed Placement:</span>{' '}
+                <span className="font-medium text-foreground">
+                  {submittedEmployee.proposedRole} · {submittedEmployee.proposedVertical}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Proposed Team:</span>{' '}
+                <span className="font-mono text-xs text-foreground">
+                  {submittedEmployee.proposedTeamId || '—'}
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground pt-1 border-t border-emerald-200 dark:border-emerald-800/60">
+              Notice: The permanent, non-editable login username for this employee will be <strong className="font-mono text-foreground">{submittedEmployee.employeeId}</strong>. Super Admin will review the proposed placement and provision a one-time temporary password.
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-1">
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-foreground">
+              Full Name <span className="text-rose-500">*</span>
+            </label>
             <Input
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              placeholder="New unique identity"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Vikram Malhotra"
               className="mt-1"
             />
           </div>
+
           <div>
-            <label className="text-xs font-medium text-foreground">Employment type</label>
-            <select
-              value={employmentType}
-              onChange={(e) => setEmploymentType(e.target.value as any)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="permanent">Permanent</option>
-              <option value="intern">Intern</option>
-              <option value="contract">Contract</option>
-            </select>
+            <label className="text-xs font-medium text-foreground">
+              Primary Mobile Number <span className="text-rose-500">*</span>
+            </label>
+            <Input
+              type="tel"
+              value={primaryMobile}
+              onChange={(e) => handleMobileChange(e.target.value)}
+              placeholder="e.g. +91 98765 43210"
+              className="mt-1"
+            />
           </div>
+
           <div>
-            <label className="text-xs font-medium text-foreground">Corporate work email</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-foreground">WhatsApp Number</label>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sameAsMobile}
+                  onChange={(e) => handleSameAsMobileToggle(e.target.checked)}
+                  className="rounded border-slate-300 text-primary focus:ring-primary size-3.5"
+                />
+                Same as primary mobile
+              </label>
+            </div>
+            <Input
+              type="tel"
+              value={sameAsMobile ? primaryMobile : whatsappNumber}
+              disabled={sameAsMobile}
+              onChange={(e) => setWhatsappNumber(e.target.value)}
+              placeholder="e.g. +91 98765 43210"
+              className="mt-1 disabled:opacity-75 disabled:bg-muted/40"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-foreground">
+              Corporate Work Email <span className="text-rose-500">*</span>
+            </label>
             <Input
               type="email"
-              value={workEmail}
-              onChange={(e) => setWorkEmail(e.target.value)}
-              placeholder="e.g. employee.name@finverse.demo"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. vikram.malhotra@finverse.demo"
               className="mt-1"
             />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Must be a unique address not previously allocated to active or offboarded personnel.
+            </p>
           </div>
+
+          {/* Proposed Organizational Placement Section */}
+          <div className="sm:col-span-2 pt-3 border-t">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+              PROPOSED PLACEMENT & REPORTING STRUCTURE
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Propose target role, vertical, team, and superior. Super Admin will review and may apply audited adjustments before approving.
+            </p>
+          </div>
+
           <div>
-            <label className="text-xs font-medium text-foreground">Proposed role</label>
+            <label className="text-xs font-medium text-foreground">
+              Proposed Role <span className="text-rose-500">*</span>
+            </label>
             <select
               value={proposedRole}
-              onChange={(e) => setProposedRole(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              onChange={(e) => setProposedRole(e.target.value as any)}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="SC">Sales Caller (SC)</option>
+              <option value="REL">Relationship Manager (REL)</option>
               <option value="TL">Team Leader (TL)</option>
-              <option value="MG">Wealth Manager (MG)</option>
+              <option value="MG">Branch/Wealth Manager (MG)</option>
               <option value="RM">Regional Manager (RM)</option>
               <option value="NM">National Manager (NM)</option>
               <option value="DE">Data Entry (DE)</option>
               <option value="HR">Human Resources (HR)</option>
+              <option value="SA">Super Admin (SA)</option>
             </select>
           </div>
+
           <div>
-            <label className="text-xs font-medium text-foreground">Vertical/team</label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <select
-                value={vertical}
-                onChange={(e) => setVertical(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="wealth">Wealth</option>
-                <option value="banking">Banking</option>
-                <option value="markets">Markets</option>
-                <option value="real-estate">Real Estate</option>
-              </select>
-              <select
-                value={teamId}
-                onChange={(e) => setTeamId(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="TEAM-WEALTH-ALPHA">Wealth Alpha</option>
-                <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
-                <option value="TEAM-WEALTH-GAMMA">Wealth Gamma</option>
-                <option value="TEAM-BANKING-ALPHA">Banking Alpha</option>
-              </select>
-            </div>
+            <label className="text-xs font-medium text-foreground">
+              Target Vertical <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={proposedVertical}
+              onChange={(e) => handleVerticalChange(e.target.value as any)}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="wealth">Wealth Management</option>
+              <option value="banking">Commercial Banking</option>
+              <option value="markets">Markets & Securities</option>
+              <option value="real_estate">Real Estate Advisory</option>
+            </select>
           </div>
+
           <div>
-            <label className="text-xs font-medium text-foreground">Start date</label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1"
-            />
+            <label className="text-xs font-medium text-foreground">
+              Proposed Team Placement <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={proposedTeamId}
+              onChange={(e) => setProposedTeamId(e.target.value)}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {(HR_TEAMS_BY_VERT[proposedVertical] || []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-foreground">Approvals</label>
-            <Input
-              value={approvalsSummary}
-              onChange={(e) => setApprovalsSummary(e.target.value)}
-              placeholder="Hiring authority approval evidence"
-              className="mt-1"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-foreground">Required training</label>
-            <Input
-              value={requiredTraining}
-              onChange={(e) => setRequiredTraining(e.target.value)}
-              placeholder="Initial regulatory and product training modules"
-              className="mt-1"
-            />
+
+          <div>
+            <label className="text-xs font-medium text-foreground">
+              Proposed Superior / Reporting Manager
+            </label>
+            <select
+              value={proposedSuperiorId}
+              onChange={(e) => setProposedSuperiorId(e.target.value)}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="">None / Direct Placement</option>
+              {(HR_MANAGERS_BY_VERT[proposedVertical] || []).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
         {/* List of joiner requests */}
         {requests.length > 0 && (
           <div className="mt-6 pt-4 border-t">
-            <div className="text-xs font-semibold text-foreground mb-2">Pending & Processed Joiner Requests</div>
+            <div className="text-xs font-semibold text-foreground mb-2">
+              Pending & Processed Onboarding Submissions
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 text-muted-foreground text-[10px] uppercase">
                   <tr>
-                    <th className="px-3 py-2">ID</th>
+                    <th className="px-3 py-2">Generated Employee ID</th>
                     <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Role / Team</th>
-                    <th className="px-3 py-2">Start Date</th>
+                    <th className="px-3 py-2">Contact Details</th>
+                    <th className="px-3 py-2">Proposed Placement</th>
+                    <th className="px-3 py-2">Submitted</th>
                     <th className="px-3 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-muted-foreground">
                   {requests.map((r) => (
                     <tr key={r.id}>
-                      <td className="px-3 py-2 font-mono text-foreground">{r.id}</td>
+                      <td className="px-3 py-2 font-mono font-bold text-foreground">
+                        {r.employee_id || r.id}
+                      </td>
                       <td className="px-3 py-2 font-medium text-foreground">{r.employee_name}</td>
-                      <td className="px-3 py-2">{r.target_role} · {r.target_team_name || r.target_team_id}</td>
-                      <td className="px-3 py-2">{new Date(r.effective_date).toLocaleDateString()}</td>
+                      <td className="px-3 py-2 font-mono text-[11px]">
+                        <div>{r.work_email || r.email || r.employee_email}</div>
+                        <div className="text-muted-foreground text-[10px]">📱 {r.primary_mobile || '—'}</div>
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        <span className="font-semibold text-foreground">
+                          {r.target_role || r.proposed_role || 'SC'}
+                        </span>
+                        {' · '}
+                        <span className="capitalize">{r.target_vertical || r.proposed_vertical || 'wealth'}</span>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {r.target_team_name || r.target_team_id || '—'}
+                        </div>
+                      </td>
                       <td className="px-3 py-2">
-                        <Badge className="text-[10px] capitalize border">
-                          {r.status?.replace('_', ' ')}
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Today'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge
+                          className={
+                            r.status === 'activated_by_admin' || r.status === 'active'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : r.status === 'rejected'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-800 border-amber-300'
+                          }
+                        >
+                          {r.status === 'submitted' || r.status === 'pending_approval' || r.status === 'pending_admin'
+                            ? 'Pending Super Admin Approval'
+                            : r.status?.replace('_', ' ')}
                         </Badge>
                       </td>
                     </tr>
@@ -1040,6 +1300,28 @@ export function HrLeaversPage() {
 // 5. HR-05: Record Leave and Allocation Availability (/hr/availability)
 // ============================================================================
 export function HrAvailabilityPage() {
+  const [activeTab, setActiveTab] = useState<'resource_visibility' | 'governance' | 'direct_log' | 'payroll_preview'>('resource_visibility');
+
+  // Resource Visibility & Attendance State (Owner-Added Organization Resource View)
+  const [resourcePayload, setResourcePayload] = useState<ResourceViewPayload | null>(null);
+  const [resourceLoading, setResourceLoading] = useState(false);
+  const [selectedVertical, setSelectedVertical] = useState<'all' | 'wealth' | 'banking' | 'markets' | 'real_estate'>('all');
+  const [selectedDate, setSelectedDate] = useState(() => '2026-10-16');
+  const [selectedRole, setSelectedRole] = useState('all');
+  const [resourceSearch, setResourceSearch] = useState('');
+  const [selectedBreakdownItem, setSelectedBreakdownItem] = useState<DailyResourceBreakdownItem | null>(null);
+
+  // Supervisor & HR Exceptions Queue
+  const [exceptions, setExceptions] = useState<{
+    pendingRecords: AttendanceRecord[];
+    pendingRegularizations: AttendanceRegularizationRecord[];
+  }>({ pendingRecords: [], pendingRegularizations: [] });
+  const [reviewModalItem, setReviewModalItem] = useState<{ type: 'wfh' | 'reg'; item: any } | null>(null);
+  const [reviewDecision, setReviewDecision] = useState<'confirmed' | 'rejected' | 'approved'>('confirmed');
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  // Direct Log State (HR-05 Deck P285/P286)
   const [employeeId, setEmployeeId] = useState('EMP-001');
   const [absenceType, setAbsenceType] = useState('approved_leave');
   const [startEnd, setStartEnd] = useState('28-30 Sep');
@@ -1049,10 +1331,51 @@ export function HrAvailabilityPage() {
   const [coverageEmployeeId, setCoverageEmployeeId] = useState('EMP-003');
   const [allocationStatus, setAllocationStatus] = useState<'unavailable' | 'reduced' | 'available'>('unavailable');
   const [leadsConfirmed, setLeadsConfirmed] = useState(false);
-
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [leaves, setLeaves] = useState<any[]>([]);
+
+  // Governance State (Owner-Added Organization Leave Visibility & Approver Rules)
+  const [orgRequests, setOrgRequests] = useState<LeaveRequestRecord[]>([]);
+  const [loadingOrg, setLoadingOrg] = useState(true);
+  const [filterVertical, setFilterVertical] = useState('all');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSearch, setFilterSearch] = useState('');
+  const [selectedAuditRequest, setSelectedAuditRequest] = useState<LeaveRequestRecord | null>(null);
+
+  // Approver Configuration State
+  const [approverConfigs, setApproverConfigs] = useState<ApproverConfigRecord[]>([]);
+  const [configRole, setConfigRole] = useState('CEO');
+  const [configApproverId, setConfigApproverId] = useState('EMP-014');
+  const [configTitle, setConfigTitle] = useState('Board Delegate / HR Governance');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configMsg, setConfigMsg] = useState<string | null>(null);
+
+  const loadResourceView = useCallback(async () => {
+    try {
+      setResourceLoading(true);
+      const res = await attendanceApi.getResourceView({
+        vertical: selectedVertical,
+        date: selectedDate,
+        role: selectedRole !== 'all' ? selectedRole : undefined,
+      });
+      setResourcePayload(res);
+    } catch {
+      // non-fatal
+    } finally {
+      setResourceLoading(false);
+    }
+  }, [selectedVertical, selectedDate, selectedRole]);
+
+  const loadExceptions = useCallback(async () => {
+    try {
+      const res = await attendanceApi.getSupervisorExceptions();
+      setExceptions(res);
+    } catch {
+      // non-fatal
+    }
+  }, []);
 
   const loadLeaves = useCallback(async () => {
     try {
@@ -1063,9 +1386,64 @@ export function HrAvailabilityPage() {
     }
   }, []);
 
+  const loadOrgRequests = useCallback(async () => {
+    try {
+      setLoadingOrg(true);
+      const res = await leaveApi.getOrganizationRequests({
+        vertical: filterVertical !== 'all' ? filterVertical : undefined,
+        role: filterRole !== 'all' ? filterRole : undefined,
+        status: filterStatus !== 'all' ? filterStatus : undefined,
+      });
+      setOrgRequests(res);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoadingOrg(false);
+    }
+  }, [filterVertical, filterRole, filterStatus]);
+
+  const loadApproverConfigs = useCallback(async () => {
+    try {
+      const res = await leaveApi.getApproverConfigs();
+      setApproverConfigs(res);
+    } catch {
+      // non-fatal
+    }
+  }, []);
+
   useEffect(() => {
+    void loadResourceView();
+    void loadExceptions();
     void loadLeaves();
-  }, [loadLeaves]);
+    void loadOrgRequests();
+    void loadApproverConfigs();
+  }, [loadResourceView, loadExceptions, loadLeaves, loadOrgRequests, loadApproverConfigs]);
+
+  const handleSubmitReview = async () => {
+    if (!reviewModalItem) return;
+    try {
+      setReviewSubmitting(true);
+      if (reviewModalItem.type === 'wfh') {
+        await attendanceApi.reviewAttendanceRecord(reviewModalItem.item.id, {
+          decision: reviewDecision as 'confirmed' | 'rejected',
+          reviewNotes: reviewNotes.trim() || undefined,
+        });
+      } else {
+        await attendanceApi.decideRegularization(reviewModalItem.item.id, {
+          decision: (reviewDecision === 'confirmed' ? 'approved' : reviewDecision) as 'approved' | 'rejected',
+          decisionNotes: reviewNotes.trim() || 'Reviewed by HR/Supervisor',
+        });
+      }
+      setReviewModalItem(null);
+      setReviewNotes('');
+      void loadResourceView();
+      void loadExceptions();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to submit review decision.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   const handleSubmit = async () => {
     try {
@@ -1084,6 +1462,8 @@ export function HrAvailabilityPage() {
       });
       setMessage({ type: 'success', text: `Leave record ${res.leaveId} published. Minimal availability flags updated for routing.` });
       void loadLeaves();
+      void loadOrgRequests();
+      void loadResourceView();
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to record leave.' });
     } finally {
@@ -1091,155 +1471,1194 @@ export function HrAvailabilityPage() {
     }
   };
 
+  const handleSaveApproverConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingConfig(true);
+      setConfigMsg(null);
+      await leaveApi.configureApprover({
+        role: configRole as any,
+        approverEmployeeId: configApproverId.trim() || null,
+        approverTitle: configTitle.trim(),
+        isConfigured: !!configApproverId.trim(),
+        notes: `Configured via HR Governance panel`,
+      });
+      setConfigMsg(`Approver configuration for role ${configRole} updated successfully.`);
+      void loadApproverConfigs();
+    } catch (err: any) {
+      setConfigMsg(`Failed to save configuration: ${err.message}`);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const filteredBreakdown = (resourcePayload?.breakdown || []).filter((item) => {
+    if (!resourceSearch.trim()) return true;
+    const term = resourceSearch.toLowerCase();
+    return (
+      item.employeeName.toLowerCase().includes(term) ||
+      item.employeeEmail.toLowerCase().includes(term) ||
+      item.employeeRole.toLowerCase().includes(term) ||
+      Boolean(item.teamName && item.teamName.toLowerCase().includes(term)) ||
+      item.workLocationName.toLowerCase().includes(term)
+    );
+  });
+
+  const filteredRequests = orgRequests.filter((r) => {
+    if (!filterSearch.trim()) return true;
+    const term = filterSearch.toLowerCase();
+    return (
+      r.id.toLowerCase().includes(term) ||
+      (r.employeeName && r.employeeName.toLowerCase().includes(term)) ||
+      (r.employeeEmail && r.employeeEmail.toLowerCase().includes(term)) ||
+      (r.reason && r.reason.toLowerCase().includes(term))
+    );
+  });
+
   return (
     <DeckFrame
       actionCode="HR-05"
-      moduleLabel="AVAILABILITY"
-      title="Record leave and allocation availability"
+      moduleLabel="AVAILABILITY & RESOURCE VISIBILITY"
+      title="Organization Resource Visibility, Attendance & Leave Hub"
       steps={[
-        'Record approved leave or availability dates.',
-        'Notify the supervisor of open work requiring coverage.',
-        'Confirm effective availability used by routing.',
+        'Scope organization resources across verticals, teams, and configured locations.',
+        'Track daily 7-classification breakdown: present, WFH, leave, holiday, off, pending, and absent.',
+        'Review supervisor exceptions and enforce auditable attendance regularizations.',
       ]}
-      whenCheckFails="Leave does not automatically transfer every lead. Supervisor must confirm the required handoff."
-      permissionEvidence="HR visibility excludes unnecessary medical/private details from sales supervisors. Leave approval is a named policy."
-      onSubmit={handleSubmit}
+      whenCheckFails="Low CRM activity alone does not mark employees absent. Missing or inconsistent records trigger auditable supervisor review."
+      permissionEvidence="HR visibility covers organization-wide resource allocation, statutory holiday calendars, and supervisor approval lineage."
+      onSubmit={activeTab === 'direct_log' ? handleSubmit : undefined}
       submitting={submitting}
-      submitLabel="Continue"
+      submitLabel={activeTab === 'direct_log' ? 'Publish Override' : undefined}
+      submitDisabled={activeTab !== 'direct_log'}
     >
-      <div className="space-y-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CAPTURE</div>
-        <div className="text-base font-semibold text-foreground">Record leave and allocation availability</div>
-
-        {message && (
-          <div
-            className={`p-3 text-xs rounded border ${
-              message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+      <div className="space-y-5">
+        {/* Triple Tab Navigation */}
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setActiveTab('resource_visibility')}
+            className={`border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'resource_visibility'
+                ? 'border-[#113F3D] text-[#113F3D]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
+            data-testid="tab-resource-visibility"
           >
-            {message.text}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
-          <div>
-            <label className="text-xs font-medium text-foreground">Employee</label>
-            <select
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="EMP-001">Asha Rao (EMP-001)</option>
-              <option value="EMP-002">Ravi Menon (EMP-002)</option>
-              <option value="EMP-004">Dev Kapoor (EMP-004)</option>
-              <option value="EMP-006">Karan Shah (EMP-006)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-foreground">Absence</label>
-            <select
-              value={absenceType}
-              onChange={(e) => setAbsenceType(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="approved_leave">Approved leave</option>
-              <option value="annual_leave">Annual leave</option>
-              <option value="sick_leave">Sick leave</option>
-              <option value="bereavement">Bereavement</option>
-              <option value="unpaid">Unpaid leave</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-foreground">Start/end dates</label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-foreground">Coverage owner</label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <Input
-                value={coverageOwner}
-                onChange={(e) => setCoverageOwner(e.target.value)}
-                placeholder="TL"
-              />
-              <select
-                value={coverageEmployeeId}
-                onChange={(e) => setCoverageEmployeeId(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="EMP-003">Tara Iyer (TL)</option>
-                <option value="EMP-005">Meera Nair (TL)</option>
-                <option value="EMP-007">Neel Verma (MG)</option>
-              </select>
-            </div>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-foreground">Allocation status</label>
-            <select
-              value={allocationStatus}
-              onChange={(e) => setAllocationStatus(e.target.value as any)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="unavailable">Unavailable (Skip from new lead distribution)</option>
-              <option value="reduced">Reduced allocation (50% capacity weight)</option>
-              <option value="available">Normal allocation</option>
-            </select>
-          </div>
+            <Users className="size-4" /> Resource Visibility & Attendance ({resourcePayload?.metrics.totalEmployees || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('governance')}
+            className={`border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'governance'
+                ? 'border-[#113F3D] text-[#113F3D]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+            data-testid="tab-leave-governance"
+          >
+            <ShieldCheck className="size-4" /> Organization Leave Governance ({orgRequests.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('direct_log')}
+            className={`border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'direct_log'
+                ? 'border-[#113F3D] text-[#113F3D]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+            data-testid="tab-direct-log"
+          >
+            <CalendarDays className="size-4" /> Manual Lead Allocation Override (HR-05)
+          </button>
+          <button
+            onClick={() => setActiveTab('payroll_preview')}
+            className={`border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'payroll_preview'
+                ? 'border-[#113F3D] text-[#113F3D]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+            data-testid="tab-payroll-preview"
+          >
+            <DollarSign className="size-4" /> Compensation & Payroll Preview
+          </button>
         </div>
 
-        {/* Existing leaves table */}
-        {leaves.length > 0 && (
-          <div className="mt-6 pt-4 border-t">
-            <div className="text-xs font-semibold text-foreground mb-2">Active & Scheduled Leaves</div>
-            <div className="overflow-x-auto">
+        {/* TAB 0: RESOURCE VISIBILITY & ATTENDANCE BREAKDOWN */}
+        {activeTab === 'resource_visibility' && (
+          <div className="space-y-5">
+            {/* 1. One-Click Vertical Selector */}
+            <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Scope View by Vertical</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  {[
+                    { id: 'all', label: 'All Verticals' },
+                    { id: 'wealth', label: 'Wealth' },
+                    { id: 'banking', label: 'Banking' },
+                    { id: 'markets', label: 'Markets' },
+                    { id: 'real_estate', label: 'Real Estate' },
+                  ].map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      data-testid={`vertical-tab-${v.id}`}
+                      onClick={() => setSelectedVertical(v.id as any)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        selectedVertical === v.id
+                          ? 'bg-[#113F3D] text-white shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date & Filter Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[11px] font-medium text-muted-foreground">Date:</label>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    data-testid="resource-date-picker"
+                    className="h-8 text-xs w-36"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedDate('2026-10-16')}
+                    className="h-8 text-[11px] px-2 text-muted-foreground"
+                  >
+                    Sim Day
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                    className="h-8 text-[11px] px-2 text-muted-foreground"
+                  >
+                    Today
+                  </Button>
+                </div>
+
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="SC">Sales Associate (SC)</option>
+                  <option value="TL">Team Leader (TL)</option>
+                  <option value="MG">Manager (MG)</option>
+                  <option value="RM">Regional Manager (RM)</option>
+                  <option value="NM">National Manager (NM)</option>
+                  <option value="CEO">Chief Executive (CEO)</option>
+                  <option value="CFO">Chief Financial (CFO)</option>
+                  <option value="HR">Human Resources (HR)</option>
+                </select>
+
+                <Button variant="outline" size="sm" onClick={loadResourceView} className="h-8 text-xs">
+                  <RefreshCw className="size-3.5 mr-1" /> Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* 2. 7-Classification Summary Metrics */}
+            {resourcePayload && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
+                  <Card className="p-2.5 bg-emerald-50/60 border-emerald-200/80" data-testid="metric-card-confirmed-present">
+                    <div className="text-[10px] uppercase font-bold text-emerald-800">Confirmed Present</div>
+                    <div className="text-xl font-extrabold text-emerald-950 mt-0.5">
+                      {resourcePayload.metrics.confirmedPresent}
+                    </div>
+                  </Card>
+                  <Card className="p-2.5 bg-blue-50/60 border-blue-200/80" data-testid="metric-card-wfh">
+                    <div className="text-[10px] uppercase font-bold text-blue-800">WFH</div>
+                    <div className="text-xl font-extrabold text-blue-950 mt-0.5">
+                      {resourcePayload.metrics.wfhCount}
+                    </div>
+                  </Card>
+                  <Card className="p-2.5 bg-purple-50/60 border-purple-200/80" data-testid="metric-card-approved-leave">
+                    <div className="text-[10px] uppercase font-bold text-purple-800">Approved Leave</div>
+                    <div className="text-xl font-extrabold text-purple-950 mt-0.5">
+                      {resourcePayload.metrics.approvedLeaveCount}
+                    </div>
+                  </Card>
+                  <Card className="p-2.5 bg-amber-50/60 border-amber-200/80" data-testid="metric-card-holiday">
+                    <div className="text-[10px] uppercase font-bold text-amber-800">Holiday</div>
+                    <div className="text-xl font-extrabold text-amber-950 mt-0.5">
+                      {resourcePayload.metrics.holidayCount}
+                    </div>
+                  </Card>
+                  <Card className="p-2.5 bg-slate-50/80 border-slate-200" data-testid="metric-card-weekly-off">
+                    <div className="text-[10px] uppercase font-bold text-slate-700">Weekly Off</div>
+                    <div className="text-xl font-extrabold text-slate-900 mt-0.5">
+                      {resourcePayload.metrics.weeklyOffCount}
+                    </div>
+                  </Card>
+                  <Card className="p-2.5 bg-orange-50/60 border-orange-200/80" data-testid="metric-card-pending-confirmation">
+                    <div className="text-[10px] uppercase font-bold text-orange-800">Pending Review</div>
+                    <div className="text-xl font-extrabold text-orange-950 mt-0.5">
+                      {resourcePayload.metrics.pendingConfirmationCount}
+                    </div>
+                  </Card>
+                  <Card className="p-2.5 bg-rose-50/60 border-rose-200/80" data-testid="metric-card-recorded-absence">
+                    <div className="text-[10px] uppercase font-bold text-rose-800">Recorded Absence</div>
+                    <div className="text-xl font-extrabold text-rose-950 mt-0.5">
+                      {resourcePayload.metrics.recordedAbsenceCount}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Statutory working days and policy banner */}
+                <div className="flex flex-col sm:flex-row items-center justify-between text-xs px-3 py-2 rounded-lg bg-muted/40 border border-border">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="size-4 text-[#113F3D]" />
+                    <span>
+                      <strong>Scheduled Working Days:</strong> {resourcePayload.metrics.scheduledWorkingDays} ·{' '}
+                      <strong>Configured Location Holidays:</strong> {resourcePayload.holidaysForMonth.length}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    Holiday applicability is based on configured work location and policy, not assumed from vertical alone.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Search and Table Toolbar */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-2 size-3.5 text-muted-foreground" />
+                <Input
+                  value={resourceSearch}
+                  onChange={(e) => setResourceSearch(e.target.value)}
+                  placeholder="Search by name, role, team, location..."
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground font-medium">
+                Showing {filteredBreakdown.length} of {resourcePayload?.metrics.totalEmployees || 0} employees
+              </div>
+            </div>
+
+            {/* 4. Daily Resource Breakdown Table */}
+            <div className="border rounded-md overflow-x-auto bg-card">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted/40 text-muted-foreground text-[10px] uppercase">
+                <thead className="bg-muted/40 text-muted-foreground text-[10px] uppercase border-b">
                   <tr>
-                    <th className="px-3 py-2">ID</th>
-                    <th className="px-3 py-2">Employee</th>
-                    <th className="px-3 py-2">Absence</th>
-                    <th className="px-3 py-2">Dates</th>
-                    <th className="px-3 py-2">Coverage TL</th>
-                    <th className="px-3 py-2">Allocation</th>
+                    <th className="px-3 py-2.5">Employee</th>
+                    <th className="px-3 py-2.5">Role / Vertical</th>
+                    <th className="px-3 py-2.5">Team & Work Location</th>
+                    <th className="px-3 py-2.5">Attendance Classification</th>
+                    <th className="px-3 py-2.5">Work Mode / Hours</th>
+                    <th className="px-3 py-2.5">Nature / Activity</th>
+                    <th className="px-3 py-2.5 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-muted-foreground">
-                  {leaves.map((l) => (
-                    <tr key={l.id}>
-                      <td className="px-3 py-2 font-mono text-foreground">{l.id}</td>
-                      <td className="px-3 py-2 font-medium text-foreground">{l.employee_name}</td>
-                      <td className="px-3 py-2 capitalize">{l.absence_type?.replace('_', ' ')}</td>
-                      <td className="px-3 py-2">
-                        {new Date(l.start_date).toLocaleDateString()} – {new Date(l.end_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-3 py-2">{l.coverage_name || l.coverage_owner_role}</td>
-                      <td className="px-3 py-2">
-                        <Badge
-                          className={
-                            l.allocation_status === 'unavailable'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }
-                        >
-                          {l.allocation_status}
-                        </Badge>
+                  {resourceLoading ? (
+                    <tr>
+                      <td colSpan={7} className="p-4"><SkeletonRows rows={5} /></td>
+                    </tr>
+                  ) : filteredBreakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                        No employees found matching the selected vertical and search filters.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredBreakdown.map((item) => (
+                      <tr key={item.employeeId} className="hover:bg-muted/20">
+                        {/* Employee */}
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold text-foreground flex items-center gap-1.5">
+                            <span className="size-6 rounded-full bg-[#113F3D]/10 text-[#113F3D] font-bold text-[10px] flex items-center justify-center">
+                              {item.employeeName.slice(0, 1)}
+                            </span>
+                            <span>{item.employeeName}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground pl-7">{item.employeeEmail}</div>
+                        </td>
+
+                        {/* Role / Vertical */}
+                        <td className="px-3 py-2.5">
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                            {item.employeeRole} • {item.vertical}
+                          </Badge>
+                        </td>
+
+                        {/* Team & Location */}
+                        <td className="px-3 py-2.5">
+                          <div className="font-medium text-foreground">{item.teamName}</div>
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <MapPin className="size-3 text-muted-foreground" />
+                            <span>{item.workLocationName}</span>
+                          </div>
+                        </td>
+
+                        {/* Classification Chip (Distinct 7 Badges) */}
+                        <td className="px-3 py-2.5">
+                          {item.classification === 'confirmed_present' && (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold text-[11px] gap-1" data-testid="chip-confirmed-present">
+                              <CheckCircle2 className="size-3" /> Confirmed Present
+                            </Badge>
+                          )}
+                          {item.classification === 'wfh' && (
+                            <Badge className="bg-blue-100 text-blue-800 border-blue-300 font-semibold text-[11px] gap-1" data-testid="chip-wfh">
+                              <Home className="size-3" /> WFH
+                            </Badge>
+                          )}
+                          {item.classification === 'approved_leave' && (
+                            <div>
+                              <Badge className="bg-purple-100 text-purple-800 border-purple-300 font-semibold text-[11px] gap-1" data-testid="chip-approved-leave">
+                                <CalendarDays className="size-3" /> Approved Leave
+                              </Badge>
+                              {item.leaveDetails && (
+                                <div className="text-[10px] text-purple-900 mt-0.5">
+                                  {item.leaveDetails.leaveType} ({item.leaveDetails.startDate} - {item.leaveDetails.endDate}) · Superior: {item.leaveDetails.approvingSuperiorName || 'Authorized'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {item.classification === 'holiday' && (
+                            <div>
+                              <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold text-[11px] gap-1" data-testid="chip-holiday">
+                                <Sparkles className="size-3" /> Holiday
+                              </Badge>
+                              {item.holidayDetails && (
+                                <div className="text-[10px] text-amber-900 mt-0.5">
+                                  {item.holidayDetails.holidayName} ({item.holidayDetails.holidayType})
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {item.classification === 'weekly_off' && (
+                            <Badge className="bg-slate-100 text-slate-700 border-slate-300 font-semibold text-[11px] gap-1" data-testid="chip-weekly-off">
+                              <Clock className="size-3" /> Weekly Off
+                            </Badge>
+                          )}
+                          {item.classification === 'pending_confirmation' && (
+                            <Badge className="bg-orange-100 text-orange-800 border-orange-300 font-semibold text-[11px] gap-1" data-testid="chip-pending-confirmation">
+                              <AlertTriangle className="size-3" /> Pending Confirmation
+                            </Badge>
+                          )}
+                          {item.classification === 'recorded_absence' && (
+                            <Badge className="bg-rose-100 text-rose-800 border-rose-300 font-semibold text-[11px] gap-1" data-testid="chip-recorded-absence">
+                              <X className="size-3" /> Recorded Absence
+                            </Badge>
+                          )}
+                        </td>
+
+                        {/* Mode & Hours */}
+                        <td className="px-3 py-2.5">
+                          {item.workMode ? (
+                            <div>
+                              <div className="font-medium text-foreground uppercase text-[11px]">
+                                {item.workMode} {item.totalHours !== null ? `(${item.totalHours} hrs)` : ''}
+                              </div>
+                              {item.checkInAt && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  In: {new Date(item.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  {item.checkOutAt && ` · Out: ${new Date(item.checkOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-[11px]">—</span>
+                          )}
+                        </td>
+
+                        {/* Nature / Activity */}
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-col gap-0.5">
+                            {item.isOfflineWork ? (
+                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-900 border-amber-200 w-fit">
+                                Offline Work
+                              </Badge>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">CRM Direct</span>
+                            )}
+                            <span className="text-[10px] text-muted-foreground">Activity: {item.crmActivityCount} actions</span>
+                          </div>
+                        </td>
+
+                        {/* Details Drawer Trigger */}
+                        <td className="px-3 py-2.5 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-[#113F3D] hover:bg-[#113F3D]/10"
+                            onClick={() => setSelectedBreakdownItem(item)}
+                          >
+                            Inspect
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* 5. Supervisor Exceptions & Inconsistent Entries Queue */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <AlertTriangle className="size-4 text-amber-600" />
+                    Supervisor Review & Exceptions Queue ({exceptions.pendingRecords.length + exceptions.pendingRegularizations.length})
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Review unconfirmed WFH deliverables and auditable attendance regularization requests. Zero self-approval enforced.
+                  </p>
+                </div>
+              </div>
+
+              {exceptions.pendingRecords.length === 0 && exceptions.pendingRegularizations.length === 0 ? (
+                <div className="p-4 rounded-md bg-muted/20 text-center text-xs text-muted-foreground">
+                  No missing updates or inconsistent attendance records requiring review.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* Pending WFH Records */}
+                  {exceptions.pendingRecords.map((rec) => (
+                    <div key={rec.id} className="p-3 rounded-lg border border-blue-200 bg-blue-50/30 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-foreground">{rec.employeeName} ({rec.employeeRole} • {rec.vertical})</span>
+                        <Badge className="bg-blue-100 text-blue-800 text-[10px] font-semibold">WFH Deliverables Pending</Badge>
+                      </div>
+                      <p className="text-muted-foreground text-[11px]">
+                        <strong>Date:</strong> {rec.workDate} · In: {new Date(rec.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {rec.totalHours && ` · ${rec.totalHours} hrs`}
+                      </p>
+                      {rec.wfhProgressSummary && (
+                        <p className="text-[11px] text-foreground bg-white/60 p-1.5 rounded border border-blue-100">
+                          "{rec.wfhProgressSummary}"
+                        </p>
+                      )}
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-[#113F3D] hover:bg-[#113F3D]/90 text-white"
+                          onClick={() => {
+                            setReviewModalItem({ type: 'wfh', item: rec });
+                            setReviewDecision('confirmed');
+                            setReviewNotes('');
+                          }}
+                        >
+                          Review & Confirm
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Pending Regularizations */}
+                  {exceptions.pendingRegularizations.map((reg) => (
+                    <div key={reg.id} className="p-3 rounded-lg border border-amber-200 bg-amber-50/40 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-foreground">{reg.employeeName} ({reg.employeeRole} • {reg.vertical})</span>
+                        <Badge className="bg-amber-100 text-amber-800 text-[10px] font-semibold">Regularization Request</Badge>
+                      </div>
+                      <p className="text-muted-foreground text-[11px]">
+                        <strong>Requested:</strong> {reg.workDate} ({reg.requestedWorkMode.toUpperCase()})
+                      </p>
+                      <p className="text-[11px] text-foreground bg-white/60 p-1.5 rounded border border-amber-100">
+                        "{reg.reason}"
+                      </p>
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-[#113F3D] hover:bg-[#113F3D]/90 text-white"
+                          onClick={() => {
+                            setReviewModalItem({ type: 'reg', item: reg });
+                            setReviewDecision('approved');
+                            setReviewNotes('');
+                          }}
+                        >
+                          Review Regularization
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 6. Configured Location Holiday Calendars Reference */}
+            {resourcePayload?.holidaysForMonth && resourcePayload.holidaysForMonth.length > 0 && (
+              <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="size-4 text-amber-600" />
+                  Configured Statutory & Festival Holidays for Month ({resourcePayload.selectedDate.slice(0, 7)})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  {resourcePayload.holidaysForMonth.map((hol) => (
+                    <div key={hol.id} className="p-2.5 rounded-lg border border-amber-200/80 bg-amber-50/30">
+                      <div className="font-bold text-amber-950">{hol.holidayName}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Date: {hol.holidayDate}</div>
+                      <div className="text-[10px] text-amber-800 font-medium mt-0.5">
+                        Location: {hol.locationName} · {hol.holidayType}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Inspect Item Modal */}
+            {selectedBreakdownItem && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="w-full max-w-lg rounded-xl border border-border bg-background p-5 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <h4 className="font-semibold text-sm text-foreground">
+                        Resource Profile • {selectedBreakdownItem.employeeName}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedBreakdownItem.employeeRole} • {selectedBreakdownItem.teamName} ({selectedBreakdownItem.vertical})
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedBreakdownItem(null)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-muted/20 rounded-lg">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">Work Location</span>
+                        <span className="font-semibold text-foreground">{selectedBreakdownItem.workLocationName}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">Date</span>
+                        <span className="font-semibold text-foreground">{selectedBreakdownItem.date}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">Classification</span>
+                        <span className="font-semibold text-foreground capitalize">{selectedBreakdownItem.classification.replace('_', ' ')}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">Work Mode</span>
+                        <span className="font-semibold text-foreground uppercase">{selectedBreakdownItem.workMode || 'None recorded'}</span>
+                      </div>
+                    </div>
+
+                    {selectedBreakdownItem.leaveDetails && (
+                      <div className="p-3 rounded-lg border border-purple-200 bg-purple-50/30">
+                        <span className="font-bold text-purple-900 block text-[11px]">Approved Leave Details</span>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Window: {selectedBreakdownItem.leaveDetails.startDate} to {selectedBreakdownItem.leaveDetails.endDate}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Approving Superior: {selectedBreakdownItem.leaveDetails.approvingSuperiorName || 'Authorized Supervisor'}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedBreakdownItem.holidayDetails && (
+                      <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/30">
+                        <span className="font-bold text-amber-900 block text-[11px]">Applicable Holiday</span>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {selectedBreakdownItem.holidayDetails.holidayName} ({selectedBreakdownItem.holidayDetails.holidayType})
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="p-3 rounded-lg bg-muted/40 text-[11px] text-muted-foreground">
+                      <strong>Activity Status:</strong> {selectedBreakdownItem.crmActivityCount} actions recorded in CRM. Offline work: {selectedBreakdownItem.isOfflineWork ? 'Yes (Protected from loss of pay)' : 'No'}.
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedBreakdownItem(null)} className="text-xs">
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Supervisor Review Modal */}
+            {reviewModalItem && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="w-full max-w-md rounded-xl border border-border bg-background p-5 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <h4 className="font-semibold text-sm text-foreground">
+                      {reviewModalItem.type === 'wfh' ? 'Review WFH Shift Deliverables' : 'Decide Regularization Request'}
+                    </h4>
+                    <button
+                      onClick={() => setReviewModalItem(null)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Employee</span>
+                      <span className="font-semibold text-foreground">{reviewModalItem.item.employeeName} ({reviewModalItem.item.workDate})</span>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-foreground">Decision</label>
+                      <div className="flex gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setReviewDecision('confirmed')}
+                          className={`flex-1 py-1.5 rounded border text-xs font-semibold ${
+                            reviewDecision === 'confirmed' || reviewDecision === 'approved'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'border-border text-muted-foreground'
+                          }`}
+                        >
+                          Confirm / Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReviewDecision('rejected')}
+                          className={`flex-1 py-1.5 rounded border text-xs font-semibold ${
+                            reviewDecision === 'rejected'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'border-border text-muted-foreground'
+                          }`}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-foreground">Decision Notes & Audit Trace</label>
+                      <Textarea
+                        value={reviewNotes}
+                        onChange={(e) => setReviewNotes(e.target.value)}
+                        placeholder="Provide verification notes (deliverables reviewed, hours accepted)..."
+                        className="mt-1 text-xs"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setReviewModalItem(null)} className="text-xs">
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSubmitReview}
+                      disabled={reviewSubmitting}
+                      className="text-xs bg-[#113F3D] hover:bg-[#113F3D]/90 text-white"
+                    >
+                      {reviewSubmitting ? 'Recording...' : 'Submit Decision'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* TAB 1: ORGANIZATION LEAVE GOVERNANCE */}
+        {activeTab === 'governance' && (
+          <div className="space-y-4">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card className="p-3 bg-muted/20">
+                <div className="text-[10px] uppercase font-semibold text-muted-foreground">Total Requests</div>
+                <div className="text-xl font-bold text-foreground mt-0.5">{orgRequests.length}</div>
+              </Card>
+              <Card className="p-3 bg-amber-50/50 border-amber-200/60">
+                <div className="text-[10px] uppercase font-semibold text-amber-800">Pending Review</div>
+                <div className="text-xl font-bold text-amber-900 mt-0.5">
+                  {orgRequests.filter((r) => r.status === 'submitted').length}
+                </div>
+              </Card>
+              <Card className="p-3 bg-emerald-50/50 border-emerald-200/60">
+                <div className="text-[10px] uppercase font-semibold text-emerald-800">Approved Leaves</div>
+                <div className="text-xl font-bold text-emerald-900 mt-0.5">
+                  {orgRequests.filter((r) => r.status === 'approved').length}
+                </div>
+              </Card>
+              <Card className="p-3 bg-blue-50/50 border-blue-200/60">
+                <div className="text-[10px] uppercase font-semibold text-blue-800">Approver Configs</div>
+                <div className="text-xl font-bold text-blue-900 mt-0.5">{approverConfigs.length}</div>
+              </Card>
+            </div>
+
+            {/* Filter Toolbar */}
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                <Input
+                  value={filterSearch}
+                  onChange={(e) => setFilterSearch(e.target.value)}
+                  placeholder="Search by employee, email, or reference..."
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={filterVertical}
+                  onChange={(e) => setFilterVertical(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Verticals</option>
+                  <option value="wealth">Wealth Management</option>
+                  <option value="banking">Commercial Banking</option>
+                  <option value="markets">Markets & Securities</option>
+                  <option value="real_estate">Real Estate</option>
+                </select>
+
+                <select
+                  value={filterRole}
+                  onChange={(e) => setFilterRole(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="SC">SC (Sales Caller)</option>
+                  <option value="TL">TL (Team Lead)</option>
+                  <option value="MG">MG (Manager)</option>
+                  <option value="RM">RM (Regional Manager)</option>
+                  <option value="NM">NM (National Manager)</option>
+                  <option value="CEO">CEO (Chief Executive)</option>
+                  <option value="CFO">CFO (Finance)</option>
+                  <option value="HR">HR (Human Resources)</option>
+                  <option value="SA">SA (Super Admin)</option>
+                  <option value="DE">DE (Data Entry)</option>
+                </select>
+
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="submitted">Pending (Submitted)</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="withdrawn">Withdrawn</option>
+                </select>
+
+                <Button variant="outline" size="sm" onClick={loadOrgRequests} className="h-9 text-xs">
+                  <RefreshCw className="size-3.5 mr-1" /> Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Requests Table */}
+            <div className="border rounded-md overflow-x-auto bg-card">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/40 text-muted-foreground text-[10px] uppercase border-b">
+                  <tr>
+                    <th className="px-3 py-2.5">Reference</th>
+                    <th className="px-3 py-2.5">Employee</th>
+                    <th className="px-3 py-2.5">Vertical / Team</th>
+                    <th className="px-3 py-2.5">Leave Details</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5">Approver</th>
+                    <th className="px-3 py-2.5 text-right">Audit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-muted-foreground">
+                  {loadingOrg ? (
+                    <tr>
+                      <td colSpan={7} className="p-4"><SkeletonRows rows={4} /></td>
+                    </tr>
+                  ) : filteredRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                        No leave requests found matching selected scope and criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRequests.map((r) => (
+                      <tr key={r.id} className="hover:bg-muted/20">
+                        <td className="px-3 py-2.5 font-mono font-medium text-foreground">{r.id}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold text-foreground">{r.employeeName}</div>
+                          <div className="text-[10px] text-muted-foreground">{r.employeeEmail}</div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <Badge variant="outline" className="text-[10px] uppercase">
+                            {r.employeeRole} • {r.vertical || 'Shared'}
+                          </Badge>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">{r.teamName || r.teamId || 'Company Wide'}</div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="font-medium text-foreground capitalize">{r.leaveType} leave ({r.totalDays}d)</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {new Date(r.startDate).toLocaleDateString()} – {new Date(r.endDate).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <Badge
+                            className={
+                              r.status === 'approved'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : r.status === 'rejected'
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : r.status === 'withdrawn'
+                                ? 'bg-gray-100 text-gray-700 border-gray-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }
+                          >
+                            {r.status === 'submitted' ? 'Pending Approval' : r.status}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="text-foreground">{r.currentApproverName || r.currentApproverId || 'Configured Superior'}</div>
+                          {r.decidedByName && (
+                            <div className="text-[10px] text-muted-foreground">
+                              Decided by {r.decidedByName} ({r.decidedAt ? new Date(r.decidedAt).toLocaleDateString() : ''})
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-[#113F3D] hover:bg-[#113F3D]/10"
+                            onClick={() => setSelectedAuditRequest(r)}
+                          >
+                            <FileText className="size-3.5 mr-1" /> Audit Trail
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Approver Configurations Section */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <Shield className="size-4 text-[#113F3D]" />
+                    Executive & Governance Role Approver Rules
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Configure designated superiors for roles without vertical line-of-command (CEO, CFO, HR, SA, DE). Self-approval is strictly forbidden.
+                  </p>
+                </div>
+              </div>
+
+              {configMsg && (
+                <div className="p-2.5 text-xs rounded bg-blue-50 text-blue-900 border border-blue-200 flex justify-between items-center">
+                  <span>{configMsg}</span>
+                  <button onClick={() => setConfigMsg(null)} className="text-blue-700 hover:text-blue-900"><X className="size-3.5" /></button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* Active Rules List */}
+                <div className="border rounded-md overflow-hidden text-xs">
+                  <div className="bg-muted/40 px-3 py-2 font-semibold text-muted-foreground uppercase text-[10px]">
+                    Current Role Routes
+                  </div>
+                  <div className="divide-y max-h-48 overflow-y-auto">
+                    {approverConfigs.map((cfg) => (
+                      <div key={cfg.id} className="p-2.5 flex items-center justify-between hover:bg-muted/10">
+                        <div>
+                          <div className="font-semibold text-foreground">
+                            Role: {cfg.role || 'Employee Override'} {cfg.vertical ? `(${cfg.vertical})` : ''}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Superior: {cfg.approverName || cfg.approverEmployeeId || 'Unconfigured'} • {cfg.approverTitle}
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={
+                            cfg.isConfigured
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 text-[10px]'
+                          }
+                        >
+                          {cfg.isConfigured ? 'Configured' : 'Blocked (Unconfigured)'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Configure Route Form */}
+                <form onSubmit={handleSaveApproverConfig} className="space-y-2.5 border rounded-md p-3 bg-muted/10">
+                  <div className="text-[11px] font-semibold text-foreground uppercase tracking-wider">
+                    Update Designated Superior
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] font-medium text-muted-foreground">Target Role</label>
+                      <select
+                        value={configRole}
+                        onChange={(e) => setConfigRole(e.target.value)}
+                        className="mt-1 h-8 w-full rounded border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="CEO">CEO (Chief Executive)</option>
+                        <option value="CFO">CFO (Finance)</option>
+                        <option value="HR">HR (Human Resources)</option>
+                        <option value="SA">SA (Super Admin)</option>
+                        <option value="DE">DE (Data Entry)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-muted-foreground">Approver Employee ID</label>
+                      <Input
+                        value={configApproverId}
+                        onChange={(e) => setConfigApproverId(e.target.value)}
+                        placeholder="e.g. EMP-010 or EMP-014"
+                        className="mt-1 h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground">Approver Authority Title</label>
+                    <Input
+                      value={configTitle}
+                      onChange={(e) => setConfigTitle(e.target.value)}
+                      placeholder="e.g. Board Compensation Committee"
+                      className="mt-1 h-8 text-xs"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={savingConfig}
+                      className="h-8 text-xs bg-[#113F3D] hover:bg-[#113F3D]/90 text-white"
+                    >
+                      {savingConfig ? 'Saving...' : 'Update Approver Route'}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* Audit Trail Modal */}
+            {selectedAuditRequest && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="w-full max-w-lg rounded-xl border border-border bg-background p-5 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <h4 className="font-semibold text-sm text-foreground">
+                        Leave Audit History • {selectedAuditRequest.id}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedAuditRequest.employeeName} ({selectedAuditRequest.employeeRole}) • {selectedAuditRequest.leaveType} leave
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedAuditRequest(null)}
+                      className="text-muted-foreground hover:text-foreground p-1"
+                      aria-label="Close audit modal"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="p-2.5 rounded bg-muted/30 border border-border/50">
+                      <div><strong>Dates: </strong>{selectedAuditRequest.startDate} to {selectedAuditRequest.endDate} ({selectedAuditRequest.totalDays} calendar days)</div>
+                      <div><strong>Reason: </strong>{selectedAuditRequest.reason}</div>
+                      {selectedAuditRequest.handoverNotes && <div><strong>Handover: </strong>{selectedAuditRequest.handoverNotes}</div>}
+                    </div>
+
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Immutable Event Timeline
+                    </div>
+                    <div className="space-y-2 border-l-2 border-primary/30 pl-3">
+                      {selectedAuditRequest.actions && selectedAuditRequest.actions.length > 0 ? (
+                        selectedAuditRequest.actions.map((act) => (
+                          <div key={act.id} className="text-xs">
+                            <div className="font-semibold text-foreground capitalize">
+                              {act.action} <span className="text-[10px] text-muted-foreground font-normal">({new Date(act.createdAt).toLocaleString()})</span>
+                            </div>
+                            <div className="text-muted-foreground">Actor: {act.actorName || act.actorEmployeeId} ({act.actorRole})</div>
+                            {act.notes && <div className="text-foreground/90 pl-1 mt-0.5">"{act.notes}"</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-muted-foreground">Initial submission logged.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedAuditRequest(null)}>
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: MANUAL ALLOCATION OVERRIDE (HR-05) */}
+        {activeTab === 'direct_log' && (
+          <div className="space-y-4">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">DIRECT CAPTURE</div>
+            <div className="text-base font-semibold text-foreground">Record leave and allocation availability (HR-05)</div>
+
+            {message && (
+              <div
+                className={`p-3 text-xs rounded border ${
+                  message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+                }`}
+              >
+                {message.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+              <div>
+                <label className="text-xs font-medium text-foreground">Employee</label>
+                <select
+                  value={employeeId}
+                  onChange={(e) => setEmployeeId(e.target.value)}
+                  className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="EMP-001">Asha Rao (EMP-001)</option>
+                  <option value="EMP-002">Ravi Menon (EMP-002)</option>
+                  <option value="EMP-004">Dev Kapoor (EMP-004)</option>
+                  <option value="EMP-006">Karan Shah (EMP-006)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground">Absence Category</label>
+                <select
+                  value={absenceType}
+                  onChange={(e) => setAbsenceType(e.target.value)}
+                  className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="approved_leave">Approved leave</option>
+                  <option value="annual_leave">Annual leave</option>
+                  <option value="sick_leave">Sick leave</option>
+                  <option value="bereavement">Bereavement</option>
+                  <option value="unpaid">Unpaid leave</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground">Start/end dates</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground">Coverage owner</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <Input
+                    value={coverageOwner}
+                    onChange={(e) => setCoverageOwner(e.target.value)}
+                    placeholder="TL"
+                  />
+                  <select
+                    value={coverageEmployeeId}
+                    onChange={(e) => setCoverageEmployeeId(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="EMP-003">Tara Iyer (TL)</option>
+                    <option value="EMP-005">Meera Nair (TL)</option>
+                    <option value="EMP-007">Neel Verma (MG)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-foreground">Allocation status</label>
+                <select
+                  value={allocationStatus}
+                  onChange={(e) => setAllocationStatus(e.target.value as any)}
+                  className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="unavailable">Unavailable (Skip from new lead distribution)</option>
+                  <option value="reduced">Reduced allocation (50% capacity weight)</option>
+                  <option value="available">Normal allocation</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Existing leaves table */}
+            {leaves.length > 0 && (
+              <div className="mt-6 pt-4 border-t">
+                <div className="text-xs font-semibold text-foreground mb-2">Active & Scheduled Leaves</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-muted/40 text-muted-foreground text-[10px] uppercase">
+                      <tr>
+                        <th className="px-3 py-2">ID</th>
+                        <th className="px-3 py-2">Employee</th>
+                        <th className="px-3 py-2">Absence</th>
+                        <th className="px-3 py-2">Dates</th>
+                        <th className="px-3 py-2">Coverage TL</th>
+                        <th className="px-3 py-2">Allocation</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-muted-foreground">
+                      {leaves.map((l) => (
+                        <tr key={l.id}>
+                          <td className="px-3 py-2 font-mono text-foreground">{l.id}</td>
+                          <td className="px-3 py-2 font-medium text-foreground">{l.employee_name}</td>
+                          <td className="px-3 py-2 capitalize">{l.absence_type?.replace('_', ' ')}</td>
+                          <td className="px-3 py-2">
+                            {new Date(l.start_date).toLocaleDateString()} – {new Date(l.end_date).toLocaleDateString()}
+                          </td>
+                          <td className="px-3 py-2">{l.coverage_name || l.coverage_owner_role}</td>
+                          <td className="px-3 py-2">
+                            <Badge
+                              className={
+                                l.allocation_status === 'unavailable'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }
+                            >
+                              {l.allocation_status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: COMPENSATION & PAYROLL PREVIEW */}
+        {activeTab === 'payroll_preview' && (
+          <PayrollPreviewTab userRole="HR" />
         )}
       </div>
     </DeckFrame>
@@ -2207,5 +3626,29 @@ export function HrRequestsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ============================================================================
+// 9. HR-EXT-04: Non-Overlapping 28th–27th Payroll Preview & Compensation (/hr/payroll)
+// ============================================================================
+export function HrPayrollPreviewPage() {
+  return (
+    <DeckFrame
+      actionCode="HR-EXT-04"
+      moduleLabel="Salary & Payroll Preview"
+      title="Non-Overlapping 28th–27th Payroll Calculation Preview & Effective-Dated Compensation"
+      subtitle="Strict salary privacy enforced · Calculation preview only · No salary disbursement"
+      statusText="Calculation Preview Ready · Finalization Gated [Deck P320]"
+      steps={[
+        'Configure non-overlapping 28th–27th cycles and evaluate mid-cycle joiner 10 Jan initial period separately.',
+        'Calculate transparent inputs: attended days, paid leave, location holidays, weekly offs, and divisor formula.',
+        'Review transparent gross-to-net components and policy gate status before designated legal/statutory confirmation.',
+      ]}
+      whenCheckFails="Payroll finalization or payment export attempts return 422 UNRESOLVED_POLICY_GATES pending legal confirmation."
+      permissionEvidence="Compensation records and payroll calculation preview restricted strictly to authorized HR and Executive Finance roles."
+    >
+      <PayrollPreviewTab userRole="HR" />
+    </DeckFrame>
   );
 }

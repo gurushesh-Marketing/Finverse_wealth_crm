@@ -80,8 +80,8 @@ export const wealthApi = {
   publishEnquiry: (id: string) => request<{ leadId: string; status: string }>(`/api/enquiries/${id}/publish`, { method: 'POST', body: JSON.stringify({}) }),
   conversations: (leadId: string) =>
     request<{ calls: CallRecord[]; messages: MessageRecord[] }>(`/api/leads/${leadId}/conversations`),
-  startCall: (leadId: string, input: { mode: string; idempotencyKey: string }) =>
-    request<CallRecord>(`/api/leads/${leadId}/calls`, { method: 'POST', body: JSON.stringify(input) }),
+  startCall: (leadId: string, input?: { mode?: string; idempotencyKey?: string }) =>
+    request<CallRecord>(`/api/calls/initiate`, { method: 'POST', body: JSON.stringify({ leadId, ...input }) }),
   callState: (callId: string, status: string) =>
     request<CallRecord>(`/api/calls/${callId}/state`, { method: 'POST', body: JSON.stringify({ status }) }),
   wrapup: (callId: string, input: WrapUpInput) =>

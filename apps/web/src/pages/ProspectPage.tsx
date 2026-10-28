@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useParams, useLocation } from 'react-router-dom';
-import type { CallRecord, LeadDetail, MessageRecord, ProposalRecord } from '@finverse/contracts';
+import type { CallRecord, LeadDetail, MessageRecord, ProposalRecord, LeadHandoffRecord } from '@finverse/contracts';
 import { ApiError, api } from '../lib/api';
 import { wealthApi, type OutcomeRequestView } from '../lib/wealth-api';
+import { relApi } from '../lib/rel-api';
 import { useSession } from '../lib/session';
 import { PageHeader, Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -25,8 +26,8 @@ export function ProspectPage() {
   const { id = '' } = useParams();
   const { session } = useSession();
 
-  if (session?.role === 'TL') {
-    return <Navigate to={`/management/prospects/${id}`} replace />;
+  if (session?.role === 'TL' || session?.role === 'REL') {
+    return <Navigate to={`/rel/prospects/${id}`} replace />;
   }
 
   const [lead, setLead] = useState<LeadDetail | null>(null);
@@ -583,6 +584,116 @@ function PipelineTab({
     nextAction: '',
   });
 
+  const isWealth = !isBanking && !isMarkets && !isRealEstate;
+
+  const [handoffs, setHandoffs] = useState<LeadHandoffRecord[]>([]);
+
+  // Banking Qualification State
+  const [loanAmount, setLoanAmount] = useState<number>(7500000);
+  const [facilityType, setFacilityType] = useState('Working Capital Term Loan');
+  const [turnover, setTurnover] = useState<number>(25000000);
+  const [constitution, setConstitution] = useState('Private Limited Company');
+  const [loanPurpose, setLoanPurpose] = useState('Capacity expansion & operating capital');
+
+  // Wealth Qualification State
+  const [investibleSurplus, setInvestibleSurplus] = useState<number>(7500000);
+  const [mandateType, setMandateType] = useState('Portfolio Management Services (PMS)');
+  const [riskProfile, setRiskProfile] = useState<'Conservative' | 'Moderate' | 'Growth' | 'Aggressive'>('Growth');
+  const [investmentHorizon, setInvestmentHorizon] = useState<'1-3 Years' | '3-5 Years' | '5-10 Years' | '10+ Years'>('3-5 Years');
+  const [existingPortfolioSize, setExistingPortfolioSize] = useState<number>(5000000);
+  const [currentBrokerOrAmc, setCurrentBrokerOrAmc] = useState('ICICI Securities Direct');
+  const [targetReturn, setTargetReturn] = useState('14-16% CAGR alpha over Nifty 500');
+
+  // Markets / Trading Qualification State
+  const [tradingCapital, setTradingCapital] = useState<number>(2500000);
+  const [tradingSegment, setTradingSegment] = useState('F&O Derivatives (Futures & Options)');
+  const [tradingExperience, setTradingExperience] = useState<
+    'Beginner (< 1 Year)' | 'Intermediate (1-3 Years)' | 'Active / Professional (3+ Years)' | 'Algorithmic / High-Frequency'
+  >('Intermediate (1-3 Years)');
+  const [marketsRiskTolerance, setMarketsRiskTolerance] = useState<
+    'Low / Conservative (Cash & Delivery only)' | 'Moderate (Equity Delivery + Index Hedging)' | 'High / Speculative (Active F&O & Leverage)'
+  >('Moderate (Equity Delivery + Index Hedging)');
+  const [depositoryPreference, setDepositoryPreference] = useState<
+    'CDSL (Central Depository Services India)' | 'NSDL (National Securities Depository Limited)'
+  >('CDSL (Central Depository Services India)');
+  const [incomeProofAvailable] = useState<boolean>(true);
+  const [existingBroker, setExistingBroker] = useState('Zerodha Broking');
+
+  // Real Estate Qualification State
+  const [propertyBudget, setPropertyBudget] = useState<number>(35000000);
+  const [propertyType, setPropertyType] = useState('Luxury Residential Villa / Apartment');
+  const [preferredLocation, setPreferredLocation] = useState('Worli / Lower Parel, South Mumbai');
+  const [purchaseTimeline, setPurchaseTimeline] = useState<
+    'Immediate (Within 30 Days)' | '1-3 Months (Active Shortlist)' | '3-6 Months (Planning & Evaluation)' | '6+ Months (Investor Mandate)'
+  >('1-3 Months (Active Shortlist)');
+  const [purchasePurpose, setPurchasePurpose] = useState<
+    'End-Use / Self-Occupation' | 'Rental Yield & Investment' | 'Corporate Headquarters / Branch' | 'Capital Gains Reinvestment (54EC)'
+  >('End-Use / Self-Occupation');
+  const [siteVisitPreference, setSiteVisitPreference] = useState<
+    'Weekend Preferred' | 'Weekday Morning' | 'Private Chauffeur Inspection' | 'Virtual 3D Walkthrough First'
+  >('Weekend Preferred');
+  const [fundingSource, setFundingSource] = useState<
+    'Self-Funded / Equity Liquidity' | 'Bank Home Loan Required' | 'Corporate Treasury / Escrow'
+  >('Self-Funded / Equity Liquidity');
+  const [possessionPreference, setPossessionPreference] = useState<
+    'Ready to Move In (OC Received)' | 'Under Construction (Within 12M)' | 'Pre-Launch / Investor Allocation'
+  >('Ready to Move In (OC Received)');
+  const [developerPreference, setDeveloperPreference] = useState('Lodha Luxury');
+
+  const [callerFindings, setCallerFindings] = useState(
+    isRealEstate
+      ? 'HNI buyer seeking luxury sea-facing villa/apartment in South Mumbai with verified funds; ready for weekend site visit.'
+      : isMarkets
+      ? 'Active derivative trader seeking low-latency DMA desk, margin trade facility, and competitive F&O brokerage.'
+      : isWealth
+      ? 'HNI prospect with ₹75L investible surplus seeking equity PMS advisory; growth objective.'
+      : 'Borrower has 4 years audited financials, healthy cash flows, seeking growth funding.'
+  );
+  const [qualEvidence, setQualEvidence] = useState(
+    isRealEstate
+      ? 'Verified bank liquidity for ₹3.5 Cr purchase; PAN & KYC verified; site visit slot confirmed.'
+      : isMarkets
+      ? '6M bank statement & ITR-V verified for derivative activation; PAN-Aadhaar linked; SEBI risk disclosure accepted.'
+      : isWealth
+      ? 'Investor net worth > ₹5 Cr verified, PAN/Aadhaar validated, accredited investor fit for PMS mandate.'
+      : 'Verified ROC filings, 12M GST returns, and clean banking operations.'
+  );
+  const [reqDocs] = useState<string[]>(
+    isRealEstate
+      ? [
+          'Buyer PAN & Aadhaar KYC Copy',
+          'Proof of Funds / Bank Statement',
+          'RERA Allotment Terms Acknowledgement',
+          'Site Visit Identity Verification Pass',
+        ]
+      : isMarkets
+      ? [
+          'PAN Card Copy',
+          'Aadhaar KYC XML / Digilocker verification',
+          '6 Months Bank Statement (F&O Income Proof)',
+          'Cancelled Cheque / Depository Bank Proof',
+          'SEBI Mandatory Derivative Risk Disclosure Acknowledgement',
+        ]
+      : isWealth
+      ? [
+          'PAN Card Copy',
+          'Aadhaar Card Copy',
+          'Client Master List (CML)',
+          'Bank Proof / Cancelled Cheque',
+          'Investor Suitability & Risk Declaration',
+        ]
+      : [
+          'Audited Financial Statements (Last 3 Years)',
+          'GST Returns (Last 12 Months)',
+          'Bank Statements (Last 6 Months)',
+          'Promoter KYC & PAN',
+        ]
+  );
+
+  useEffect(() => {
+    void relApi.getHandoffs({ leadId }).then((r) => setHandoffs(r.handoffs)).catch(() => undefined);
+  }, [leadId]);
+
   useEffect(() => {
     void wealthApi.proposals(leadId).then((r) => setProposals(r.proposals)).catch(() => undefined);
   }, [leadId]);
@@ -591,27 +702,467 @@ function PipelineTab({
     <div className="space-y-4">
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.failure ? <p role="alert" className="text-sm text-destructive">{s.failure}</p> : null}
-      <Card>
-        <CardHeader><CardTitle>Qualification (SC-15)</CardTitle></CardHeader>
-        <CardContent>
-          <FormRow label="Documented requirement" htmlFor="q-need" error={s.errors.need?.[0]}>
-            <Textarea id="q-need" rows={2} value={qual.need} onChange={(e) => setQual({ ...qual, need: e.target.value })} />
-          </FormRow>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <FormRow label="Expected facility / investment value" htmlFor="q-val">
-              <Input id="q-val" type="number" value={qual.expectedValue} onChange={(e) => setQual({ ...qual, expectedValue: Number(e.target.value) })} />
-            </FormRow>
-            <FormRow label="Time horizon" htmlFor="q-hor">
-              <Input id="q-hor" value={qual.timeHorizon} onChange={(e) => setQual({ ...qual, timeHorizon: e.target.value })} />
-            </FormRow>
-            <FormRow label="Next step" htmlFor="q-next" error={s.errors.nextStep?.[0]}>
-              <Input id="q-next" value={qual.nextStep} onChange={(e) => setQual({ ...qual, nextStep: e.target.value })} />
-            </FormRow>
+
+      {/* Handoff Status Card if handoff exists */}
+      {handoffs.length > 0 ? (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span>🔄</span> Relationship Manager Handoff Status
+              </span>
+              <Badge tone={handoffs[0].status === 'accepted' ? 'verified' : handoffs[0].status === 'returned' ? 'default' : 'pending'}>
+                {handoffs[0].status.toUpperCase()}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1.5">
+            <div>Assigned Relationship Manager: <strong className="text-foreground">{handoffs[0].relName}</strong></div>
+            <div>Handoff Timestamp: <span className="font-mono">{new Date(handoffs[0].handoffTime).toLocaleString()}</span></div>
+            {handoffs[0].realEstateRequirement ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-background/50 p-2 rounded text-xs text-muted-foreground mt-1">
+                <div>Property Budget: <strong className="text-foreground">₹{(handoffs[0].realEstateRequirement.budget / 10000000).toFixed(2)} Cr</strong></div>
+                <div>Property Type: <strong className="text-foreground">{handoffs[0].realEstateRequirement.propertyType}</strong></div>
+                <div>Preferred Location: <strong className="text-foreground">{handoffs[0].realEstateRequirement.preferredLocation}</strong></div>
+              </div>
+            ) : handoffs[0].marketsRequirement ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-background/50 p-2 rounded text-xs text-muted-foreground mt-1">
+                <div>Trading Capital: <strong className="text-foreground">₹{(handoffs[0].marketsRequirement.tradingCapital / 100000).toFixed(2)} Lakhs</strong></div>
+                <div>Segment: <strong className="text-foreground">{handoffs[0].marketsRequirement.tradingSegment}</strong></div>
+                <div>Experience: <strong className="text-foreground">{handoffs[0].marketsRequirement.tradingExperience}</strong></div>
+              </div>
+            ) : handoffs[0].wealthRequirement ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-background/50 p-2 rounded text-xs text-muted-foreground mt-1">
+                <div>Investible Surplus: <strong className="text-foreground">₹{(handoffs[0].wealthRequirement.investibleSurplus / 100000).toFixed(2)} Lakhs</strong></div>
+                <div>Mandate: <strong className="text-foreground">{handoffs[0].wealthRequirement.mandateType}</strong></div>
+                <div>Risk Profile: <strong className="text-foreground">{handoffs[0].wealthRequirement.riskProfile}</strong></div>
+              </div>
+            ) : handoffs[0].loanRequirement ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-background/50 p-2 rounded text-xs text-muted-foreground mt-1">
+                <div>Requested Loan: <strong className="text-foreground">₹{(handoffs[0].loanRequirement.requestedAmount / 100000).toFixed(2)} Lakhs</strong></div>
+                <div>Facility: <strong className="text-foreground">{handoffs[0].loanRequirement.facilityType}</strong></div>
+              </div>
+            ) : null}
+            {handoffs[0].status === 'returned' && handoffs[0].decisionReason ? (
+              <div className="rounded bg-destructive/10 border border-destructive/30 p-2 text-destructive font-medium mt-1">
+                ⚠️ Returned by Relationship Manager with reason: <em>"{handoffs[0].decisionReason}"</em>
+              </div>
+            ) : null}
+            {handoffs[0].status === 'accepted' ? (
+              <div className="text-emerald-700 font-medium">
+                ✅ Accepted by Relationship Manager. Client is in institutional structuring and mandate review.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Qualify & Handoff to Relationship Manager (SC-15 New Workflow) */}
+      <Card className="border-primary/50 shadow-xs">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>Qualify &amp; Handoff to Relationship Manager (SC-15)</span>
+            <Badge tone="default">Same-Vertical Allocation</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-md bg-secondary/30 p-3 text-xs text-muted-foreground">
+            Frontline callers qualify prospects and hand off to an eligible Relationship Manager in the SAME vertical via least-loaded assignment. Record the findings, required documents, and mandate facts.
           </div>
-          <BusyButton size="sm" busy={s.busy} onClick={() => void s.run(async () => {
-            const r = await wealthApi.qualification(leadId, qual);
-            onSaved(`Qualification saved (checklist ${isBanking ? 'banking-fit-v1' : isMarkets ? 'markets-fit-v1' : isRealEstate ? 'real-estate-fit-v1' : 'wealth-fit-v1'}). Recommended next: ${r.recommendedNextStep}`);
-          })}>Save qualification</BusyButton>
+
+          {isRealEstate ? (
+            <div className="space-y-3 rounded-lg border border-border/80 p-3 bg-card">
+              <span className="font-bold text-xs text-foreground block">
+                Real Estate Advisory Mandate &amp; Property Criteria
+              </span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormRow label="Property Budget (INR) *" htmlFor="rel-re-budget">
+                  <Input
+                    id="rel-re-budget"
+                    type="number"
+                    value={propertyBudget}
+                    onChange={(e) => setPropertyBudget(Number(e.target.value))}
+                    data-testid="property-budget-input"
+                  />
+                </FormRow>
+                <FormRow label="Property Type *" htmlFor="rel-property-type">
+                  <Select
+                    id="rel-property-type"
+                    value={propertyType}
+                    onChange={(e) => setPropertyType(e.target.value)}
+                    data-testid="property-type-select"
+                  >
+                    <option value="Luxury Residential Villa / Apartment">Luxury Residential Villa / Apartment</option>
+                    <option value="Commercial Office Space">Commercial Office Space</option>
+                    <option value="Retail High Street & Mall Store">Retail High Street &amp; Mall Store</option>
+                    <option value="Industrial & Logistics Warehousing">Industrial &amp; Logistics Warehousing</option>
+                    <option value="Plotted Land Development">Plotted Land Development</option>
+                    <option value="Penthouse / Duplex Mandate">Penthouse / Duplex Mandate</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Preferred Location / Micro-Market *" htmlFor="rel-re-location">
+                  <Input
+                    id="rel-re-location"
+                    value={preferredLocation}
+                    onChange={(e) => setPreferredLocation(e.target.value)}
+                    data-testid="preferred-location-input"
+                  />
+                </FormRow>
+                <FormRow label="Purchase Timeline *" htmlFor="rel-re-timeline">
+                  <Select
+                    id="rel-re-timeline"
+                    value={purchaseTimeline}
+                    onChange={(e) => setPurchaseTimeline(e.target.value as any)}
+                    data-testid="purchase-timeline-select"
+                  >
+                    <option value="Immediate (Within 30 Days)">Immediate (Within 30 Days)</option>
+                    <option value="1-3 Months (Active Shortlist)">1-3 Months (Active Shortlist)</option>
+                    <option value="3-6 Months (Planning & Evaluation)">3-6 Months (Planning &amp; Evaluation)</option>
+                    <option value="6+ Months (Investor Mandate)">6+ Months (Investor Mandate)</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Purchase Purpose *" htmlFor="rel-re-purpose">
+                  <Select
+                    id="rel-re-purpose"
+                    value={purchasePurpose}
+                    onChange={(e) => setPurchasePurpose(e.target.value as any)}
+                    data-testid="purchase-purpose-select"
+                  >
+                    <option value="End-Use / Self-Occupation">End-Use / Self-Occupation</option>
+                    <option value="Rental Yield & Investment">Rental Yield &amp; Investment</option>
+                    <option value="Corporate Headquarters / Branch">Corporate Headquarters / Branch</option>
+                    <option value="Capital Gains Reinvestment (54EC)">Capital Gains Reinvestment (54EC)</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Site Visit Preference *" htmlFor="rel-re-site-visit">
+                  <Select
+                    id="rel-re-site-visit"
+                    value={siteVisitPreference}
+                    onChange={(e) => setSiteVisitPreference(e.target.value as any)}
+                    data-testid="site-visit-select"
+                  >
+                    <option value="Weekend Preferred">Weekend Preferred</option>
+                    <option value="Weekday Morning">Weekday Morning</option>
+                    <option value="Private Chauffeur Inspection">Private Chauffeur Inspection</option>
+                    <option value="Virtual 3D Walkthrough First">Virtual 3D Walkthrough First</option>
+                  </Select>
+                </FormRow>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormRow label="Funding Source" htmlFor="rel-re-funding">
+                  <Select
+                    id="rel-re-funding"
+                    value={fundingSource}
+                    onChange={(e) => setFundingSource(e.target.value as any)}
+                  >
+                    <option value="Self-Funded / Equity Liquidity">Self-Funded / Equity Liquidity</option>
+                    <option value="Bank Home Loan Required">Bank Home Loan Required</option>
+                    <option value="Corporate Treasury / Escrow">Corporate Treasury / Escrow</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Developer Preference" htmlFor="rel-re-developer">
+                  <Input
+                    id="rel-re-developer"
+                    value={developerPreference}
+                    onChange={(e) => setDeveloperPreference(e.target.value)}
+                    placeholder="e.g. Lodha, Godrej, DLF, Prestige..."
+                  />
+                </FormRow>
+              </div>
+            </div>
+          ) : isMarkets ? (
+            <div className="space-y-3 rounded-lg border border-border/80 p-3 bg-card">
+              <span className="font-bold text-xs text-foreground block">
+                Markets &amp; Securities Trading Mandate &amp; Risk Criteria
+              </span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormRow label="Trading Capital / Initial Margin (INR) *" htmlFor="rel-trading-capital">
+                  <Input
+                    id="rel-trading-capital"
+                    type="number"
+                    value={tradingCapital}
+                    onChange={(e) => setTradingCapital(Number(e.target.value))}
+                    data-testid="trading-capital-input"
+                  />
+                </FormRow>
+                <FormRow label="Market Segment *" htmlFor="rel-trading-segment">
+                  <Select
+                    id="rel-trading-segment"
+                    value={tradingSegment}
+                    onChange={(e) => setTradingSegment(e.target.value)}
+                    data-testid="trading-segment-select"
+                  >
+                    <option value="Equity Delivery & Intraday">Equity Delivery &amp; Intraday</option>
+                    <option value="F&O Derivatives (Futures & Options)">F&amp;O Derivatives (Futures &amp; Options)</option>
+                    <option value="Commodities & Currencies">Commodities &amp; Currencies</option>
+                    <option value="Direct Mutual Funds & SGBs">Direct Mutual Funds &amp; SGBs</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Trading Experience *" htmlFor="rel-trading-exp">
+                  <Select
+                    id="rel-trading-exp"
+                    value={tradingExperience}
+                    onChange={(e) => setTradingExperience(e.target.value as any)}
+                    data-testid="trading-experience-select"
+                  >
+                    <option value="Beginner (< 1 Year)">Beginner (&lt; 1 Year)</option>
+                    <option value="Intermediate (1-3 Years)">Intermediate (1-3 Years)</option>
+                    <option value="Active / Professional (3+ Years)">Active / Professional (3+ Years)</option>
+                    <option value="Algorithmic / High-Frequency">Algorithmic / High-Frequency</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Risk Tolerance &amp; Derivative Suitability *" htmlFor="rel-markets-risk">
+                  <Select
+                    id="rel-markets-risk"
+                    value={marketsRiskTolerance}
+                    onChange={(e) => setMarketsRiskTolerance(e.target.value as any)}
+                    data-testid="markets-risk-select"
+                  >
+                    <option value="Low / Conservative (Cash & Delivery only)">Low / Conservative (Cash &amp; Delivery only)</option>
+                    <option value="Moderate (Equity Delivery + Index Hedging)">Moderate (Equity Delivery + Index Hedging)</option>
+                    <option value="High / Speculative (Active F&O & Leverage)">High / Speculative (Active F&amp;O &amp; Leverage)</option>
+                  </Select>
+                </FormRow>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormRow label="Depository Participant Preference" htmlFor="rel-depository">
+                  <Select
+                    id="rel-depository"
+                    value={depositoryPreference}
+                    onChange={(e) => setDepositoryPreference(e.target.value as any)}
+                    data-testid="depository-select"
+                  >
+                    <option value="CDSL (Central Depository Services India)">CDSL (Central Depository Services India)</option>
+                    <option value="NSDL (National Securities Depository Limited)">NSDL (National Securities Depository Limited)</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Current Broker / Platform" htmlFor="rel-existing-broker">
+                  <Input
+                    id="rel-existing-broker"
+                    value={existingBroker}
+                    onChange={(e) => setExistingBroker(e.target.value)}
+                    placeholder="e.g. Zerodha, Groww, ICICI Direct..."
+                  />
+                </FormRow>
+              </div>
+            </div>
+          ) : isWealth ? (
+            <div className="space-y-3 rounded-lg border border-border/80 p-3 bg-card">
+              <span className="font-bold text-xs text-foreground block">
+                Wealth Management Mandate &amp; Suitability Criteria
+              </span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormRow label="Investible Surplus (INR) *" htmlFor="rel-investible-surplus">
+                  <Input
+                    id="rel-investible-surplus"
+                    type="number"
+                    value={investibleSurplus}
+                    onChange={(e) => setInvestibleSurplus(Number(e.target.value))}
+                    data-testid="investible-surplus-input"
+                  />
+                </FormRow>
+                <FormRow label="Mandate Product *" htmlFor="rel-mandate-type">
+                  <Select
+                    id="rel-mandate-type"
+                    value={mandateType}
+                    onChange={(e) => setMandateType(e.target.value)}
+                    data-testid="mandate-type-select"
+                  >
+                    <option value="Portfolio Management Services (PMS)">Portfolio Management Services (PMS)</option>
+                    <option value="Alternative Investment Fund (AIF)">Alternative Investment Fund (AIF)</option>
+                    <option value="Discretionary Portfolio Advisory">Discretionary Portfolio Advisory</option>
+                    <option value="Multi-Asset Allocation Solution">Multi-Asset Allocation Solution</option>
+                    <option value="Structured Wealth Products">Structured Wealth Products</option>
+                    <option value="Mutual Fund Advisory & SIP">Mutual Fund Advisory & SIP</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Risk Profile Band *" htmlFor="rel-risk-profile">
+                  <Select
+                    id="rel-risk-profile"
+                    value={riskProfile}
+                    onChange={(e) => setRiskProfile(e.target.value as any)}
+                    data-testid="risk-profile-select"
+                  >
+                    <option value="Conservative">Conservative (Capital Preservation)</option>
+                    <option value="Moderate">Moderate (Balanced Multi-Asset)</option>
+                    <option value="Growth">Growth (High Equity Allocation)</option>
+                    <option value="Aggressive">Aggressive (Concentrated Alpha / AIF)</option>
+                  </Select>
+                </FormRow>
+                <FormRow label="Investment Horizon *" htmlFor="rel-horizon">
+                  <Select
+                    id="rel-horizon"
+                    value={investmentHorizon}
+                    onChange={(e) => setInvestmentHorizon(e.target.value as any)}
+                    data-testid="investment-horizon-select"
+                  >
+                    <option value="1-3 Years">1-3 Years (Short-Term Liquidity)</option>
+                    <option value="3-5 Years">3-5 Years (Medium-Term Capital Growth)</option>
+                    <option value="5-10 Years">5-10 Years (Long-Term Wealth Compounding)</option>
+                    <option value="10+ Years">10+ Years (Multi-Generational Trust)</option>
+                  </Select>
+                </FormRow>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <FormRow label="Existing Portfolio (INR)" htmlFor="rel-exist-port">
+                  <Input
+                    id="rel-exist-port"
+                    type="number"
+                    value={existingPortfolioSize}
+                    onChange={(e) => setExistingPortfolioSize(Number(e.target.value))}
+                  />
+                </FormRow>
+                <FormRow label="Current Broker / AMC" htmlFor="rel-broker">
+                  <Input
+                    id="rel-broker"
+                    value={currentBrokerOrAmc}
+                    onChange={(e) => setCurrentBrokerOrAmc(e.target.value)}
+                  />
+                </FormRow>
+                <FormRow label="Target Return Expectation" htmlFor="rel-target-ret">
+                  <Input
+                    id="rel-target-ret"
+                    value={targetReturn}
+                    onChange={(e) => setTargetReturn(e.target.value)}
+                  />
+                </FormRow>
+              </div>
+            </div>
+          ) : isBanking ? (
+            <div className="space-y-3 rounded-lg border border-border/80 p-3 bg-card">
+              <span className="font-bold text-xs text-foreground block">
+                Commercial Banking Loan Requirement
+              </span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormRow label="Requested Loan Amount (INR) *" htmlFor="rel-req-amount">
+                  <Input
+                    id="rel-req-amount"
+                    type="number"
+                    value={loanAmount}
+                    onChange={(e) => setLoanAmount(Number(e.target.value))}
+                    data-testid="requested-amount-input"
+                  />
+                </FormRow>
+                <FormRow label="Facility Type" htmlFor="rel-fac-type">
+                  <Input
+                    id="rel-fac-type"
+                    value={facilityType}
+                    onChange={(e) => setFacilityType(e.target.value)}
+                  />
+                </FormRow>
+                <FormRow label="Annual Turnover (INR)" htmlFor="rel-turnover">
+                  <Input
+                    id="rel-turnover"
+                    type="number"
+                    value={turnover}
+                    onChange={(e) => setTurnover(Number(e.target.value))}
+                  />
+                </FormRow>
+                <FormRow label="Business Constitution" htmlFor="rel-const">
+                  <Input
+                    id="rel-const"
+                    value={constitution}
+                    onChange={(e) => setConstitution(e.target.value)}
+                  />
+                </FormRow>
+              </div>
+              <FormRow label="Loan Purpose" htmlFor="rel-purpose">
+                <Input
+                  id="rel-purpose"
+                  value={loanPurpose}
+                  onChange={(e) => setLoanPurpose(e.target.value)}
+                />
+              </FormRow>
+            </div>
+          ) : null}
+
+          <FormRow label="Caller Discovery Findings *" htmlFor="rel-findings">
+            <Textarea
+              id="rel-findings"
+              rows={2}
+              value={callerFindings}
+              onChange={(e) => setCallerFindings(e.target.value)}
+              placeholder="Summary of borrower/investor needs, mandate fit, asset allocation..."
+              data-testid="caller-findings-input"
+            />
+          </FormRow>
+
+          <FormRow label="Qualification Evidence *" htmlFor="rel-evidence">
+            <Input
+              id="rel-evidence"
+              value={qualEvidence}
+              onChange={(e) => setQualEvidence(e.target.value)}
+              placeholder="Criteria met (e.g. accredited net worth, documented surplus, business turnover)"
+              data-testid="qual-evidence-input"
+            />
+          </FormRow>
+
+          <BusyButton
+            busy={s.busy}
+            onClick={() => void s.run(async () => {
+              const res = await relApi.qualifyAndHandoff({
+                leadId,
+                vertical: isRealEstate ? 'real_estate' : isMarkets ? 'markets' : isWealth ? 'wealth' : 'banking',
+                notes: callerFindings,
+                requiredDocuments: reqDocs,
+                qualificationEvidence: qualEvidence,
+                ...(isRealEstate
+                  ? {
+                      realEstateRequirement: {
+                        budget: propertyBudget,
+                        propertyType,
+                        preferredLocation,
+                        purchaseTimeline,
+                        purchasePurpose,
+                        siteVisitPreference,
+                        fundingSource,
+                        possessionPreference,
+                        developerPreference,
+                      },
+                    }
+                  : isMarkets
+                  ? {
+                      marketsRequirement: {
+                        tradingCapital,
+                        tradingSegment,
+                        tradingExperience,
+                        riskTolerance: marketsRiskTolerance,
+                        depositoryPreference,
+                        incomeProofAvailable,
+                        existingBroker,
+                      },
+                    }
+                  : isWealth
+                  ? {
+                      wealthRequirement: {
+                        investibleSurplus,
+                        mandateType,
+                        riskProfile,
+                        investmentHorizon,
+                        existingPortfolioSize,
+                        currentBrokerOrAmc,
+                        targetReturnExpectation: targetReturn,
+                      },
+                    }
+                  : {
+                      loanRequirement: {
+                        requestedAmount: loanAmount,
+                        facilityType: 'Working Capital Facility',
+                        annualTurnover: turnover,
+                        businessConstitution: constitution,
+                        loanPurpose,
+                      },
+                    }),
+              });
+              onSaved(`Prospect qualified and handed off to Relationship Manager ${res.assignedRel?.name || res.handoff?.relName}. Handoff assigned via fair distribution.`);
+              const updated = await relApi.getHandoffs({ leadId });
+              setHandoffs(updated.handoffs);
+            })}
+            className="bg-[#113F3D] hover:bg-[#0d2f2d] text-white"
+            data-testid="qualify-handoff-btn"
+          >
+            Qualify &amp; Handoff to Relationship Manager
+          </BusyButton>
         </CardContent>
       </Card>
       <Card>

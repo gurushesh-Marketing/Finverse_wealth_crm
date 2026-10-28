@@ -17,7 +17,8 @@ interface Session {
   body: any;
 }
 
-let deepa: Session; // DE (EMP-015)
+let deOperator: Session; // DE (EMP-015): manual entry only
+let admin: Session; // SA: retains access to legacy intake records
 let asha: Session;  // SC (EMP-001)
 let tara: Session;  // TL (EMP-003)
 
@@ -74,7 +75,8 @@ before(async () => {
     });
   });
 
-  deepa = await login('deepa@finverse.demo');
+  deOperator = await login('deepa@finverse.demo');
+  admin = await login('alok@finverse.demo');
   asha = await login('asha@finverse.demo');
   tara = await login('tara@finverse.demo');
 });
@@ -84,24 +86,26 @@ after(async () => {
   await db?.end();
 });
 
-test('01. Role Access Isolation: SC is forbidden from Data Entry; DE is authorized', async () => {
+test('01. Legacy intake routes deny SC and DE; SA retains access to historical records', async () => {
   const scRes = await call('GET', '/api/data-entry/batches', { cookie: asha.cookie });
   assert.equal(scRes.status, 403, 'Sales Caller must be rejected with 403 Forbidden');
 
-  const deRes = await call('GET', '/api/data-entry/batches', { cookie: deepa.cookie });
-  assert.equal(deRes.status, 200, 'Data Entry operator must be granted 200 OK');
-  assert.ok(Array.isArray(deRes.body.batches));
+  const deRes = await call('GET', '/api/data-entry/batches', { cookie: deOperator.cookie });
+  assert.equal(deRes.status, 403, 'Data Entry operator must be restricted to manual records');
+  const adminRes = await call('GET', '/api/data-entry/batches', { cookie: admin.cookie });
+  assert.equal(adminRes.status, 200);
+  assert.ok(Array.isArray(adminRes.body.batches));
 });
 
 test('02. DE-06: Maintain source register & suspension rule', async () => {
   // 1. List baseline sources
-  const listRes = await call('GET', '/api/data-entry/sources', { cookie: deepa.cookie });
+  const listRes = await call('GET', '/api/data-entry/sources', { cookie: admin.cookie });
   assert.equal(listRes.status, 200);
   assert.ok(listRes.body.sources.length >= 3);
 
   // 2. Create a test source
   const createRes = await call('POST', '/api/data-entry/sources', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       sourceCode: `SRC-${RUN}-A`,
       sourceName: `Test Campaign Source ${RUN}`,
@@ -121,7 +125,7 @@ test('02. DE-06: Maintain source register & suspension rule', async () => {
 
   // 3. Suspend source
   const suspendRes = await call('PUT', `/api/data-entry/sources/${sourceId}`, {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       sourceCode: `SRC-${RUN}-A`,
       sourceName: `Test Campaign Source ${RUN}`,
@@ -139,7 +143,7 @@ test('02. DE-06: Maintain source register & suspension rule', async () => {
 
   // 4. Attempting enquiry intake with suspended source must fail
   const intakeRes = await call('POST', '/api/data-entry/enquiries', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       prospectName: 'Test Suspended Target',
       phone: '+91 98765 11111',
@@ -155,10 +159,10 @@ test('02. DE-06: Maintain source register & suspension rule', async () => {
   assert.equal(intakeRes.status, 422, 'Suspended source must block intake');
 });
 
-test('03. DE-01: Capture single source-backed enquiry with validation and duplicate detection', async () => {
-  // 1. Invalid vertical outside grants
+test('03. Legacy admin enquiry capture retains validation and duplicate detection', async () => {
+  // Data Entry cannot use this legacy endpoint; manual records have their own route.
   const badVerticalRes = await call('POST', '/api/data-entry/enquiries', {
-    cookie: deepa.cookie,
+    cookie: deOperator.cookie,
     json: {
       prospectName: 'Outside Vertical Lead',
       phone: '+91 98765 22222',
@@ -170,11 +174,11 @@ test('03. DE-01: Capture single source-backed enquiry with validation and duplic
       permissionDate: '2026-10-15',
     },
   });
-  assert.equal(badVerticalRes.status, 403, 'Must reject vertical outside grants');
+  assert.equal(badVerticalRes.status, 403, 'Manual-only Data Entry must not use legacy enquiry capture');
 
   // 2. Invalid phone format
   const badPhoneRes = await call('POST', '/api/data-entry/enquiries', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       prospectName: 'Bad Phone Prospect',
       phone: '12345',
@@ -191,7 +195,7 @@ test('03. DE-01: Capture single source-backed enquiry with validation and duplic
   // 3. Valid clean enquiry
   const cleanPhone = `+91 98765 ${Math.floor(10000 + Math.random() * 90000)}`;
   const cleanRes = await call('POST', '/api/data-entry/enquiries', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       prospectName: `Clean Prospect ${RUN}`,
       phone: cleanPhone,
@@ -211,7 +215,7 @@ test('03. DE-01: Capture single source-backed enquiry with validation and duplic
 
   // 4. Duplicate phone against existing lead FV-1001 (+91 98765 40001)
   const dupeRes = await call('POST', '/api/data-entry/enquiries', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       prospectName: 'Repeat Prospect A',
       phone: '+91 98765 40001',
@@ -244,7 +248,7 @@ test('04. DE-02: Upload CSV batch with sanitization and idempotency', async () =
 
   // 1. Upload batch
   const uploadRes = await call('POST', '/api/data-entry/batches/upload', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       batchName: `Batch Import ${RUN}`,
       sourceId: 'SRC-VEND-104',
@@ -267,7 +271,7 @@ test('04. DE-02: Upload CSV batch with sanitization and idempotency', async () =
   const batchId = uploadRes.body.id;
 
   // Verify formula sanitization in raw payload: leading '=' should be escaped with quote
-  const detailsRes = await call('GET', `/api/data-entry/batches/${batchId}`, { cookie: deepa.cookie });
+  const detailsRes = await call('GET', `/api/data-entry/batches/${batchId}`, { cookie: admin.cookie });
   assert.equal(detailsRes.status, 200);
   const row1 = detailsRes.body.rows.find((r: any) => r.rowIndex === 1);
   assert.ok(row1);
@@ -275,7 +279,7 @@ test('04. DE-02: Upload CSV batch with sanitization and idempotency', async () =
 
   // 2. Idempotency: Uploading identical file content must fail with 409 Conflict
   const reUploadRes = await call('POST', '/api/data-entry/batches/upload', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       batchName: `Batch Duplicate Attempt ${RUN}`,
       sourceId: 'SRC-VEND-104',
@@ -290,7 +294,7 @@ test('04. DE-02: Upload CSV batch with sanitization and idempotency', async () =
 
 test('05. DE-03: Correct rejected row and retain provenance history', async () => {
   // Query rejected rows
-  const rejectedRes = await call('GET', '/api/data-entry/rejected-rows', { cookie: deepa.cookie });
+  const rejectedRes = await call('GET', '/api/data-entry/rejected-rows', { cookie: admin.cookie });
   assert.equal(rejectedRes.status, 200);
   assert.ok(rejectedRes.body.rows.length >= 1);
 
@@ -299,7 +303,7 @@ test('05. DE-03: Correct rejected row and retain provenance history', async () =
 
   // Correct permitted fields
   const correctRes = await call('PUT', `/api/data-entry/rejected-rows/${targetRow.id}`, {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       correctedName: 'Corrected Prospect Name',
       correctedPhone: validPhone,
@@ -318,7 +322,7 @@ test('05. DE-03: Correct rejected row and retain provenance history', async () =
 
 test('06. DE-04: Duplicate review with restricted summary and decision handling', async () => {
   // Query duplicates
-  const dupesRes = await call('GET', '/api/data-entry/duplicates', { cookie: deepa.cookie });
+  const dupesRes = await call('GET', '/api/data-entry/duplicates', { cookie: admin.cookie });
   assert.equal(dupesRes.status, 200);
   assert.ok(dupesRes.body.duplicates.length >= 1);
 
@@ -328,7 +332,7 @@ test('06. DE-04: Duplicate review with restricted summary and decision handling'
 
   // Submit decision 'new_enquiry'
   const decisionRes = await call('POST', `/api/data-entry/duplicates/${dupeItem.rowId}/decision`, {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       decision: 'new_enquiry',
       decisionNotes: 'Verified distinct financial goal with client. Permitted to proceed.',
@@ -357,7 +361,7 @@ test('07. DE-05 → TL-02/03 → SC End-to-End Publication and Allocation Chain'
   ].join('\n');
 
   const batchRes = await call('POST', '/api/data-entry/batches/upload', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       batchName: `E2E Routing Batch ${RUN}`,
       sourceId: 'SRC-WEB-01',
@@ -373,7 +377,7 @@ test('07. DE-05 → TL-02/03 → SC End-to-End Publication and Allocation Chain'
 
   // 2. Data Entry publishes batch
   const pubRes = await call('POST', `/api/data-entry/batches/${batchId}/publish`, {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {},
   });
   assert.equal(pubRes.status, 200);
@@ -393,7 +397,7 @@ test('07. DE-05 → TL-02/03 → SC End-to-End Publication and Allocation Chain'
 
   // Invariant 2: Idempotent repeat publish
   const pubRepeatRes = await call('POST', `/api/data-entry/batches/${batchId}/publish`, {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {},
   });
   assert.equal(pubRepeatRes.status, 200);
@@ -437,7 +441,7 @@ test('07. DE-05 → TL-02/03 → SC End-to-End Publication and Allocation Chain'
 test('08. DE-07: Intake quality reporting & export audit tracking', async () => {
   // Query report
   const reportRes = await call('GET', '/api/data-entry/reports/quality?period=this-month', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
   });
   assert.equal(reportRes.status, 200);
   assert.ok(reportRes.body.summary);
@@ -447,7 +451,7 @@ test('08. DE-07: Intake quality reporting & export audit tracking', async () => 
 
   // Request export
   const exportRes = await call('POST', '/api/data-entry/reports/export', {
-    cookie: deepa.cookie,
+    cookie: admin.cookie,
     json: {
       period: 'this-month',
       exportType: 'quality_report_pdf',

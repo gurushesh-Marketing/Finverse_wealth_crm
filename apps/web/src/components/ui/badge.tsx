@@ -1,5 +1,5 @@
 import { cn } from 'cn';
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 
 const styles: Record<string, string> = {
   open: 'bg-[#DCEEEA] text-[#155451]',
@@ -22,7 +22,8 @@ export function Badge({
   variant,
   children,
   className,
-}: {
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & {
   tone?: string;
   variant?: string;
   children: ReactNode;
@@ -36,6 +37,7 @@ export function Badge({
         styles[chosen] ?? styles.default,
         className
       )}
+      {...props}
     >
       {children}
     </span>

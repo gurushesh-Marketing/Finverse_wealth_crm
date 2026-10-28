@@ -1,7 +1,36 @@
 import { z } from 'zod';
 import { ROLES, VERTICALS } from './index';
 
-// SA-01: Account Creation & Expiring Activation Invitation
+// SA: Account Activation & Provisioning from HR Onboarding Request
+export const saApproveOnboardingSchema = z.object({
+  requestId: z.string().trim().min(1, 'Request ID is required.'),
+  role: z.enum(ROLES, { errorMap: () => ({ message: 'Select an authorized role.' }) }),
+  vertical: z.enum(VERTICALS, { errorMap: () => ({ message: 'Select an authorized vertical.' }) }),
+  teamId: z.string().trim().min(1, 'Assigned team is required.'),
+  reportingManagerId: z.string().trim().nullable().optional(),
+  username: z.string().trim().optional(),
+});
+export type SaApproveOnboardingInput = z.infer<typeof saApproveOnboardingSchema>;
+
+export const saRejectOnboardingSchema = z.object({
+  requestId: z.string().trim().min(1, 'Request ID is required.'),
+  rejectionReason: z.string().trim().min(3, 'Rejection reason must be provided.'),
+});
+export type SaRejectOnboardingInput = z.infer<typeof saRejectOnboardingSchema>;
+
+export interface SaApproveOnboardingResponse {
+  success: boolean;
+  employeeId: string;
+  username: string;
+  role: string;
+  vertical: string;
+  teamId: string;
+  temporaryPassword: string;
+  mustChangePassword: true;
+  message: string;
+}
+
+// SA-01: Legacy Account Creation & Expiring Activation Invitation
 export const saCreateAccountSchema = z.object({
   employeeName: z.string().trim().min(2, 'Employee name must be at least 2 characters.'),
   workEmail: z.string().trim().email('Valid work email is required.').toLowerCase(),
@@ -12,6 +41,7 @@ export const saCreateAccountSchema = z.object({
   invitationExpiryHours: z.number().int().min(1).max(168).default(48),
 });
 export type SaCreateAccountInput = z.infer<typeof saCreateAccountSchema>;
+
 
 // SA-02: Precise Role & Organisation Scope Grant
 export const saGrantScopeSchema = z.object({

@@ -15,6 +15,13 @@ import {
   TlAllocationPage, TlCoachingPage, TlOverviewPage, TlProspectDrillDownPage, TlQualityPage, TlReportsPage, TlRequestsPage, TlTargetsPage, TlWorkloadPage,
 } from './pages/TlPages';
 import {
+  RelPortfolioPage,
+  RelHandoffsPage,
+  RelInstitutionsPage,
+  RelProspectDetailPage,
+  RelReportsPage,
+} from './pages/RelPages';
+import {
   ManagerCapacityPage,
   ManagerExceptionsPage,
   ManagerForecastsPage,
@@ -89,18 +96,12 @@ import {
   HrTrainingPage,
   HrReportsPage,
   HrRequestsPage,
+  HrPayrollPreviewPage,
 } from './pages/HrPages';
-import {
-  EnquiryIntakePage,
-  BatchUploadPage,
-  ValidationCorrectionPage,
-  DuplicateReviewPage,
-  PublishBatchPage,
-  SourceRegisterPage,
-  QualityReportsPage,
-} from './pages/DataEntryPages';
+import { ManualDataEntryPage } from './pages/ManualDataEntryPage';
 import { ActivateAccountPage } from './pages/ActivateAccountPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { FirstLoginPasswordModal } from './components/auth/FirstLoginPasswordModal';
 import { DeniedPanel, Splash } from './components/ui/states';
 
 function ProtectedLayout() {
@@ -136,15 +137,17 @@ function ProtectedLayout() {
   } else if (session.role === 'MG') {
     // MG stays strictly within the manager workspace (/manager/*)
     routeAllowed = location.pathname.startsWith('/manager');
-  } else if (session.role === 'TL') {
-    // TL stays strictly within the management workspace (/management/*)
-    routeAllowed = location.pathname.startsWith('/management');
+  } else if (session.role === 'REL' || session.role === 'TL') {
+    // REL (and migrated TL) stay within the relationship manager workspace (/rel/*)
+    // /management/* is permitted so the redirect to /rel/portfolio fires cleanly
+    routeAllowed = location.pathname.startsWith('/rel') || location.pathname.startsWith('/management');
   } else if (session.role === 'SC') {
-    // SC stays within granted vertical workspaces and is blocked from management/manager/regional/national/ceo/cfo/superadmin/hr/data-entry workspaces
+    // SC stays within granted vertical workspaces and is blocked from management/manager/regional/national/ceo/cfo/superadmin/hr/data-entry/rel workspaces
     routeAllowed =
       !location.pathname.startsWith('/superadmin') &&
       !location.pathname.startsWith('/hr') &&
       !location.pathname.startsWith('/data-entry') &&
+      !location.pathname.startsWith('/rel') &&
       !location.pathname.startsWith('/management') &&
       !location.pathname.startsWith('/manager') &&
       !location.pathname.startsWith('/regional') &&
@@ -156,23 +159,28 @@ function ProtectedLayout() {
         return location.pathname.startsWith(pathPrefix) || location.pathname.startsWith(`/${v}`);
       });
   } else {
-    routeAllowed = session.verticalGrants.some((v) => {
-      const pathPrefix = v === 'real_estate' ? '/real-estate' : `/${v}`;
-      return location.pathname.startsWith(pathPrefix) || location.pathname.startsWith(`/${v}`);
-    });
+    routeAllowed =
+      !location.pathname.startsWith('/rel') &&
+      session.verticalGrants.some((v) => {
+        const pathPrefix = v === 'real_estate' ? '/real-estate' : `/${v}`;
+        return location.pathname.startsWith(pathPrefix) || location.pathname.startsWith(`/${v}`);
+      });
   }
 
   return (
-    <WorkspaceShell>
-      {routeAllowed ? (
-        <Outlet />
-      ) : (
-        <DeniedPanel
-          title="Workspace unavailable"
-          message="You don't have access to this workspace. It is outside your current scope."
-        />
-      )}
-    </WorkspaceShell>
+    <>
+      <WorkspaceShell>
+        {routeAllowed ? (
+          <Outlet />
+        ) : (
+          <DeniedPanel
+            title="Workspace unavailable"
+            message="You don't have access to this workspace. It is outside your current scope."
+          />
+        )}
+      </WorkspaceShell>
+      <FirstLoginPasswordModal />
+    </>
   );
 }
 
@@ -208,15 +216,15 @@ export function App() {
             <Route path="/wealth/documents" element={<DocumentsAreaPage />} />
             <Route path="/wealth/reports" element={<PerformancePage />} />
             <Route path="/wealth/reviews" element={<ReviewsPage />} />
-            <Route path="/management/team" element={<TlOverviewPage />} />
-            <Route path="/management/prospects/:id" element={<TlProspectDrillDownPage />} />
-            <Route path="/management/allocation" element={<TlAllocationPage />} />
-            <Route path="/management/workload" element={<TlWorkloadPage />} />
-            <Route path="/management/quality" element={<TlQualityPage />} />
-            <Route path="/management/targets" element={<TlTargetsPage />} />
-            <Route path="/management/coaching" element={<TlCoachingPage />} />
-            <Route path="/management/requests" element={<TlRequestsPage />} />
-            <Route path="/management/reports" element={<TlReportsPage />} />
+
+            {/* Relationship Manager Workspace (REL-01..REL-05) */}
+            <Route path="/rel/portfolio" element={<RelPortfolioPage />} />
+            <Route path="/rel/handoffs" element={<RelHandoffsPage />} />
+            <Route path="/rel/institutions" element={<RelInstitutionsPage />} />
+            <Route path="/rel/prospects/:id" element={<RelProspectDetailPage />} />
+            <Route path="/rel/reports" element={<RelReportsPage />} />
+            {/* Deprecated TL management paths redirect safely to Relationship Manager portfolio */}
+            <Route path="/management/*" element={<Navigate to="/rel/portfolio" replace />} />
 
             {/* Wealth Manager Workspace (MG-01..MG-13) */}
             <Route path="/manager/overview" element={<ManagerOverviewPage />} />
@@ -294,15 +302,11 @@ export function App() {
             <Route path="/hr/training" element={<HrTrainingPage />} />
             <Route path="/hr/reports" element={<HrReportsPage />} />
             <Route path="/hr/requests" element={<HrRequestsPage />} />
+            <Route path="/hr/payroll" element={<HrPayrollPreviewPage />} />
 
-            {/* Data Entry Workspace (DE-01..DE-07) */}
-            <Route path="/data-entry/intake" element={<EnquiryIntakePage />} />
-            <Route path="/data-entry/batches" element={<BatchUploadPage />} />
-            <Route path="/data-entry/validation" element={<ValidationCorrectionPage />} />
-            <Route path="/data-entry/duplicates" element={<DuplicateReviewPage />} />
-            <Route path="/data-entry/publish" element={<PublishBatchPage />} />
-            <Route path="/data-entry/sources" element={<SourceRegisterPage />} />
-            <Route path="/data-entry/reports" element={<QualityReportsPage />} />
+            {/* Data Entry: manual save and database read-back only. */}
+            <Route path="/data-entry/intake" element={<ManualDataEntryPage />} />
+            <Route path="/data-entry/*" element={<Navigate to="/data-entry/intake" replace />} />
 
             {/* Commercial Banking Frontline Workspace (Deck P005, P036) */}
             <Route path="/banking/dashboard" element={<MyDayPage />} />

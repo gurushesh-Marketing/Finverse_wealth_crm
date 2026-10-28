@@ -1,6 +1,33 @@
 import { z } from 'zod';
 import { VERTICALS, type Vertical } from './index';
 
+// The Data Entry operator's current job: manual, vertical-scoped database entry.
+// Manual, vertical-scoped database entry with draft staging or immediate publish to frontline caller.
+export const manualProspectSchema = z.object({
+  prospectName: z.string().trim().min(2, 'Enter a name of at least 2 characters.').max(120),
+  mobileNumber: z.string().trim().min(10, 'Enter a valid mobile number.').max(18),
+  email: z.string().trim().email('Enter a valid email address.').max(254),
+  whatsappNumber: z.string().trim().max(18).optional(),
+  location: z.string().trim().max(200).optional(),
+  vertical: z.enum(VERTICALS),
+  isPriority: z.boolean().optional(),
+  publishImmediately: z.boolean().optional(),
+});
+export type ManualProspectInput = z.infer<typeof manualProspectSchema>;
+
+export interface ManualProspectRecord extends ManualProspectInput {
+  id: string;
+  status: 'staged' | 'published' | 'unassigned_exception';
+  savedAt: string;
+  operatorId?: string;
+  isPriority: boolean;
+  publishedLeadId?: string | null;
+  assignedCallerId?: string | null;
+  assignedCallerName?: string | null;
+  assignedTeamId?: string | null;
+  routingExceptionReason?: string | null;
+}
+
 // ====================================================================
 // DE-01: Capture a source-backed enquiry (P263–P264)
 // ====================================================================
@@ -150,6 +177,11 @@ export type DuplicateCandidateSummary = RestrictedCandidateSummary;
 // ====================================================================
 // DE-05: Publish valid rows to allocation (P271–P272)
 // ====================================================================
+export const publishManualRecordSchema = z.object({
+  preferredTeamId: z.string().trim().optional(),
+});
+export type PublishManualRecordInput = z.infer<typeof publishManualRecordSchema>;
+
 export const publishBatchSchema = z.object({
   batchId: z.string().trim().min(2, 'Batch ID is required.'),
   idempotencyKey: z.string().trim().min(4).optional(),
@@ -171,6 +203,12 @@ export interface BatchPublishReceipt {
     reason: string;
   };
   publishedAt: string;
+  assignedCallers?: Array<{
+    leadId: string;
+    callerId: string | null;
+    callerName: string | null;
+    isPriority: boolean;
+  }>;
 }
 
 // ====================================================================
@@ -274,4 +312,90 @@ export interface IntakeWorklistExport {
   recordCount: number;
   format: 'json' | 'csv' | 'pdf';
   downloadUrl: string;
+}
+
+// ====================================================================
+// Revised Bulk Prospect Import & Automated Lead Assignment (Owner Decision)
+// ====================================================================
+
+export const bulkImportRowInputSchema = z.object({
+  rowIndex: z.number().int().nonnegative().optional(),
+  name: z.string().optional().default(''),
+  mobile: z.string().optional().default(''),
+  email: z.string().optional().default(''),
+  whatsapp: z.string().optional().default(''),
+  location: z.string().optional().default(''),
+  isPriority: z.boolean().optional().default(false),
+  priority: z.union([z.boolean(), z.string()]).optional(),
+  // Aliases supported for convenience
+  prospectName: z.string().optional(),
+  mobileNumber: z.string().optional(),
+  whatsappNumber: z.string().optional(),
+});
+export type BulkImportRowInput = z.infer<typeof bulkImportRowInputSchema>;
+
+export const createBulkImportJobSchema = z.object({
+  vertical: z.enum(VERTICALS),
+  fileName: z.string().trim().max(255).optional().default('bulk-import'),
+  sourceType: z.enum(['csv', 'xlsx', 'paste', 'upload']).optional().default('paste'),
+  rows: z.array(bulkImportRowInputSchema).min(1, 'At least one prospect row is required.').max(50000),
+  idempotencyKey: z.string().trim().optional(),
+});
+export type CreateBulkImportJobInput = z.infer<typeof createBulkImportJobSchema>;
+
+export const processChunkSchema = z.object({
+  chunkSize: z.number().int().min(10).max(5000).default(500).optional(),
+});
+export type ProcessChunkInput = z.infer<typeof processChunkSchema>;
+
+export interface BulkImportReconciliation {
+  byVertical: Record<string, number>;
+  byTeam: Record<string, number>;
+  byCaller: Record<string, number>;
+}
+
+export interface BulkImportJobSummary {
+  id: string;
+  operatorEmployeeId: string;
+  vertical: Vertical;
+  fileName: string;
+  fileHash: string;
+  sourceType: 'csv' | 'xlsx' | 'paste' | 'upload';
+  totalRows: number;
+  processedRows: number;
+  assignedCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  unassignedExceptionCount: number;
+  status: 'staged' | 'processing' | 'completed' | 'failed';
+  reconciliation: BulkImportReconciliation;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BulkImportRowRecord {
+  id: string;
+  jobId: string;
+  rowIndex: number;
+  name: string;
+  mobile: string;
+  email: string;
+  whatsapp: string;
+  location: string;
+  isPriority: boolean;
+  status: 'pending' | 'assigned' | 'duplicate' | 'invalid' | 'unassigned_exception';
+  canonicalLeadId?: string | null;
+  assignedEmployeeId?: string | null;
+  assignedEmployeeName?: string | null;
+  assignedTeamId?: string | null;
+  assignedTeamName?: string | null;
+  rejectionReason?: string | null;
+  errorDetails?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface BulkImportJobStatusResponse {
+  job: BulkImportJobSummary;
+  isComplete: boolean;
+  recentRows: BulkImportRowRecord[];
 }

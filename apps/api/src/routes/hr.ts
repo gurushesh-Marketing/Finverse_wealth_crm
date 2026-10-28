@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { requireSession, type AuthedRequest } from '../middleware/session';
 import * as hr from '../repo/hr';
 import {
+  hrSubmitOnboardingSchema,
   hrRequestAccountSchema,
   hrRequestTransferSchema,
   hrRequestPromotionSchema,
@@ -14,6 +15,7 @@ import {
   hrAttachApprovalSchema,
   hrUpdateRequestSchema,
 } from '@finverse/contracts';
+
 import path from 'path';
 import fs from 'fs';
 
@@ -125,16 +127,36 @@ export function createHrRouter(): Router {
     })
   );
 
-  // HR-01: Request a New Employee Account
+  // HR-01: Submit New Employee Onboarding (Full Name, Primary Mobile, WhatsApp, Email)
+  router.post(
+    '/onboarding/submit',
+    wrap(async (req, res) => {
+      const parsed = hrSubmitOnboardingSchema.parse(req.body);
+      const actorId = req.auth!.session.employeeId;
+      const data = await hr.submitOnboarding(parsed, actorId);
+      res.status(201).json({ data });
+    })
+  );
+
+  // HR-01 (Legacy): Request a New Employee Account
   router.post(
     '/accounts/request',
     wrap(async (req, res) => {
+      // If client sends the new onboarding structure, delegate cleanly
+      if (req.body?.fullName && req.body?.primaryMobile) {
+        const parsed = hrSubmitOnboardingSchema.parse(req.body);
+        const actorId = req.auth!.session.employeeId;
+        const data = await hr.submitOnboarding(parsed, actorId);
+        res.status(201).json({ data });
+        return;
+      }
       const parsed = hrRequestAccountSchema.parse(req.body);
       const actorId = req.auth!.session.employeeId;
       const data = await hr.createAccountRequest(parsed, actorId);
       res.status(201).json({ data });
     })
   );
+
 
   // HR-02: Request an Effective-Dated Team Transfer
   router.post(

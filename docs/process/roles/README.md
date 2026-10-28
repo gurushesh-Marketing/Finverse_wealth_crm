@@ -32,6 +32,9 @@ only holds role instructions for running the team in the Antigravity IDE.
 | 12 | `devops-engineer` | [devops-engineer.md](devops-engineer.md) | — | Yes (tooling/CI; paired with Builder) | `ponytail`, `diagnosing-bugs` | None |
 
 > Note: `builder.md`, `designer.md`, `qa.md`, and `reviewer.md` remain available as composite briefs when running combined workflows in a single conversation.
+>
+> Task-Specific Role Briefs:
+> - `onboarding-routing-fixer.md` — [Finverse Onboarding & Routing Fixer](onboarding-routing-fixer.md): Dedicated implementation owner for demo blockers in HR/SA onboarding and Data Entry bulk import routing.
 
 ## Starting a role (manual)
 

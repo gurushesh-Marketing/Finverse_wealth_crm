@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto';
 import type {
   BatchPublishReceipt,
   BatchUploadInput,
+  BulkImportJobSummary,
+  BulkImportRowRecord,
+  CreateBulkImportJobInput,
   DePeriod,
   DuplicateCandidateSummary,
   DuplicateDecisionInput,
@@ -12,13 +15,17 @@ import type {
   IntakeRowSummary,
   IntakeSourceSummary,
   IntakeWorklistExport,
+  ManualProspectInput,
+  ManualProspectRecord,
   PublishBatchInput,
+  PublishManualRecordInput,
   QualityReportQuery,
   RestrictedCandidateSummary,
   RowCorrectionInput,
   SourceEvidenceInput,
   Vertical,
 } from '@finverse/contracts';
+import type { PoolClient } from 'pg';
 import { pool } from './db';
 import type { Scope } from './users';
 import { forbidden, HttpError, notFound } from '../lib/errors';
@@ -30,9 +37,12 @@ function assertDe(scope: Scope): void {
   }
 }
 
+let idSeq = 0;
 function makeId(prefix: string): string {
+  idSeq = (idSeq + 1) % 1000000;
   const rand = Math.floor(100000 + Math.random() * 900000);
-  return `${prefix}-${rand}`;
+  const time = Date.now().toString(36);
+  return `${prefix}-${time}-${idSeq}-${rand}`;
 }
 
 function computeSha256(content: string): string {
@@ -583,6 +593,7 @@ export async function uploadBatch(
       duplicateMatchLeadId: string | null;
       duplicateDecision: string | null;
       status: 'valid' | 'rejected' | 'duplicate_hold';
+      isPriority: boolean;
     }> = [];
 
     // Query existing leads phones for batch duplicate matching
@@ -608,6 +619,14 @@ export async function uploadBatch(
       const rawEvidence = raw.evidence || raw['Consent Reference'] || raw.Consent || raw['Permission Evidence'] || '';
       const rawDate = raw.date || raw['Consent Date'] || raw.Date || new Date().toISOString().slice(0, 10);
       const rawNeed = raw.need || raw['Need Summary'] || raw.Notes || raw.Need || '';
+      const rawPriority =
+        raw.is_priority === 'true' ||
+        raw.priority === 'true' ||
+        raw.isPriority === 'true' ||
+        raw.Priority === 'true' ||
+        (raw as any).is_priority === true ||
+        (raw as any).priority === true ||
+        (raw as any).isPriority === true;
 
       const phoneNorm = normalizePhone(rawPhone);
       const validationErrors: Array<{ field: string; code: string; message: string }> = [];
@@ -656,6 +675,7 @@ export async function uploadBatch(
         duplicateMatchLeadId: match ? match.id : null,
         duplicateDecision: isDupe ? 'pending' : null,
         status: rowStatus,
+        isPriority: Boolean(rawPriority),
       });
     }
 
@@ -674,7 +694,7 @@ export async function uploadBatch(
         batchId,
         input.batchName.trim(),
         input.sourceId,
-        input.vertical,
+        (input.vertical === 'real_estate' || input.vertical === 'real-estate') ? 'real-estate' : input.vertical,
         input.targetTeamId,
         scope.employeeId,
         input.fileName.trim(),
@@ -696,9 +716,9 @@ export async function uploadBatch(
           id, batch_id, row_index, raw_payload, parsed_name, parsed_phone,
           parsed_email, parsed_product, parsed_source, permission_evidence,
           permission_date, need_summary, validation_errors, is_duplicate,
-          duplicate_match_lead_id, duplicate_decision, status, created_at, updated_at
+          duplicate_match_lead_id, duplicate_decision, status, vertical, is_priority, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now())`,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now())`,
         [
           r.id,
           batchId,
@@ -717,6 +737,8 @@ export async function uploadBatch(
           r.duplicateMatchLeadId,
           r.duplicateDecision,
           r.status,
+          input.vertical,
+          r.isPriority,
         ]
       );
     }
@@ -1139,11 +1161,303 @@ export async function reviewDuplicate(
 }
 
 // ====================================================================
+// Unified Frontline Sales Caller Allocation & Canonical Lead Creation
+// ====================================================================
+export interface LeadAllocationResult {
+  callerId: string | null;
+  callerName: string | null;
+  teamId: string | null;
+  routingExceptionReason: string | null;
+}
+
+export async function allocateCallerForVertical(
+  client: PoolClient,
+  rawVertical: string,
+  preferredTeamId?: string | null
+): Promise<LeadAllocationResult> {
+  const canonicalVertical = rawVertical === 'real-estate' ? 'real_estate' : rawVertical;
+
+  // 1. Resolve active team(s) for the vertical
+  let resolvedTeamId: string | null = null;
+  if (preferredTeamId) {
+    const { rows: tRows } = await client.query(
+      `SELECT id FROM teams WHERE id = $1 AND (vertical = $2 OR vertical = REPLACE($2, '_', '-'))`,
+      [preferredTeamId, canonicalVertical]
+    );
+    if (tRows.length > 0) {
+      resolvedTeamId = tRows[0].id;
+    }
+  }
+
+  // Find default team in vertical if not specified
+  const { rows: defTeamRows } = await client.query(
+    `SELECT id FROM teams WHERE (vertical = $1 OR vertical = REPLACE($1, '_', '-')) ORDER BY id ASC LIMIT 1`,
+    [canonicalVertical]
+  );
+
+  if (defTeamRows.length === 0) {
+    return {
+      callerId: null,
+      callerName: null,
+      teamId: null,
+      routingExceptionReason: `No active team configured for vertical '${canonicalVertical}'`,
+    };
+  }
+
+  // A vertical-wide pool needs its own cursor; it must not share the first
+  // team's cursor with imports explicitly targeted at that team.
+  const cursorTeamId = resolvedTeamId || '__ALL_TEAMS__';
+
+  // 2. Query eligible active SC callers for this vertical (scoped to preferredTeamId if given)
+  const { rows: eligibleCallers } = await client.query(
+    `SELECT e.id, e.display_name, a.team_id
+       FROM assignments a
+       JOIN employees e ON e.id = a.employee_id
+       JOIN teams t ON t.id = a.team_id
+      WHERE (a.vertical = $1 OR a.vertical = REPLACE($1, '_', '-'))
+        AND (t.vertical = $1 OR t.vertical = REPLACE($1, '_', '-'))
+        AND ($2::text IS NULL OR a.team_id = $2)
+        AND a.role = 'SC'
+        AND a.effective_from <= CURRENT_DATE
+        AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+        AND e.status = 'active'
+        -- Exclude approved leave today if employee_leave_requests table exists
+        AND (
+          to_regclass('employee_leave_requests') IS NULL
+          OR NOT EXISTS (
+            SELECT 1 FROM employee_leave_requests elr
+             WHERE elr.employee_id = e.id
+               AND elr.status = 'approved'
+               AND CURRENT_DATE BETWEEN elr.start_date AND elr.end_date
+          )
+        )
+        -- Exclude away/offline availability
+        AND NOT EXISTS (
+          SELECT 1 FROM (
+            SELECT status FROM availability_changes ac
+             WHERE ac.employee_id = e.id
+             ORDER BY ac.effective_from DESC, ac.id DESC LIMIT 1
+          ) last_av WHERE last_av.status IN ('away', 'offline')
+        )
+      ORDER BY e.id ASC`,
+    [canonicalVertical, resolvedTeamId]
+  );
+
+  if (eligibleCallers.length === 0) {
+    return {
+      callerId: null,
+      callerName: null,
+      teamId: resolvedTeamId || defTeamRows[0].id,
+      routingExceptionReason: `All sales callers in vertical '${canonicalVertical}' are currently unavailable or at capacity`,
+    };
+  }
+
+  // Create the cursor before locking it. Without this insert, two first-time
+  // imports can both see an absent row and assign their first lead to the same
+  // caller before the ON CONFLICT update serializes.
+  await client.query(
+    `INSERT INTO round_robin_cursors (vertical, team_id, last_assigned_employee_id)
+     VALUES ($1, $2, NULL) ON CONFLICT (vertical, team_id) DO NOTHING`,
+    [canonicalVertical, cursorTeamId]
+  );
+
+  // 3. Concurrency-safe round-robin cursor with FOR UPDATE
+  const { rows: cursorRows } = await client.query(
+    `SELECT last_assigned_employee_id
+       FROM round_robin_cursors
+      WHERE vertical = $1 AND team_id = $2
+       FOR UPDATE`,
+    [canonicalVertical, cursorTeamId]
+  );
+
+  const lastAssignedId = cursorRows[0]?.last_assigned_employee_id;
+  let nextIndex = 0;
+  if (lastAssignedId) {
+    const idx = eligibleCallers.findIndex((c: any) => c.id === lastAssignedId);
+    if (idx >= 0) {
+      nextIndex = (idx + 1) % eligibleCallers.length;
+    }
+  }
+
+  const selectedCaller = eligibleCallers[nextIndex]!;
+
+  await client.query(
+    `INSERT INTO round_robin_cursors (vertical, team_id, last_assigned_employee_id, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (vertical, team_id) DO UPDATE SET
+       last_assigned_employee_id = EXCLUDED.last_assigned_employee_id,
+       updated_at = now()`,
+    [canonicalVertical, cursorTeamId, selectedCaller.id]
+  );
+
+  return {
+    callerId: selectedCaller.id,
+    callerName: selectedCaller.display_name,
+    teamId: selectedCaller.team_id,
+    routingExceptionReason: null,
+  };
+}
+
+export async function createCanonicalLeadAndAssign(
+  client: PoolClient,
+  scope: Scope,
+  params: {
+    vertical: string;
+    prospectName: string;
+    mobileNumber: string;
+    email?: string | null;
+    whatsappNumber?: string | null;
+    location?: string | null;
+    product?: string | null;
+    source?: string | null;
+    isPriority?: boolean;
+    preferredTeamId?: string | null;
+    intakeBatchId?: string | null;
+    intakeRowId?: string | null;
+    importJobId?: string | null;
+    consentRef?: string | null;
+    consentDate?: string | null;
+  }
+): Promise<{
+  leadId: string;
+  callerId: string | null;
+  callerName: string | null;
+  teamId: string | null;
+  routingExceptionReason: string | null;
+}> {
+  const canonicalVertical = params.vertical === 'real-estate' ? 'real_estate' : params.vertical;
+  const alloc = await allocateCallerForVertical(client, canonicalVertical, params.preferredTeamId);
+  const leadId = makeId('FV');
+  const isPriority = Boolean(params.isPriority);
+
+  await client.query(
+    `INSERT INTO leads (
+      id, vertical, display_name, email, phone, whatsapp_phone, location,
+      preferred_language, product, source, stage,
+      owner_employee_id, team_id, is_priority, assigned_at,
+      intake_batch_id, intake_row_id, import_id,
+      consent_reference, consent_date,
+      created_at, updated_at, record_version
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7,
+      'English', $8, $9, 'new',
+      $10, $11, $12, $13,
+      $14, $15, $16,
+      $17, $18,
+      now(), now(), 1
+    )`,
+    [
+      leadId,
+      canonicalVertical,
+      params.prospectName,
+      params.email || null,
+      params.mobileNumber,
+      params.whatsappNumber || null,
+      params.location || null,
+      params.product || 'General Enquiry',
+      params.source || (params.importJobId ? 'Bulk Prospect Import' : 'Manual Data Entry'),
+      alloc.callerId,
+      alloc.teamId,
+      isPriority,
+      alloc.callerId ? new Date() : null,
+      params.intakeBatchId || null,
+      params.intakeRowId || null,
+      params.importJobId || null,
+      params.consentRef || 'Explicit Customer Permission',
+      params.consentDate || new Date().toISOString().slice(0, 10),
+    ]
+  );
+
+  if (alloc.callerId) {
+    // Ingestion audit event
+    await client.query(
+      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, occurred_at)
+       VALUES ($1, $2, $3, 'intake_ingestion', $4, now())`,
+      [
+        makeId('EV'),
+        leadId,
+        scope.employeeId,
+        `Ingested prospect '${params.prospectName}', assigned to ${alloc.callerName} (${alloc.callerId}) in vertical ${canonicalVertical}`,
+      ]
+    );
+
+    // Ownership event
+    await client.query(
+      `INSERT INTO lead_ownership_events (
+        id, lead_id, from_owner_employee_id, to_owner_employee_id,
+        actor_employee_id, actor_role, kind, reason, record_version, changed_at
+      ) VALUES ($1, $2, NULL, $3, $4, $5, 'first-allocation', 'Automatic intake round-robin allocation', 1, now())`,
+      [makeId('OE'), leadId, alloc.callerId, scope.employeeId, scope.role || 'DE']
+    );
+
+    // Initial outreach task
+    await client.query(
+      `INSERT INTO lead_tasks (id, lead_id, owner_employee_id, action, purpose, priority, status, due_at, created_at)
+       VALUES ($1, $2, $3, 'call', $4, $5, 'open', now() + interval '24 hours', now())`,
+      [
+        makeId('TSK'),
+        leadId,
+        alloc.callerId,
+        `Initial outreach: ${params.prospectName}`,
+        isPriority ? 'urgent' : 'high',
+      ]
+    );
+
+    if (isPriority) {
+      await client.query(
+        `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, occurred_at)
+         VALUES ($1, $2, $3, 'priority-marked', 'Flagged as high-priority intake prospect', now())`,
+        [makeId('EV'), leadId, scope.employeeId]
+      );
+      await client.query(
+        `INSERT INTO lead_audit (id, lead_id, actor_employee_id, field, before_value, after_value, reason, occurred_at)
+         VALUES ($1, $2, $3, 'is_priority', 'false', 'true', 'Intake priority flag set', now())`,
+        [makeId('AUD'), leadId, scope.employeeId]
+      );
+    }
+  } else {
+    // Unassigned routing exception
+    await client.query(
+      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, occurred_at)
+       VALUES ($1, $2, $3, 'unassigned_exception', $4, now())`,
+      [
+        makeId('EV'),
+        leadId,
+        scope.employeeId,
+        alloc.routingExceptionReason || 'No eligible callers available in vertical',
+      ]
+    );
+
+    if (isPriority) {
+      await client.query(
+        `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, occurred_at)
+         VALUES ($1, $2, $3, 'priority-marked', 'Priority prospect held in unassigned exception queue', now())`,
+        [makeId('EV'), leadId, scope.employeeId]
+      );
+      await client.query(
+        `INSERT INTO lead_audit (id, lead_id, actor_employee_id, field, before_value, after_value, reason, occurred_at)
+         VALUES ($1, $2, $3, 'is_priority', 'false', 'true', 'Intake priority flag set in exception queue', now())`,
+        [makeId('AUD'), leadId, scope.employeeId]
+      );
+    }
+  }
+
+  return {
+    leadId,
+    callerId: alloc.callerId,
+    callerName: alloc.callerName,
+    teamId: alloc.teamId,
+    routingExceptionReason: alloc.routingExceptionReason,
+  };
+}
+
+// ====================================================================
 // DE-05: Publish valid rows to allocation (P271–P272)
 // Invariants:
-// 1. Zero arbitrary lead ownership for Data Entry (owner_employee_id remains NULL)
+// 1. Valid rows are promoted to canonical CRM leads and assigned to active SC callers
 // 2. Idempotent repeated calls: only un-published rows are published
 // 3. Held rows remain quarantined
+// 4. Priority selection is preserved through intake -> canonical lead -> caller API
 // ====================================================================
 export async function publishBatch(
   scope: Scope,
@@ -1158,8 +1472,8 @@ export async function publishBatch(
     const { rows: bRows } = await client.query(
       `SELECT b.*, t.name as team_name
          FROM intake_batches b
-         JOIN teams t ON t.id = b.target_team_id
-        WHERE b.id = $1 FOR UPDATE`,
+         LEFT JOIN teams t ON t.id = b.target_team_id
+        WHERE b.id = $1 FOR UPDATE OF b`,
       [input.batchId]
     );
     const batch = bRows[0];
@@ -1191,59 +1505,46 @@ export async function publishBatch(
     const duplicateCount = counts[0]?.duplicate_holds ?? 0;
 
     const canonicalLeadIds: string[] = [];
+    const assignedCallers: Array<{
+      leadId: string;
+      callerId: string | null;
+      callerName: string | null;
+      isPriority: boolean;
+    }> = [];
 
     for (const r of eligibleRows) {
-      const canonicalLeadId = makeId('FV');
-      canonicalLeadIds.push(canonicalLeadId);
+      const isPriority = Boolean(r.is_priority);
+      const alloc = await createCanonicalLeadAndAssign(client, scope, {
+        vertical: batch.vertical,
+        prospectName: r.parsed_name,
+        mobileNumber: r.parsed_phone,
+        email: r.parsed_email,
+        product: r.parsed_product,
+        source: batch.batch_name,
+        isPriority,
+        preferredTeamId: batch.target_team_id,
+        intakeBatchId: batch.id,
+        intakeRowId: r.id,
+        consentRef: r.permission_evidence,
+        consentDate: r.permission_date,
+      });
 
-      // Invariant: Lead arrives in target vertical queue with owner_employee_id = NULL
-      await client.query(
-        `INSERT INTO leads (
-          id, vertical, display_name, email, phone, preferred_language,
-          product, source, stage, owner_employee_id, team_id,
-          intake_batch_id, intake_row_id, consent_reference, consent_date,
-          created_at, updated_at, record_version
-        )
-        VALUES ($1, $2, $3, $4, $5, 'English', $6, $7, 'new', NULL, $8, $9, $10, $11, $12, now(), now(), 1)`,
-        [
-          canonicalLeadId,
-          batch.vertical,
-          r.parsed_name,
-          r.parsed_email,
-          r.parsed_phone,
-          r.parsed_product,
-          batch.batch_name,
-          batch.target_team_id,
-          batch.id,
-          r.id,
-          r.permission_evidence,
-          r.permission_date,
-        ]
-      );
+      canonicalLeadIds.push(alloc.leadId);
+      assignedCallers.push({
+        leadId: alloc.leadId,
+        callerId: alloc.callerId,
+        callerName: alloc.callerName,
+        isPriority,
+      });
 
-      // Ingestion timeline audit event
-      await client.query(
-        `INSERT INTO lead_events (
-          id, lead_id, actor_employee_id, kind, note, occurred_at
-        )
-        VALUES ($1, $2, $3, 'intake_ingestion', $4, now())`,
-        [
-          makeId('EV'),
-          canonicalLeadId,
-          scope.employeeId,
-          `Ingested from Data Entry batch '${batch.batch_name}' (${batch.id}), consent ref: ${r.permission_evidence}`,
-        ]
-      );
-
-      // Update row as published with link to canonical lead
       await client.query(
         `UPDATE intake_rows
-            SET status = 'published',
-                published_lead_id = $2,
+            SET status = $2,
+                published_lead_id = $3,
                 published_at = now(),
                 updated_at = now()
           WHERE id = $1`,
-        [r.id, canonicalLeadId]
+        [r.id, alloc.callerId ? 'published' : 'unassigned_exception', alloc.leadId]
       );
     }
 
@@ -1292,6 +1593,7 @@ export async function publishBatch(
         reason: totalHeldCount > 0 ? 'Held rows quarantined for correction or identity review.' : 'All rows clean.',
       },
       publishedAt: new Date().toISOString(),
+      assignedCallers,
     };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1450,4 +1752,791 @@ export async function exportQualityWorklist(
     format: exportType === 'quality_report_pdf' ? 'pdf' : exportType === 'correction_worklist_csv' ? 'csv' : 'json',
     downloadUrl: `/api/data-entry/reports/download/${auditId}`,
   };
+}
+
+// ====================================================================
+// Manual Prospect Record Operations (Save Draft, Publish, List, Read)
+// ====================================================================
+
+export async function createManualRecord(
+  scope: Scope,
+  input: ManualProspectInput
+): Promise<ManualProspectRecord> {
+  assertDe(scope);
+
+  const canonicalVertical = input.vertical === 'real-estate' ? 'real_estate' : input.vertical;
+  if (scope.role !== 'SA' && !scope.verticals.includes(input.vertical) && !scope.verticals.includes(canonicalVertical)) {
+    throw forbidden(`You are not authorized for vertical '${input.vertical}'.`);
+  }
+
+  const phoneNorm = normalizePhone(input.mobileNumber);
+  const rowId = makeId('MR');
+  const isPriority = Boolean(input.isPriority);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let initialStatus: 'staged' | 'published' | 'unassigned_exception' = 'staged';
+    let publishedLeadId: string | null = null;
+    let assignedCallerId: string | null = null;
+    let assignedCallerName: string | null = null;
+    let assignedTeamId: string | null = null;
+    let routingExceptionReason: string | null = null;
+
+    await client.query(
+      `INSERT INTO intake_rows (
+        id, batch_id, row_index, raw_payload, vertical, entered_by_employee_id,
+        parsed_name, parsed_phone, parsed_email, parsed_whatsapp_phone, location_text,
+        parsed_product, parsed_source, permission_evidence, permission_date,
+        is_priority, status, published_lead_id, published_at, created_at, updated_at
+      ) VALUES (
+        $1, NULL, 1, $2, $3, $4,
+        $5, $6, $7, $8, $9,
+        $10, $11, $12, CURRENT_DATE,
+        $13, $14, $15, $16, now(), now()
+      )`,
+      [
+        rowId,
+        JSON.stringify(input),
+        canonicalVertical,
+        scope.employeeId,
+        input.prospectName.trim(),
+        phoneNorm.normalized,
+        input.email.trim(),
+        input.whatsappNumber?.trim() || null,
+        input.location?.trim() || null,
+        'General Prospect',
+        'Manual Intake',
+        'Manual Operator Entry',
+        isPriority,
+        'staged',
+        null,
+        null,
+      ]
+    );
+
+    if (input.publishImmediately) {
+      // The intake row must exist before the lead can reference it through its FK.
+      // Both writes remain in this transaction, so a failed allocation leaves no draft behind.
+      const alloc = await createCanonicalLeadAndAssign(client, scope, {
+        vertical: canonicalVertical,
+        prospectName: input.prospectName.trim(),
+        mobileNumber: phoneNorm.normalized,
+        email: input.email.trim() || null,
+        whatsappNumber: input.whatsappNumber?.trim() || null,
+        location: input.location?.trim() || null,
+        isPriority,
+        source: 'Manual Data Entry (Direct Publish)',
+        intakeRowId: rowId,
+      });
+
+      publishedLeadId = alloc.leadId;
+      assignedCallerId = alloc.callerId;
+      assignedCallerName = alloc.callerName;
+      assignedTeamId = alloc.teamId;
+      routingExceptionReason = alloc.routingExceptionReason;
+      initialStatus = alloc.callerId ? 'published' : 'unassigned_exception';
+      await client.query(
+        `UPDATE intake_rows
+            SET status = $2, published_lead_id = $3, published_at = now(), updated_at = now()
+          WHERE id = $1`,
+        [rowId, initialStatus, publishedLeadId]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return {
+      id: rowId,
+      prospectName: input.prospectName.trim(),
+      mobileNumber: phoneNorm.normalized,
+      email: input.email.trim(),
+      whatsappNumber: input.whatsappNumber?.trim() || undefined,
+      location: input.location?.trim() || undefined,
+      vertical: input.vertical,
+      isPriority,
+      publishImmediately: input.publishImmediately ?? false,
+      status: initialStatus,
+      savedAt: new Date().toISOString(),
+      operatorId: scope.employeeId,
+      publishedLeadId,
+      assignedCallerId,
+      assignedCallerName,
+      assignedTeamId,
+      routingExceptionReason,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function publishManualRecord(
+  scope: Scope,
+  id: string,
+  input?: PublishManualRecordInput
+): Promise<ManualProspectRecord> {
+  assertDe(scope);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: rRows } = await client.query(
+      `SELECT * FROM intake_rows WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+    const row = rRows[0];
+    if (!row) {
+      await client.query('ROLLBACK');
+      throw notFound();
+    }
+
+    const canonicalVertical = row.vertical === 'real-estate' ? 'real_estate' : row.vertical;
+    if (scope.role !== 'SA' && !scope.verticals.includes(row.vertical) && !scope.verticals.includes(canonicalVertical)) {
+      await client.query('ROLLBACK');
+      throw forbidden(`You are not authorized for vertical '${row.vertical}'.`);
+    }
+
+    // Idempotency: if already published, return existing record without duplicate lead creation
+    if (row.status === 'published' && row.published_lead_id) {
+      const { rows: lRows } = await client.query(
+        `SELECT l.id, l.owner_employee_id, e.display_name as owner_name, l.team_id, l.is_priority
+           FROM leads l
+           LEFT JOIN employees e ON e.id = l.owner_employee_id
+          WHERE l.id = $1`,
+        [row.published_lead_id]
+      );
+      await client.query('COMMIT');
+      const lead = lRows[0];
+      return {
+        id: row.id,
+        prospectName: row.parsed_name,
+        mobileNumber: row.parsed_phone,
+        email: row.parsed_email,
+        whatsappNumber: row.parsed_whatsapp_phone || undefined,
+        location: row.location_text || undefined,
+        vertical: (row.vertical === 'real_estate' ? 'real-estate' : row.vertical) as Vertical,
+        isPriority: Boolean(row.is_priority),
+        status: 'published',
+        savedAt: row.created_at.toISOString(),
+        operatorId: row.entered_by_employee_id,
+        publishedLeadId: row.published_lead_id,
+        assignedCallerId: lead?.owner_employee_id ?? null,
+        assignedCallerName: lead?.owner_name ?? null,
+        assignedTeamId: lead?.team_id ?? null,
+        routingExceptionReason: null,
+      };
+    }
+
+    const isPriority = Boolean(row.is_priority);
+    const alloc = await createCanonicalLeadAndAssign(client, scope, {
+      vertical: canonicalVertical,
+      prospectName: row.parsed_name,
+      mobileNumber: row.parsed_phone,
+      email: row.parsed_email,
+      whatsappNumber: row.parsed_whatsapp_phone,
+      location: row.location_text,
+      isPriority,
+      preferredTeamId: input?.preferredTeamId,
+      intakeRowId: row.id,
+      source: 'Manual Data Entry',
+    });
+
+    const newStatus = alloc.callerId ? 'published' : 'unassigned_exception';
+
+    await client.query(
+      `UPDATE intake_rows
+          SET status = $2,
+              published_lead_id = $3,
+              published_at = now(),
+              updated_at = now()
+        WHERE id = $1`,
+      [row.id, newStatus, alloc.leadId]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      id: row.id,
+      prospectName: row.parsed_name,
+      mobileNumber: row.parsed_phone,
+      email: row.parsed_email,
+      whatsappNumber: row.parsed_whatsapp_phone || undefined,
+      location: row.location_text || undefined,
+      vertical: (row.vertical === 'real_estate' ? 'real-estate' : row.vertical) as Vertical,
+      isPriority,
+      status: newStatus,
+      savedAt: row.created_at.toISOString(),
+      operatorId: row.entered_by_employee_id,
+      publishedLeadId: alloc.leadId,
+      assignedCallerId: alloc.callerId,
+      assignedCallerName: alloc.callerName,
+      assignedTeamId: alloc.teamId,
+      routingExceptionReason: alloc.routingExceptionReason,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listManualRecords(
+  scope: Scope,
+  search?: string
+): Promise<ManualProspectRecord[]> {
+  assertDe(scope);
+
+  const query = `
+    SELECT r.id, r.vertical, r.parsed_name, r.parsed_phone, r.parsed_email,
+           r.parsed_whatsapp_phone, r.location_text, r.is_priority, r.status,
+           r.created_at, r.entered_by_employee_id, r.published_lead_id,
+           l.owner_employee_id, e.display_name as owner_name, l.team_id,
+           (SELECT note FROM lead_events WHERE lead_id = l.id AND kind = 'unassigned_exception' ORDER BY occurred_at DESC LIMIT 1) as exception_reason
+      FROM intake_rows r
+      LEFT JOIN leads l ON l.id = r.published_lead_id
+      LEFT JOIN employees e ON e.id = l.owner_employee_id
+     WHERE r.entered_by_employee_id IS NOT NULL
+       AND ($1::text IS NULL OR r.parsed_name ILIKE $2 OR r.parsed_phone ILIKE $2 OR r.parsed_email ILIKE $2)
+     ORDER BY r.created_at DESC
+     LIMIT 200
+  `;
+
+  const searchParam = search?.trim() ? `%${search.trim()}%` : null;
+  const { rows } = await pool.query(query, [searchParam ? 'active' : null, searchParam]);
+
+  return rows.map((r: any) => ({
+    id: r.id,
+    prospectName: r.parsed_name,
+    mobileNumber: r.parsed_phone,
+    email: r.parsed_email || '',
+    whatsappNumber: r.parsed_whatsapp_phone || undefined,
+    location: r.location_text || undefined,
+    vertical: (r.vertical === 'real_estate' ? 'real-estate' : r.vertical) as Vertical,
+    isPriority: Boolean(r.is_priority),
+    status: r.status,
+    savedAt: r.created_at.toISOString(),
+    operatorId: r.entered_by_employee_id,
+    publishedLeadId: r.published_lead_id,
+    assignedCallerId: r.owner_employee_id,
+    assignedCallerName: r.owner_name,
+    assignedTeamId: r.team_id,
+    routingExceptionReason: r.exception_reason || null,
+  }));
+}
+
+export async function getManualRecord(
+  scope: Scope,
+  id: string
+): Promise<ManualProspectRecord> {
+  assertDe(scope);
+
+  const { rows } = await pool.query(
+    `SELECT r.id, r.vertical, r.parsed_name, r.parsed_phone, r.parsed_email,
+            r.parsed_whatsapp_phone, r.location_text, r.is_priority, r.status,
+            r.created_at, r.entered_by_employee_id, r.published_lead_id,
+            l.owner_employee_id, e.display_name as owner_name, l.team_id,
+            (SELECT note FROM lead_events WHERE lead_id = l.id AND kind = 'unassigned_exception' ORDER BY occurred_at DESC LIMIT 1) as exception_reason
+       FROM intake_rows r
+       LEFT JOIN leads l ON l.id = r.published_lead_id
+       LEFT JOIN employees e ON e.id = l.owner_employee_id
+      WHERE r.id = $1`,
+    [id]
+  );
+
+  const r = rows[0];
+  if (!r) throw notFound();
+
+  return {
+    id: r.id,
+    prospectName: r.parsed_name,
+    mobileNumber: r.parsed_phone,
+    email: r.parsed_email || '',
+    whatsappNumber: r.parsed_whatsapp_phone || undefined,
+    location: r.location_text || undefined,
+    vertical: (r.vertical === 'real_estate' ? 'real-estate' : r.vertical) as Vertical,
+    isPriority: Boolean(r.is_priority),
+    status: r.status,
+    savedAt: r.created_at.toISOString(),
+    operatorId: r.entered_by_employee_id,
+    publishedLeadId: r.published_lead_id,
+    assignedCallerId: r.owner_employee_id,
+    assignedCallerName: r.owner_name,
+    assignedTeamId: r.team_id,
+    routingExceptionReason: r.exception_reason || null,
+  };
+}
+
+// ====================================================================
+// Revised Bulk Prospect Import & Automated Lead Assignment
+// ====================================================================
+
+function serializeJobSummary(r: any): BulkImportJobSummary {
+  return {
+    id: r.id,
+    operatorEmployeeId: r.operator_employee_id,
+    vertical: (r.vertical === 'real_estate' ? 'real-estate' : r.vertical) as Vertical,
+    fileName: r.file_name,
+    fileHash: r.file_hash,
+    sourceType: r.source_type,
+    totalRows: r.total_rows,
+    processedRows: r.processed_rows,
+    assignedCount: r.assigned_count,
+    duplicateCount: r.duplicate_count,
+    invalidCount: r.invalid_count,
+    unassignedExceptionCount: r.unassigned_exception_count,
+    status: r.status,
+    reconciliation: r.reconciliation_summary ?? { byVertical: {}, byTeam: {}, byCaller: {} },
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
+    updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at,
+  };
+}
+
+export async function createBulkImportJob(
+  scope: Scope,
+  input: CreateBulkImportJobInput
+): Promise<BulkImportJobSummary> {
+  assertDe(scope);
+
+  const canonicalVertical = input.vertical === 'real-estate' ? 'real_estate' : input.vertical;
+  if (scope.role !== 'SA' && !scope.verticals.includes(input.vertical) && !scope.verticals.includes(canonicalVertical)) {
+    throw forbidden(`This action is outside your vertical scope permissions.`);
+  }
+
+  const jobId = makeId('JOB');
+  const fileHash = computeSha256(JSON.stringify(input.rows) + input.fileName + input.vertical);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `INSERT INTO prospect_import_jobs (
+        id, operator_employee_id, vertical, file_name, file_hash,
+        source_type, total_rows, processed_rows, assigned_count,
+        duplicate_count, invalid_count, unassigned_exception_count,
+        status, reconciliation_summary, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, 0, 0, 0, 0, 0, 'staged', $8, now(), now()
+      )`,
+      [
+        jobId,
+        scope.employeeId,
+        canonicalVertical,
+        input.fileName || 'bulk-import',
+        fileHash,
+        input.sourceType || 'paste',
+        input.rows.length,
+        JSON.stringify({ byVertical: {}, byTeam: {}, byCaller: {} }),
+      ]
+    );
+
+    for (let i = 0; i < input.rows.length; i++) {
+      const r = input.rows[i]!;
+      const rowId = `${jobId}-${String(i + 1).padStart(4, '0')}`;
+      const name = (r.name || r.prospectName || '').trim();
+      const mobile = (r.mobile || r.mobileNumber || '').trim();
+      const email = (r.email || '').trim();
+      const whatsapp = (r.whatsapp || r.whatsappNumber || '').trim();
+      const location = (r.location || '').trim();
+      const isPriority = Boolean(r.isPriority || r.priority === true || r.priority === 'true');
+
+      await client.query(
+        `INSERT INTO prospect_import_rows (
+          id, job_id, row_index, raw_data, parsed_name, parsed_phone,
+          parsed_email, parsed_whatsapp, parsed_location, is_priority, status,
+          created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', now(), now()
+        )`,
+        [
+          rowId,
+          jobId,
+          r.rowIndex ?? i,
+          JSON.stringify(r),
+          name || null,
+          mobile || null,
+          email || null,
+          whatsapp || null,
+          location || null,
+          isPriority,
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    const { rows: jRows } = await pool.query(
+      `SELECT * FROM prospect_import_jobs WHERE id = $1`,
+      [jobId]
+    );
+    return serializeJobSummary(jRows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getBulkImportJob(
+  scope: Scope,
+  id: string
+): Promise<BulkImportJobSummary> {
+  assertDe(scope);
+  const { rows } = await pool.query(
+    `SELECT * FROM prospect_import_jobs WHERE id = $1`,
+    [id]
+  );
+  if (!rows[0]) throw notFound();
+  return serializeJobSummary(rows[0]);
+}
+
+export async function getBulkImportRows(
+  scope: Scope,
+  jobId: string,
+  options?: { status?: string; limit?: number; offset?: number }
+): Promise<{ rows: BulkImportRowRecord[]; total: number }> {
+  assertDe(scope);
+
+  const limit = options?.limit ?? 100;
+  const offset = options?.offset ?? 0;
+  const status = options?.status;
+
+  const { rows } = await pool.query(
+    `SELECT r.id, r.job_id, r.row_index, r.parsed_name, r.parsed_phone,
+            r.parsed_email, r.parsed_whatsapp, r.parsed_location, r.is_priority,
+            r.status, r.canonical_lead_id, r.assigned_employee_id,
+            e.display_name as assigned_employee_name,
+            r.assigned_team_id, t.name as assigned_team_name,
+            r.rejection_reason, r.error_details, r.created_at
+       FROM prospect_import_rows r
+       LEFT JOIN employees e ON e.id = r.assigned_employee_id
+       LEFT JOIN teams t ON t.id = r.assigned_team_id
+      WHERE r.job_id = $1
+        AND ($2::text IS NULL OR r.status = $2)
+      ORDER BY r.row_index ASC
+      LIMIT $3 OFFSET $4`,
+    [jobId, status || null, limit, offset]
+  );
+
+  const { rows: countRows } = await pool.query(
+    `SELECT COUNT(*)::int as count FROM prospect_import_rows
+      WHERE job_id = $1 AND ($2::text IS NULL OR status = $2)`,
+    [jobId, status || null]
+  );
+
+  return {
+    rows: rows.map((r: any) => ({
+      id: r.id,
+      jobId: r.job_id,
+      rowIndex: r.row_index,
+      name: r.parsed_name || '',
+      mobile: r.parsed_phone || '',
+      email: r.parsed_email || '',
+      whatsapp: r.parsed_whatsapp || '',
+      location: r.parsed_location || '',
+      isPriority: Boolean(r.is_priority),
+      status: r.status,
+      canonicalLeadId: r.canonical_lead_id,
+      assignedEmployeeId: r.assigned_employee_id,
+      assignedEmployeeName: r.assigned_employee_name,
+      assignedTeamId: r.assigned_team_id,
+      assignedTeamName: r.assigned_team_name,
+      rejectionReason: r.rejection_reason,
+      errorDetails: r.error_details,
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
+    })),
+    total: countRows[0]?.count ?? 0,
+  };
+}
+
+export async function processImportJobChunk(
+  scope: Scope,
+  jobId: string,
+  chunkSize: number = 500
+): Promise<BulkImportJobSummary> {
+  assertDe(scope);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: jRows } = await client.query(
+      `SELECT * FROM prospect_import_jobs WHERE id = $1 FOR UPDATE`,
+      [jobId]
+    );
+    const job = jRows[0];
+    if (!job) {
+      await client.query('ROLLBACK');
+      throw notFound();
+    }
+
+    if (job.status === 'completed') {
+      await client.query('COMMIT');
+      return serializeJobSummary(job);
+    }
+
+    const { rows: pendingRows } = await client.query(
+      `SELECT * FROM prospect_import_rows
+        WHERE job_id = $1 AND status = 'pending'
+        ORDER BY row_index ASC
+        LIMIT $2
+        FOR UPDATE`,
+      [jobId, chunkSize]
+    );
+
+    if (pendingRows.length === 0) {
+      await client.query(
+        `UPDATE prospect_import_jobs SET status = 'completed', updated_at = now() WHERE id = $1`,
+        [jobId]
+      );
+      await client.query('COMMIT');
+      const { rows: doneRows } = await pool.query(`SELECT * FROM prospect_import_jobs WHERE id = $1`, [jobId]);
+      return serializeJobSummary(doneRows[0]);
+    }
+
+    // Load already seen phones & emails in this job to detect duplicates within the file
+    const { rows: priorRows } = await client.query(
+      `SELECT parsed_phone, parsed_email FROM prospect_import_rows
+        WHERE job_id = $1 AND status != 'pending'`,
+      [jobId]
+    );
+    const seenPhones = new Set<string>();
+    const seenEmails = new Set<string>();
+    for (const pr of priorRows) {
+      if (pr.parsed_phone) seenPhones.add(normalizePhone(pr.parsed_phone).normalized);
+      if (pr.parsed_email) seenEmails.add(pr.parsed_email.toLowerCase().trim());
+    }
+
+    // Pre-query existing CRM leads to check duplicates against the existing database
+    const batchPhones = pendingRows
+      .filter((r) => r.parsed_phone)
+      .map((r) => normalizePhone(r.parsed_phone).normalized);
+    const batchEmails = pendingRows
+      .filter((r) => r.parsed_email)
+      .map((r) => r.parsed_email.toLowerCase().trim());
+
+    const { rows: existingLeads } = await client.query(
+      `SELECT id, phone, email, vertical FROM leads
+        WHERE phone = ANY($1::text[]) OR (email != '' AND LOWER(email) = ANY($2::text[]))`,
+      [batchPhones, batchEmails]
+    );
+
+    const existingByPhone = new Map<string, any>();
+    const existingByEmail = new Map<string, any>();
+    for (const el of existingLeads) {
+      if (el.phone) existingByPhone.set(el.phone, el);
+      if (el.email) existingByEmail.set(el.email.toLowerCase().trim(), el);
+    }
+
+    let newlyAssigned = 0;
+    let newlyDuplicate = 0;
+    let newlyInvalid = 0;
+    let newlyException = 0;
+
+    for (const row of pendingRows) {
+      const name = (row.parsed_name || '').trim();
+      const rawPhone = (row.parsed_phone || '').trim();
+      const email = (row.parsed_email || '').trim().toLowerCase();
+      const phoneNorm = normalizePhone(rawPhone);
+
+      // 1. Validation check
+      if (!name || name.length < 2) {
+        await client.query(
+          `UPDATE prospect_import_rows
+              SET status = 'invalid', rejection_reason = 'Prospect name is required and must be at least 2 characters.', updated_at = now()
+            WHERE id = $1`,
+          [row.id]
+        );
+        newlyInvalid++;
+        continue;
+      }
+
+      if (!phoneNorm.valid && !email) {
+        await client.query(
+          `UPDATE prospect_import_rows
+              SET status = 'invalid', rejection_reason = 'A valid phone number or email is required.', updated_at = now()
+            WHERE id = $1`,
+          [row.id]
+        );
+        newlyInvalid++;
+        continue;
+      }
+
+      // 2. Duplicate within file
+      const normPhoneVal = phoneNorm.normalized;
+      if ((normPhoneVal && seenPhones.has(normPhoneVal)) || (email && seenEmails.has(email))) {
+        await client.query(
+          `UPDATE prospect_import_rows
+              SET status = 'duplicate', rejection_reason = 'Duplicate within import file (phone or email matched earlier row)', updated_at = now()
+            WHERE id = $1`,
+          [row.id]
+        );
+        newlyDuplicate++;
+        continue;
+      }
+
+      // 3. Duplicate of existing CRM lead
+      const existingMatch = (normPhoneVal ? existingByPhone.get(normPhoneVal) : null) || (email ? existingByEmail.get(email) : null);
+      if (existingMatch) {
+        await client.query(
+          `UPDATE prospect_import_rows
+              SET status = 'duplicate', rejection_reason = 'Existing prospect in CRM database (matched lead ' || $2 || ')', updated_at = now()
+            WHERE id = $1`,
+          [row.id, existingMatch.id]
+        );
+        newlyDuplicate++;
+        if (normPhoneVal) seenPhones.add(normPhoneVal);
+        if (email) seenEmails.add(email);
+        continue;
+      }
+
+      // Record as seen
+      if (normPhoneVal) seenPhones.add(normPhoneVal);
+      if (email) seenEmails.add(email);
+
+      // 4. Caller allocation
+      const isPriority = Boolean(row.is_priority);
+      const alloc = await createCanonicalLeadAndAssign(client, scope, {
+        vertical: job.vertical,
+        prospectName: name,
+        mobileNumber: normPhoneVal,
+        email: email || null,
+        whatsappNumber: row.parsed_whatsapp,
+        location: row.parsed_location,
+        isPriority,
+        importJobId: job.id,
+      });
+
+      if (alloc.callerId) {
+        await client.query(
+          `UPDATE prospect_import_rows
+              SET status = 'assigned',
+                  canonical_lead_id = $2,
+                  assigned_employee_id = $3,
+                  assigned_team_id = $4,
+                  updated_at = now()
+            WHERE id = $1`,
+          [row.id, alloc.leadId, alloc.callerId, alloc.teamId]
+        );
+        newlyAssigned++;
+      } else {
+        await client.query(
+          `UPDATE prospect_import_rows
+              SET status = 'unassigned_exception',
+                  canonical_lead_id = $2,
+                  assigned_employee_id = NULL,
+                  assigned_team_id = $3,
+                  rejection_reason = $4,
+                  updated_at = now()
+            WHERE id = $1`,
+          [row.id, alloc.leadId, alloc.teamId, alloc.routingExceptionReason]
+        );
+        newlyException++;
+      }
+    }
+
+    const processedTotal = job.processed_rows + pendingRows.length;
+    const finalAssigned = job.assigned_count + newlyAssigned;
+    const finalDuplicate = job.duplicate_count + newlyDuplicate;
+    const finalInvalid = job.invalid_count + newlyInvalid;
+    const finalException = job.unassigned_exception_count + newlyException;
+    const isCompleted = processedTotal >= job.total_rows;
+    const finalStatus = isCompleted ? 'completed' : 'processing';
+
+    await client.query(
+      `UPDATE prospect_import_jobs
+          SET processed_rows = $2,
+              assigned_count = $3,
+              duplicate_count = $4,
+              invalid_count = $5,
+              unassigned_exception_count = $6,
+              status = $7,
+              updated_at = now()
+        WHERE id = $1`,
+      [
+        jobId,
+        processedTotal,
+        finalAssigned,
+        finalDuplicate,
+        finalInvalid,
+        finalException,
+        finalStatus,
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    const { rows: updatedRows } = await pool.query(
+      `SELECT * FROM prospect_import_jobs WHERE id = $1`,
+      [jobId]
+    );
+    return serializeJobSummary(updatedRows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function exportBulkImportReport(
+  scope: Scope,
+  jobId: string
+): Promise<string> {
+  assertDe(scope);
+
+  const { rows } = await pool.query(
+    `SELECT r.row_index, r.status, r.parsed_name, r.parsed_phone, r.parsed_email,
+            r.parsed_whatsapp, r.parsed_location, r.is_priority,
+            e.display_name as caller_name, t.name as team_name,
+            r.canonical_lead_id, r.rejection_reason
+       FROM prospect_import_rows r
+       LEFT JOIN employees e ON e.id = r.assigned_employee_id
+       LEFT JOIN teams t ON t.id = r.assigned_team_id
+      WHERE r.job_id = $1
+      ORDER BY r.row_index ASC`,
+    [jobId]
+  );
+
+  const headers = [
+    'Row Number',
+    'Prospect Name',
+    'Priority',
+    'Mobile Number',
+    'Email',
+    'WhatsApp',
+    'Location',
+    'Status',
+    'Assigned Caller',
+    'Assigned Team',
+    'Canonical Lead ID',
+    'Rejection Reason',
+  ];
+
+  const lines = [headers.join(',')];
+  for (const r of rows) {
+    lines.push([
+      r.row_index,
+      `"${sanitizeCellValue(r.parsed_name || '')}"`,
+      r.is_priority ? 'TRUE' : 'FALSE',
+      `"${sanitizeCellValue(r.parsed_phone || '')}"`,
+      `"${sanitizeCellValue(r.parsed_email || '')}"`,
+      `"${sanitizeCellValue(r.parsed_whatsapp || '')}"`,
+      `"${sanitizeCellValue(r.parsed_location || '')}"`,
+      `"${r.status}"`,
+      `"${sanitizeCellValue(r.caller_name || '')}"`,
+      `"${sanitizeCellValue(r.team_name || '')}"`,
+      `"${r.canonical_lead_id || ''}"`,
+      `"${sanitizeCellValue(r.rejection_reason || '')}"`,
+    ].join(','));
+  }
+
+  return lines.join('\n');
 }

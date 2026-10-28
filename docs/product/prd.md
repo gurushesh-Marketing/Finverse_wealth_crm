@@ -99,7 +99,7 @@ Finverse CRM v2 defines ten workspaces across operational sales, executive gover
 
 ```
 Operational Sales Hierarchy (Repeated per vertical):
-  SC (Sales Caller / Associate) ──> TL (Team Lead) ──> MG (Manager) ──> RM (Regional Manager) ──> NM (National Manager) ──> CEO
+  SC (Sales Caller / Associate) ──> REL (Relationship Manager) ──> MG (Manager) ──> RM (Regional Manager) ──> NM (National Manager) ──> CEO
 
 Executive & Governance Workspaces (Company outcomes / finance):
   CEO (Chief Executive Officer) ── Filters across verticals within own workspace [Deck P041]
@@ -113,11 +113,11 @@ Shared Operational Workspaces (Company functions with explicit grants):
 
 ### 4.1 Scope Boundaries by Workspace
 1. **Sales Caller (`SC`) (28 Actions, P043–P098):**
-   - Scope: Own assigned prospects and scheduled follow-ups within assigned team and vertical.
-2. **Team Lead (`TL`) (18 Actions, P099–P134):**
-   - Scope: Granted associate teams within assigned vertical. Oversees lead allocation, conversion approvals, call coaching, team targets, and forecasts.
+   - Scope: Own assigned prospects and scheduled follow-ups within assigned team and vertical. Receives prospects through same-vertical round-robin allocation, calls prospects, captures needs, and determines vertical qualification.
+2. **Relationship Manager (`REL`) (Client-Approved Replacement of Team Lead):**
+   - Scope: Active client mandate portfolio within assigned vertical. Takes ownership of qualified prospects handed off by Sales Callers, conducts in-depth needs analysis, coordinates with bank/financial partner institutions, structures facilities/proposals, reviews documentation, maintains CRM timeline, and exercises inbound handoff gate (accept or return with mandatory reason). Distinct code `REL` preserves existing Regional Manager (`RM`) invariant. Historical TL records preserved for audit.
 3. **Manager (`MG`) (13 Actions, P135–P160):**
-   - Scope: Assigned Team Leads within vertical. Oversees cross-team transfers, capacity plans, target allocations, forecast challenges, and SLA breach resolution.
+   - Scope: Assigned Relationship Managers and caller allocation within vertical. Oversees cross-team transfers, capacity plans, target allocations, forecast challenges, and SLA breach resolution.
 4. **Regional Manager (`RM`) (10 Actions, P161–P180):**
    - Scope: Assigned geographic region within vertical. Oversees branch managers, territory plans, regional target cascade, staffing envelopes, and regional forecast.
 5. **National Manager (`NM`) (11 Actions, P181–P202):**
@@ -159,7 +159,7 @@ Shared Operational Workspaces (Company functions with explicit grants):
 | **CEO**| `CEO-01` .. `CEO-11` | 11 | P203–P224 | Company-Wide (Focus filters across Wealth, Banking, Markets, Real Estate) | Implemented; happy path exercised in lifecycle test; dedicated action suite pending |
 | **CFO**| `CFO-01` .. `CFO-19` | 19 | P225–P262 | Company-Wide (Consolidated finance across Wealth, Banking, Markets, Real Estate) | Implemented; happy path exercised in lifecycle test; dedicated action suite pending |
 | **DE** | `DE-01` .. `DE-07` | 7 | P263–P276 | Shared Horizontal (Intake across all 4 verticals) | Planned (Schema & contracts specified) |
-| **HR** | `HR-01` .. `HR-07` | 7 | P277–P290 | Shared Horizontal (Personnel across all 4 verticals) | Planned (Schema & contracts specified) |
+| **HR** | `HR-01` .. `HR-07` | 7 | P277–P290 | Shared Horizontal (Personnel across all 4 verticals) | Verified Baseline (Migrations 0020, 0021; 8/8 API tests pass); Extended HRMS Slices 1–4 planned |
 | **SA** | `SA-01` .. `SA-11` | 11 | P291–P312 | Shared Horizontal (Identity/Admin across all 4 verticals) | Planned (Schema & contracts specified) |
 | **Total** | | **135** | | | |
 
@@ -188,9 +188,62 @@ In strict accordance with Action Deck Page 320 (*"CLIENT DECISIONS: Business rul
    - *Original Deck Text:* "Confirm identity provider, website integration, import format, data migration and hosting."
    - *[Derived Question]:* Which enterprise identity provider (SAML / SSO / Active Directory), website lead capture webhooks, batch import formats, and hosting topology will be deployed?
 
-### 6.1 Prototype Implementation Assumptions (Separate from Deck Requirements)
+### 6.1 Extended HRMS & Payroll Policy Decisions (`[Deck P320]`)
+In accordance with owner additions and corporate governance constraints, the following payroll and HR decisions require explicit executive/legal confirmation before production finalization:
+
+1. **Mid-Cycle Joiner First-Payment Deadline (`[Deck P320 Category 4: Targets and periods]`):**
+   - *Rule:* Payroll cycles run non-overlapping from the 28th of $M-1$ to the 27th of $M$. For an employee joining mid-cycle (e.g., 10 January), the initial pay period is 10–27 January (18 inclusive calendar days).
+   - *Mandatory Invariant:* Earned wages for 10–27 January **cannot be held until 28 February**.
+   - *Open Decision:* Must the company disburse mid-cycle earned wages on the standard month-end date (e.g., 31 January), or does a minimum joiner cutoff date trigger an interim supplementary payroll run? A written employee notice does NOT substitute for this legal/policy decision.
+2. **Pro-Rata Payable-Day Formula (`[Deck P320 Category 2: Commercial events]`):**
+   - *Open Decision:* Which statutory formula derives payable salary for partial cycles:
+     - Option A: Actual calendar days pro-rata: $\text{Payable} = \text{Monthly CTC} \times \frac{\text{Payable Days}}{\text{Calendar Days in Month}}$
+     - Option B: Fixed 30-day corporate divisor: $\text{Payable} = \text{Monthly CTC} \times \frac{\text{Payable Days}}{30}$
+     - Option C: Working-days pro-rata: $\text{Payable} = \text{Monthly CTC} \times \frac{\text{Attended + Approved Leave Days}}{\text{Working Days in Cycle}}$
+   - *Constraint:* Confirmation is legally required before payroll lock; no system assumption can substitute.
+3. **Paid Work-From-Home (WFH) Progress Evidence Thresholds (`[Deck P320 Category 3: Approvals and limits]`):**
+   - *Mandatory Invariant:* CRM authentication/login alone is **strictly NOT attendance**.
+   - *Open Decision:* What minimum substantive proof must be logged during check-in/out (e.g., minimum activity count, supervisor progress task log, or git/milestone proof) for a WFH shift to convert from pending to approved paid attendance?
+4. **Non-Hierarchical Role Approver Assignments (`[Deck P320 Category 3: Approvals and limits]`):**
+   - *Mandatory Invariant:* `422 SELF_APPROVAL_FORBIDDEN` applies universally.
+   - *Open Decision:* Confirm executive assignments: Board Chair/Comp Committee approves CEO leave/lifecycle; CEO approves CFO, HR Lead, and Super Admin; Operations Lead approves Data Entry operators.
+
+### 6.2 Prototype Implementation Assumptions (Separate from Deck Requirements)
 The current repository contains certain illustrative values used to make synthetic demo accounts and test suites functional:
 - **`[IMPL ASSUMPTION: Demo Passwords]`** Synthetic test accounts use password `demo1234` in local testing.
 - **`[IMPL ASSUMPTION: Synthetic Target Values]`** Test seeds use illustrative revenue figures (e.g., ₹75,00,000 converted value).
 - **`[IMPL ASSUMPTION: Scheduler Cadence]`** Local dev timers use 30s for reminders and 60s for report checks to permit interactive testing, while deck P317 proposes production snapshots at 00:15 local time.
 - **`[IMPL ASSUMPTION: Illustrative Thresholds]`** Prototype UI displays illustrative reference markers (such as 20 leads/caller capacity cap in `ManagerPages.tsx`); these are working prototype defaults, not confirmed corporate policy.
+
+### 6.3 Client-Added Requirements & Action Deck Deltas (Step 091)
+Where the canonical Action Deck (P045–P046 for Lead Inbox and P264–P275 for Data Entry) differs or left ordering unspecified, the following client workflow specifications are authoritatively enforced:
+1. **Lead Inbox Dual-Tier Priority & Assigned-Time Ordering:**
+   - For every Sales Caller in all four verticals (Wealth, Commercial Banking, Markets & Trading, Real Estate Advisory):
+     - Priority leads (`is_priority = true`) appear first in all views.
+     - Within Priority and normal groups, leads are sorted strictly by most recently ASSIGNED first (`assigned_at DESC NULLS LAST`), with a stable ID tie-breaker (`id ASC`). Yesterday's assignments appear below today's at the same priority level.
+2. **Persistent Dismissible Priority Notification:**
+   - Callers assigned priority leads receive a persistent alert banner (`★ High-Priority Leads Assigned`) and priority badges (`★ Priority`).
+   - The alert banner can be explicitly dismissed by the caller. Dismissal state is persisted per caller and set of priority lead IDs in browser local storage, preventing annoying re-triggering on normal page refreshes while ensuring new priority assignments re-alert immediately.
+3. **Persisted Concurrency-Safe Round-Robin Routing:**
+   - Auto-assignment during spreadsheet import uses a persisted database cursor (`round_robin_cursors` with `FOR UPDATE` row locking) indexed by `(vertical, team_id)`.
+   - Callers with active Sales Caller assignments on the vertical's authorized team who are not away or on approved leave are eligible. WFH alone does **not** disqualify a caller.
+   - Strict vertical isolation is maintained (zero cross-vertical assignments).
+   - Retries are strictly idempotent (previously assigned rows retain their assignments).
+   - If no eligible caller exists, leads are routed to an explicit same-vertical `unassigned_exception` queue with `is_priority` preserved.
+### 6.4 Secure Calling Preparation & Voice Provider Adapter (Step 092)
+Where official telephony vendor credentials (Bonvoice) are pending documentation and credentials from the client:
+1. **Zero Raw Phone Number Leakage to Sales Callers:**
+   - Frontline Sales Callers (`SC`) across all 4 verticals see strictly masked prospect phone numbers (`+91 •••••${last3}`).
+   - Raw phone numbers are completely stripped from API responses, serialized state, HTML, notifications, exports, and call requests. Masking does not rely on CSS blur.
+2. **Server-Side Destination Resolution & "Call Now" Flow:**
+   - "Call now" transmits only the `leadId` (and idempotency key) to `/api/calls/initiate`.
+   - The backend validates ownership, vertical/team authorization, and active contact suppression.
+   - The destination phone number is resolved privately in server memory and passed directly to the voice provider adapter.
+3. **Restricted Server-Side Calling Identities:**
+   - Approved outbound caller identities/DIDs are stored in server-side configuration (`caller_calling_identities`) and never exposed to the client application.
+4. **Synthetic Test Voice Provider & Honest UI Status:**
+   - Calls are processed through a pluggable `VoiceProviderAdapter`. While Bonvoice documentation and credentials are pending, the application uses the `SyntheticTestVoiceProvider`.
+   - The user interface displays honest labelling: `"Test call simulation — Bonvoice provider integration pending credentials from vendor"`.
+   - Full vendor integration requirements are formally tracked in `docs/vendor/bonvoice-integration-checklist.md`.
+
+

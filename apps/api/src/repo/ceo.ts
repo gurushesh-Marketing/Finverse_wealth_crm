@@ -66,30 +66,30 @@ export async function getCeoScope(scope: Scope) {
     },
     {
       id: 'banking',
-      name: 'Corporate & Retail Banking',
-      nmName: 'Dev Kapoor',
-      nmEmail: 'dev@finverse.demo',
-      teamCount: verticalCounts.find((v) => v.vertical === 'banking')?.team_count || 1,
+      name: 'Commercial Banking',
+      nmName: 'Suresh Nair',
+      nmEmail: 'suresh@finverse.demo',
+      teamCount: verticalCounts.find((v) => v.vertical === 'banking')?.team_count || 2,
       activeLeads: leadMap['banking'] || 2,
       status: 'operational',
     },
     {
       id: 'markets',
       name: 'Markets & Trading',
-      nmName: 'Ananya Roy (Designate)',
-      nmEmail: 'ananya@finverse.demo',
-      teamCount: 0,
-      activeLeads: 0,
-      status: 'expansion_mandate',
+      nmName: 'Sanjay Singhania',
+      nmEmail: 'sanjay@finverse.demo',
+      teamCount: verticalCounts.find((v) => v.vertical === 'markets')?.team_count || 2,
+      activeLeads: leadMap['markets'] || 2,
+      status: 'operational',
     },
     {
-      id: 'real-estate',
-      name: 'Institutional Real Estate',
-      nmName: 'Aditya Singhania (Advisor)',
+      id: 'real_estate',
+      name: 'Real Estate Advisory',
+      nmName: 'Aditya Singhania',
       nmEmail: 'aditya@finverse.demo',
-      teamCount: 0,
-      activeLeads: 0,
-      status: 'expansion_mandate',
+      teamCount: verticalCounts.find((v) => v.vertical === 'real_estate')?.team_count || 2,
+      activeLeads: leadMap['real_estate'] || 2,
+      status: 'operational',
     },
   ];
 
@@ -171,14 +171,14 @@ export async function getCompanyOperatingPicture(
     },
     {
       vertical: 'banking',
-      name: 'Corporate & Retail Banking',
+      name: 'Commercial Banking',
       targetRevenueInr: 45000000,
       deliveredRevenueInr: 38000000,
-      targetWins: 350,
+      targetWins: 300,
       deliveredWins: 145,
-      attainmentPace: 41,
+      attainmentPace: 48,
       status: 'on-track',
-      nmName: 'Dev Kapoor',
+      nmName: 'Suresh Nair',
     },
     {
       vertical: 'markets',
@@ -192,20 +192,25 @@ export async function getCompanyOperatingPicture(
       nmName: 'Sanjay Singhania',
     },
     {
-      vertical: 'real-estate',
-      name: 'Institutional Real Estate',
-      targetRevenueInr: 10000000,
-      deliveredRevenueInr: 0,
-      targetWins: 50,
-      deliveredWins: 0,
-      attainmentPace: 0,
-      status: 'expansion_mandate',
+      vertical: 'real_estate',
+      name: 'Real Estate Advisory',
+      targetRevenueInr: 20000000,
+      deliveredRevenueInr: 8000000,
+      targetWins: 200,
+      deliveredWins: 42,
+      attainmentPace: 21,
+      status: 'on-track',
       nmName: 'Aditya Singhania',
     },
   ];
 
   const displayedContributions = (focusVertical && focusVertical !== 'all')
-    ? verticalContributions.filter((v) => v.vertical === focusVertical || (focusVertical === 'real_estate' && v.vertical === 'real-estate'))
+    ? verticalContributions.filter(
+        (v) =>
+          v.vertical === focusVertical ||
+          ((focusVertical === 'real_estate' || focusVertical === 'real-estate') &&
+            (v.vertical === 'real_estate' || v.vertical === 'real-estate'))
+      )
     : verticalContributions;
 
   return {
@@ -268,26 +273,26 @@ export async function getVerticalComparisons(scope: Scope, period: CeoPeriod = '
       {
         vertical: 'markets',
         name: 'Markets & Trading',
-        revenueRunRateInr: 0,
+        revenueRunRateInr: 320000000,
         grossMarginPercent: 78.0,
         blendedCacInr: 35000,
         averageTicketInr: 10000000,
-        fteCount: 2,
-        revenuePerFteInr: 0,
-        riskRating: 'high',
-        leadVelocityHours: 0,
+        fteCount: 4,
+        revenuePerFteInr: 8000000,
+        riskRating: 'moderate',
+        leadVelocityHours: 0.5,
       },
       {
-        vertical: 'real-estate',
-        name: 'Institutional Real Estate',
-        revenueRunRateInr: 0,
+        vertical: 'real_estate',
+        name: 'Real Estate Advisory',
+        revenueRunRateInr: 480000000,
         grossMarginPercent: 55.0,
         blendedCacInr: 50000,
         averageTicketInr: 50000000,
-        fteCount: 1,
-        revenuePerFteInr: 0,
-        riskRating: 'high',
-        leadVelocityHours: 0,
+        fteCount: 5,
+        revenuePerFteInr: 9600000,
+        riskRating: 'moderate',
+        leadVelocityHours: 2.4,
       },
     ],
   };
@@ -418,11 +423,11 @@ export async function approveCompanyTarget(scope: Scope, input: ApproveCompanyTa
       const v = alloc.vertical === 'real-estate' ? 'real_estate' : alloc.vertical;
       const defaultNm =
         v === 'banking'
-          ? 'EMP-010'
+          ? 'EMP-020'
           : v === 'markets'
           ? 'EMP-025'
           : v === 'real_estate'
-          ? 'EMP-026'
+          ? 'EMP-030'
           : 'EMP-009';
       await client.query(
         `INSERT INTO national_targets (
@@ -466,9 +471,16 @@ export async function getCompanyForecastRollup(scope: Scope, periodLabel = 'Octo
     [periodLabel]
   );
 
-  const wealthRevenue = natForecasts[0] ? Number(natForecasts[0].adjusted_revenue) : 42500000;
-  const bankingRevenue = 36000000;
-  const bottomUpSum = wealthRevenue + bankingRevenue;
+  const wealthRev = natForecasts.find((f) => f.vertical === 'wealth');
+  const bankingRev = natForecasts.find((f) => f.vertical === 'banking');
+  const marketsRev = natForecasts.find((f) => f.vertical === 'markets');
+  const realEstateRev = natForecasts.find((f) => f.vertical === 'real_estate' || f.vertical === 'real-estate');
+
+  const wealthRevenue = wealthRev ? Number(wealthRev.adjusted_revenue) : 42500000;
+  const bankingRevenue = bankingRev ? Number(bankingRev.adjusted_revenue) : 36000000;
+  const marketsRevenue = marketsRev ? Number(marketsRev.adjusted_revenue) : 24000000;
+  const realEstateRevenue = realEstateRev ? Number(realEstateRev.adjusted_revenue) : 18000000;
+  const bottomUpSum = wealthRevenue + bankingRevenue + marketsRevenue + realEstateRevenue;
 
   // Pull latest company forecast if signed off
   const { rows: companyForecasts } = await pool.query(
@@ -486,10 +498,54 @@ export async function getCompanyForecastRollup(scope: Scope, periodLabel = 'Octo
     signedOffRevenue: active ? Number(active.signed_off_revenue) : bottomUpSum - 5000000,
     currency: 'INR',
     verticalSubmissions: [
-      { vertical: 'Wealth Management', reportedRevenue: wealthRevenue, status: natForecasts[0]?.status || 'submitted_to_executives' },
-      { vertical: 'Corporate Banking', reportedRevenue: bankingRevenue, status: 'submitted' },
-      { vertical: 'Markets / Trading', reportedRevenue: 0, status: 'inactive' },
-      { vertical: 'Real Estate', reportedRevenue: 0, status: 'inactive' },
+      {
+        vertical: 'wealth',
+        name: 'Wealth Management',
+        nmName: 'Vikram Malhotra',
+        reportedRevenue: wealthRevenue,
+        submittedForecastInr: wealthRevenue,
+        submittedWins: 490,
+        variancePercent: -2.0,
+        confidenceLevel: 'High',
+        status: wealthRev?.status || 'submitted_to_executives',
+        submissionStatus: 'submitted',
+      },
+      {
+        vertical: 'banking',
+        name: 'Commercial Banking',
+        nmName: 'Suresh Nair',
+        reportedRevenue: bankingRevenue,
+        submittedForecastInr: bankingRevenue,
+        submittedWins: 295,
+        variancePercent: -1.7,
+        confidenceLevel: 'High',
+        status: bankingRev?.status || 'submitted_to_executives',
+        submissionStatus: 'submitted',
+      },
+      {
+        vertical: 'markets',
+        name: 'Markets & Securities',
+        nmName: 'Sanjay Singhania',
+        reportedRevenue: marketsRevenue,
+        submittedForecastInr: marketsRevenue,
+        submittedWins: 385,
+        variancePercent: -3.8,
+        confidenceLevel: 'Moderate',
+        status: marketsRev?.status || 'submitted_to_executives',
+        submissionStatus: 'submitted',
+      },
+      {
+        vertical: 'real_estate',
+        name: 'Real Estate Advisory',
+        nmName: 'Aditya Singhania',
+        reportedRevenue: realEstateRevenue,
+        submittedForecastInr: realEstateRevenue,
+        submittedWins: 190,
+        variancePercent: -5.0,
+        confidenceLevel: 'Moderate',
+        status: realEstateRev?.status || 'submitted_to_executives',
+        submissionStatus: 'submitted',
+      },
     ],
     macroAssumptions: active ? active.macro_assumptions : 'Conservative posture for SEBI advisory turnaround & Tier-1 HNI liquidity shifts.',
     boardRiskNotes: active ? active.board_risk_notes : 'Headwind on debt syndication fee recognition timeline.',

@@ -178,27 +178,205 @@ CREATE TABLE intake_rows (
 );
 ```
 
-### 3.2 Planned Human Resources & Personnel Schemas (`hr_*`)
+### 3.2 Implemented HR Core & Planned HRMS Schemas (`hr_*`, `lifecycle_*`, `payroll_*`)
+
+#### Implemented HR Baseline Tables (`0020_hr_workflows.sql`, `0021_lifecycle_approval_verification.sql`)
 ```sql
--- Planned Migration: 0015_hr_people_lifecycle.sql
-CREATE TABLE leave_records (
+-- Migration 0020_hr_workflows.sql & 0021_lifecycle_approval_verification.sql
+CREATE TABLE hr_lifecycle_requests (
+    id text PRIMARY KEY,
+    employee_id text NOT NULL REFERENCES employees(id),
+    request_type text NOT NULL CHECK (request_type IN ('new_joiner', 'team_transfer', 'promotion', 'exit')),
+    target_role text,
+    target_vertical text CHECK (target_vertical IN ('wealth', 'banking', 'markets', 'real-estate')),
+    target_team_id text,
+    requested_effective_date date NOT NULL,
+    justification text NOT NULL,
+    current_status text NOT NULL CHECK (current_status IN ('pending', 'approved', 'rejected', 'cancelled')),
+    created_by_employee_id text NOT NULL REFERENCES employees(id),
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE lifecycle_request_approvals (
+    id text PRIMARY KEY,
+    request_id text NOT NULL REFERENCES hr_lifecycle_requests(id) ON DELETE CASCADE,
+    approver_employee_id text NOT NULL REFERENCES employees(id),
+    decision text NOT NULL CHECK (decision IN ('approved', 'rejected')),
+    decision_notes text,
+    decided_at timestamptz NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_lifecycle_approval UNIQUE (request_id, approver_employee_id)
+);
+
+CREATE TABLE employee_leaves (
     id text PRIMARY KEY,
     employee_id text NOT NULL REFERENCES employees(id),
     leave_type text NOT NULL CHECK (leave_type IN ('annual', 'sick', 'emergency', 'unpaid')),
     start_date date NOT NULL,
     end_date date NOT NULL,
-    allocation_dampening_pct int NOT NULL DEFAULT 100, -- 100% means zero lead allocation
+    allocation_dampening_pct int NOT NULL DEFAULT 100 CHECK (allocation_dampening_pct BETWEEN 0 AND 100),
     approved_by_employee_id text REFERENCES employees(id),
+    notes text,
     created_at timestamptz NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE probation_records (
+CREATE TABLE employee_training_milestones (
     id text PRIMARY KEY,
     employee_id text NOT NULL REFERENCES employees(id),
-    probation_end_date date NOT NULL,
-    compliance_modules_completed boolean NOT NULL DEFAULT false,
-    evaluation_rating text CHECK (evaluation_rating IN ('cleared', 'extended', 'terminated')),
-    reviewed_at timestamptz
+    module_code text NOT NULL,
+    module_name text NOT NULL,
+    status text NOT NULL CHECK (status IN ('enrolled', 'in_progress', 'completed', 'failed')),
+    score numeric(5,2),
+    completed_at timestamptz,
+    verified_by_employee_id text REFERENCES employees(id),
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE people_operations_reports (
+    id text PRIMARY KEY,
+    report_type text NOT NULL CHECK (report_type IN ('headcount_summary', 'attrition_analysis', 'training_compliance', 'leave_utilisation')),
+    period_start date NOT NULL,
+    period_end date NOT NULL,
+    vertical_scope text CHECK (vertical_scope IN ('wealth', 'banking', 'markets', 'real-estate', 'all')),
+    metrics jsonb NOT NULL,
+    generated_by_employee_id text NOT NULL REFERENCES employees(id),
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE people_report_schedules (
+    id text PRIMARY KEY,
+    report_type text NOT NULL,
+    cadence text NOT NULL CHECK (cadence IN ('weekly', 'monthly', 'quarterly')),
+    recipients jsonb NOT NULL,
+    is_active boolean NOT NULL DEFAULT true,
+    last_run_at timestamptz
+);
+```
+
+#### Planned HRMS Extension Schemas (Owner-Added Slices 1–4)
+```sql
+-- Planned Slice 1: Multi-Tier Leave Request & Superior Approval Engine
+CREATE TABLE employee_leave_requests (
+    id text PRIMARY KEY,
+    employee_id text NOT NULL REFERENCES employees(id),
+    leave_type text NOT NULL CHECK (leave_type IN ('casual', 'sick', 'earned', 'unpaid', 'bereavement', 'paternity', 'maternity')),
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    total_days numeric(4,1) NOT NULL CHECK (total_days > 0),
+    reason text NOT NULL,
+    handover_notes text,
+    status text NOT NULL CHECK (status IN ('submitted', 'approved', 'rejected', 'cancelled')) DEFAULT 'submitted',
+    current_tier_approver_id text REFERENCES employees(id),
+    approved_by_employee_id text REFERENCES employees(id),
+    rejection_reason text,
+    record_version int NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE leave_approval_actions (
+    id text PRIMARY KEY,
+    leave_request_id text NOT NULL REFERENCES employee_leave_requests(id) ON DELETE CASCADE,
+    approver_employee_id text NOT NULL REFERENCES employees(id),
+    approver_role text NOT NULL,
+    action text NOT NULL CHECK (action IN ('approved', 'rejected', 'escalated')),
+    comments text,
+    acted_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+-- Planned Slice 2: Paid WFH & Attendance Evidence Engine
+CREATE TABLE attendance_records (
+    id text PRIMARY KEY,
+    employee_id text NOT NULL REFERENCES employees(id),
+    work_date date NOT NULL,
+    attendance_mode text NOT NULL CHECK (attendance_mode IN ('office', 'wfh', 'on_duty', 'half_day')),
+    check_in_at timestamptz NOT NULL,
+    check_out_at timestamptz,
+    total_hours numeric(4,2),
+    wfh_progress_summary text,
+    work_evidence_url text,
+    status text NOT NULL CHECK (status IN ('pending_review', 'verified', 'rejected')) DEFAULT 'pending_review',
+    verified_by_employee_id text REFERENCES employees(id),
+    rejection_reason text,
+    record_version int NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_employee_work_date UNIQUE (employee_id, work_date)
+);
+
+CREATE TABLE attendance_progress_logs (
+    id text PRIMARY KEY,
+    attendance_record_id text NOT NULL REFERENCES attendance_records(id) ON DELETE CASCADE,
+    logged_at timestamptz NOT NULL DEFAULT NOW(),
+    deliverable_title text NOT NULL,
+    deliverable_progress_pct int NOT NULL CHECK (deliverable_progress_pct BETWEEN 0 AND 100),
+    evidence_artifact_path text,
+    crm_activity_count int NOT NULL DEFAULT 0
+);
+
+-- Planned Slice 3: Holiday Calendars & Working Days Engine
+CREATE TABLE holiday_calendars (
+    id text PRIMARY KEY,
+    calendar_code text NOT NULL UNIQUE,
+    calendar_name text NOT NULL,
+    calendar_year int NOT NULL,
+    vertical_scope text CHECK (vertical_scope IN ('wealth', 'banking', 'markets', 'real-estate', 'all')) DEFAULT 'all',
+    region_code text NOT NULL DEFAULT 'IN-MUM',
+    is_active boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE statutory_holidays (
+    id text PRIMARY KEY,
+    calendar_id text NOT NULL REFERENCES holiday_calendars(id) ON DELETE CASCADE,
+    holiday_date date NOT NULL,
+    holiday_name text NOT NULL,
+    holiday_type text NOT NULL CHECK (holiday_type IN ('mandatory', 'optional', 'restricted')),
+    CONSTRAINT uq_calendar_holiday_date UNIQUE (calendar_id, holiday_date)
+);
+
+-- Planned Slice 4: Effective-Dated Compensation & Payroll Preview Engine
+CREATE TABLE employee_salary_structures (
+    id text PRIMARY KEY,
+    employee_id text NOT NULL REFERENCES employees(id),
+    effective_from date NOT NULL,
+    effective_to date,
+    currency text NOT NULL DEFAULT 'INR',
+    monthly_ctc numeric(12,2) NOT NULL CHECK (monthly_ctc > 0),
+    basic_pay numeric(12,2) NOT NULL CHECK (basic_pay > 0),
+    hra numeric(12,2) NOT NULL DEFAULT 0,
+    special_allowance numeric(12,2) NOT NULL DEFAULT 0,
+    statutory_pf_employee numeric(12,2) NOT NULL DEFAULT 0,
+    statutory_pf_employer numeric(12,2) NOT NULL DEFAULT 0,
+    professional_tax numeric(12,2) NOT NULL DEFAULT 0,
+    created_by_employee_id text NOT NULL REFERENCES employees(id),
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE payroll_periods (
+    id text PRIMARY KEY,
+    cycle_month text NOT NULL, -- Format: 'YYYY-MM'
+    period_start_date date NOT NULL, -- e.g. 2026-01-28
+    period_end_date date NOT NULL, -- e.g. 2026-02-27
+    total_calendar_days int NOT NULL,
+    standard_working_days int NOT NULL,
+    status text NOT NULL CHECK (status IN ('draft', 'preview', 'locked', 'certified')) DEFAULT 'draft',
+    certified_by_employee_id text REFERENCES employees(id),
+    certified_at timestamptz,
+    CONSTRAINT uq_payroll_cycle UNIQUE (cycle_month)
+);
+
+CREATE TABLE payroll_item_previews (
+    id text PRIMARY KEY,
+    payroll_period_id text NOT NULL REFERENCES payroll_periods(id) ON DELETE CASCADE,
+    employee_id text NOT NULL REFERENCES employees(id),
+    effective_working_days numeric(4,1) NOT NULL,
+    attended_days numeric(4,1) NOT NULL,
+    approved_leave_days numeric(4,1) NOT NULL,
+    lop_days numeric(4,1) NOT NULL DEFAULT 0,
+    gross_payable numeric(12,2) NOT NULL,
+    total_deductions numeric(12,2) NOT NULL,
+    net_payable numeric(12,2) NOT NULL,
+    pro_rata_factor numeric(6,5) NOT NULL,
+    calculation_breakdown jsonb NOT NULL,
+    CONSTRAINT uq_period_employee UNIQUE (payroll_period_id, employee_id)
 );
 ```
 
@@ -258,5 +436,33 @@ CREATE TABLE audit_incidents (
 | `intake_batches` | `0022_data_entry_workflows.sql` | DE / Ingestion | Staged batch intake lifecycle; SHA-256 idempotency; atomic publish to leads. |
 | `intake_rows` | `0022_data_entry_workflows.sql` | DE / Validation | Line-by-line validation, lineage preservation (`raw_payload`), correction history, duplicate holding. |
 | `intake_export_audits` | `0022_data_entry_workflows.sql` | DE / Audit | Audited intake quality CSV worklist exports with user, period, and filter logging. |
-| `leave_records` | `0015` / `0020_hr_workflows.sql` | HR / Availability | Leave intervals dampening algorithmic lead allocation. |
+| `hr_lifecycle_requests` | `0020_hr_workflows.sql` | HR / Lifecycle | Personnel changes (joiner, transfer, promotion, exit) with role/vertical scoping. |
+| `lifecycle_request_approvals`| `0021_lifecycle_approval_verification.sql` | HR / Approvals | Formal sign-off on lifecycle requests with unique constraint per approver. |
+| `employee_leaves` | `0020_hr_workflows.sql` | HR / Availability | Leave intervals dampening algorithmic lead allocation (0-100%). |
+| `employee_training_milestones`| `0020_hr_workflows.sql` | HR / Training | Compliance modules & induction pass/fail records with score. |
+| `people_operations_reports` | `0020_hr_workflows.sql` | HR / Analytics | Structured headcount, attrition, compliance, and utilization report packs. |
+| `people_report_schedules` | `0020_hr_workflows.sql` | HR / Schedules | Automated report delivery cadences (weekly, monthly, quarterly). |
+| `employee_leave_requests` | *Planned Slice 1* | HRMS / Leave Engine | Upward multi-tier employee leave applications with OCC versioning. |
+| `leave_approval_actions` | *Planned Slice 1* | HRMS / Approvals | Step-by-step audit trail of approvals, rejections, and escalations. |
+| `attendance_records` | *Planned Slice 2* | HRMS / Attendance | Check-in/out records with work mode (office/wfh) and mandatory progress summary. |
+| `attendance_progress_logs` | *Planned Slice 2* | HRMS / Evidence | Deliverable completion metrics and CRM activity proof attached to attendance. |
+| `holiday_calendars` | *Planned Slice 3* | HRMS / Holidays | Multi-vertical and regional holiday master calendar definitions. |
+| `statutory_holidays` | *Planned Slice 3* | HRMS / Holidays | Specific gazetted and restricted holiday dates within active calendars. |
+| `employee_salary_structures` | *Planned Slice 4* | HRMS / Compensation | Effective-dated salary components (Basic, HRA, PF, PT, Special Allowance). |
+| `payroll_periods` | *Planned Slice 4* | HRMS / Payroll | Non-overlapping 28th-to-27th payroll periods with lock/certify lifecycle. |
+| `payroll_item_previews` | *Planned Slice 4* | HRMS / Payroll | Employee pro-rata calculations, attended days, leave days, and net pay preview. |
 | `system_rules` | `0019_superadmin_workflows.sql` | SA / Config | Versioned business parameters; audited rule releases. |
+| `prospect_import_jobs` | `0041_bulk_prospect_import.sql` | DE, SA / Bulk Ingestion | High-volume spreadsheet import lifecycle (.xlsx, .csv, paste); tracks total, assigned, duplicate, invalid, and unassigned exception counts. |
+| `prospect_import_rows` | `0041_bulk_prospect_import.sql`, `0043` | DE, SA / Row Validation | Line-by-line normalization, raw payload, row-level status (`assigned`, `duplicate`, `invalid`, `unassigned_exception`), failure reasons, assigned caller attribution, and `is_priority` flag. |
+| *Multi-Vertical DE Grants* | `0042_data_entry_multivertical_grants.sql` | DE / Scope Grants | Adds active `markets` and `real_estate` assignment grants for demo Data Entry operator (`EMP-015`), enabling end-to-end multi-vertical file upload and spreadsheet paste testing. |
+| `round_robin_cursors` | `0043_priority_leads_and_round_robin.sql` | DE, Auto-Routing | Persisted concurrency-safe round-robin cursor by `(vertical, team_id)`; `__ALL_TEAMS__` separates vertical-wide routing from team-targeted routing. Row created before `FOR UPDATE` to serialize first-time concurrent imports. |
+| `employees` (*Routing Actor*) | `0050_automatic_caller_routing_actor.sql` | Routing Audit | Disabled, non-login system identity used as the actor for date-effective lead redistribution and its immutable ownership/timeline events. |
+| `leads` (*Priority & Assignment Updates*) | `0043_priority_leads_and_round_robin.sql` | SC, Lead Inbox | Adds `is_priority BOOLEAN NOT NULL DEFAULT FALSE` and `assigned_at TIMESTAMPTZ DEFAULT now()`. Indexed with `idx_leads_priority_assigned`. |
+| `intake_rows` (*Priority Update*) | `0043_priority_leads_and_round_robin.sql` | DE / Staging | Adds `is_priority BOOLEAN NOT NULL DEFAULT FALSE` for manual intake staging. |
+| `caller_calling_identities` | `0044_secure_calling_and_bonvoice_preparation.sql` | Voice, Security | Restricted server-side approved outbound identities/DIDs per sales caller (`employee_id PRIMARY KEY`). |
+| `calls` (*Provider & Masking Updates*) | `0044_secure_calling_and_bonvoice_preparation.sql` | SC, Telephony | Adds `provider_call_reference`, `caller_identity`, `destination_masked`, and `failure_reason`. Indexed on `provider_call_reference`. |
+| `lead_handoffs` | `0045_relationship_manager_workflow.sql` | SC, REL, MG / Commercial Banking | Caller qualification finding, requested loan requirement, required documents, qualification evidence, RM handoff acceptance/return decision with mandatory reason, and bank partner institution proposals. |
+| `leads` (*REL Workflow Updates*) | `0045_relationship_manager_workflow.sql` | SC, REL, MG | Adds `requested_amount numeric`, `rel_owner_id text REFERENCES employees(id)`, and `handoff_status text CHECK (pending, accepted, returned)`. Migrated active TL assignments to REL. |
+
+
+

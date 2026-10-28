@@ -45,9 +45,9 @@ export const DEMO_GROUPS: DemoGroup[] = [
         ],
       },
       {
-        role: 'Team Lead',
+        role: 'Relationship Manager',
         accounts: [
-          { role: 'Team Lead', name: 'Tara Iyer', scope: 'Wealth · Wealth Alpha + Wealth Beta', email: 'tara@finverse.demo', status: IMPL },
+          { role: 'Relationship Manager', name: 'Tara Iyer', scope: 'Wealth · Wealth Alpha + Wealth Beta', email: 'tara@finverse.demo', status: IMPL },
         ],
       },
       {
@@ -81,9 +81,9 @@ export const DEMO_GROUPS: DemoGroup[] = [
         ],
       },
       {
-        role: 'Team Lead',
+        role: 'Relationship Manager',
         accounts: [
-          { role: 'Team Lead', name: 'Rohan Sen', scope: 'Banking · Banking Alpha', email: 'rohan@finverse.demo', status: IMPL },
+          { role: 'Relationship Manager', name: 'Rohan Sen', scope: 'Banking · Banking Alpha', email: 'rohan@finverse.demo', status: IMPL },
         ],
       },
       {
@@ -117,9 +117,9 @@ export const DEMO_GROUPS: DemoGroup[] = [
         ],
       },
       {
-        role: 'Team Lead',
+        role: 'Relationship Manager',
         accounts: [
-          { role: 'Team Lead', name: 'Meera Nair', scope: 'Markets · Markets Alpha', email: 'meera@finverse.demo', status: IMPL },
+          { role: 'Relationship Manager', name: 'Meera Nair', scope: 'Markets · Markets Alpha', email: 'meera@finverse.demo', status: IMPL },
         ],
       },
       {
@@ -150,12 +150,13 @@ export const DEMO_GROUPS: DemoGroup[] = [
         role: 'Sales Caller',
         accounts: [
           { role: 'Sales Caller', name: 'Sameer Kulkarni', scope: 'Real Estate · Real Estate Alpha (Luxury Residential)', email: 'sameer@finverse.demo', status: IMPL },
+          { role: 'Sales Caller', name: 'Kunal Rao', scope: 'Real Estate · Real Estate Beta (Commercial Mandates)', email: 'kunal.r@finverse.demo', status: IMPL },
         ],
       },
       {
-        role: 'Team Lead',
+        role: 'Relationship Manager',
         accounts: [
-          { role: 'Team Lead', name: 'Neha Gupta', scope: 'Real Estate · Real Estate Alpha', email: 'neha.g@finverse.demo', status: IMPL },
+          { role: 'Relationship Manager', name: 'Neha Gupta', scope: 'Real Estate · Real Estate Alpha', email: 'neha.g@finverse.demo', status: IMPL },
         ],
       },
       {

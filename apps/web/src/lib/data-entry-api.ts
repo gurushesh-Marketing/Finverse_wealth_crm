@@ -1,6 +1,10 @@
 import type {
   BatchPublishReceipt,
   BatchUploadInput,
+  BulkImportJobStatusResponse,
+  BulkImportJobSummary,
+  BulkImportRowRecord,
+  CreateBulkImportJobInput,
   DePeriod,
   DuplicateCandidateSummary,
   DuplicateDecisionInput,
@@ -11,9 +15,70 @@ import type {
   IntakeRowSummary,
   IntakeSourceSummary,
   IntakeWorklistExport,
+  ManualProspectInput,
+  ManualProspectRecord,
   RowCorrectionInput,
   SourceEvidenceInput,
 } from '@finverse/contracts';
+
+export async function createBulkImportJob(input: CreateBulkImportJobInput): Promise<BulkImportJobSummary> {
+  return request<BulkImportJobSummary>('/api/data-entry/bulk-import/jobs', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getBulkImportJob(jobId: string): Promise<BulkImportJobStatusResponse> {
+  return request<BulkImportJobStatusResponse>(`/api/data-entry/bulk-import/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export async function getBulkImportRows(
+  jobId: string,
+  query: { status?: string; limit?: number; offset?: number } = {}
+): Promise<{ rows: BulkImportRowRecord[]; total: number }> {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.offset) params.set('offset', String(query.offset));
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request<{ rows: BulkImportRowRecord[]; total: number }>(
+    `/api/data-entry/bulk-import/jobs/${encodeURIComponent(jobId)}/rows${qs}`
+  );
+}
+
+export async function processImportJobChunk(jobId: string, chunkSize = 500): Promise<BulkImportJobSummary> {
+  return request<BulkImportJobSummary>(`/api/data-entry/bulk-import/jobs/${encodeURIComponent(jobId)}/process-chunk`, {
+    method: 'POST',
+    body: JSON.stringify({ chunkSize }),
+  });
+}
+
+export function getBulkImportReportUrl(jobId: string): string {
+  return `/api/data-entry/bulk-import/jobs/${encodeURIComponent(jobId)}/report`;
+}
+
+export async function saveManualProspect(input: ManualProspectInput): Promise<ManualProspectRecord> {
+  return request<ManualProspectRecord>('/api/data-entry/manual-records', {
+    method: 'POST', body: JSON.stringify(input),
+  });
+}
+
+export async function listManualProspects(search?: string): Promise<ManualProspectRecord[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : '';
+  const response = await request<{ records: ManualProspectRecord[] }>(`/api/data-entry/manual-records${query}`);
+  return response.records;
+}
+
+export async function getManualProspect(id: string): Promise<ManualProspectRecord> {
+  return request<ManualProspectRecord>(`/api/data-entry/manual-records/${encodeURIComponent(id)}`);
+}
+
+export async function publishManualProspect(id: string, preferredTeamId?: string): Promise<ManualProspectRecord> {
+  return request<ManualProspectRecord>(`/api/data-entry/manual-records/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({ preferredTeamId }),
+  });
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {

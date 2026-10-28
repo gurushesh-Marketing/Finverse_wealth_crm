@@ -2625,3 +2625,645 @@ ode --import tsx --test apps/api/test/real_estate.api.test.ts: **5/5 test suites
      - Requirements Graph (scripts/build_requirements_graph.py): Re-synchronized with canonical documents.
      - Code Graph (graphify extract . --code-only): Refreshed and up to date.
   6. **Completion Gate**: **Real Estate Advisory National Manager Wave Verified and Closed**. Stopped strictly at the Real Estate NM gate without advancing to CEO or CFO. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 080 — Enterprise CEO Workspace Audit & Verification (CEO-01..CEO-11)
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Enterprise Multi-Vertical CEO Workspace Audit & Action Deck Grounding**:
+     - Audited Chief Executive Officer executive workspace (**CEO-01 through CEO-11**) with persona Rajiv Mehta (`rajiv@finverse.demo` / `demo1234`, `EMP-010`), assigned to `Enterprise · Executive Scope` covering all 4 operational verticals (Wealth Management, Commercial Banking, Markets & Trading, Real Estate Advisory).
+     - Grounded in authentic Action Deck PDF pages P203 through P224: verified enterprise operating overview, fair cross-vertical benchmarks across run-rates/gross margins/CAC/FTEs/speed, 4-NM accountability & review directory (Vikram Malhotra, Suresh Nair, Sanjay Singhania, Aditya Singhania), enterprise target budget cascade (1500 wins / ₹17 Cr plan with ₹0.5 Cr buffer), consolidated bottom-up forecast rollup with division submissions breakdown, strategic growth initiative chartering, dynamic cross-vertical priority arbitration, board-level operating risk register, high-resolution binary board pack PDF export (`%PDF`), and executive directive & commitment fulfillment tracking.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel accordion for Executive / Management expanded cleanly, populating authenticated session with role = 'CEO', verticalGrants = ['wealth', 'banking', 'markets', 'real_estate'], and landing at `/ceo/overview`.
+     - Non-CEO security denial verified: unauthorized roles accessing `/ceo/*` receive `<DeniedPanel>` "Workspace unavailable - outside your current scope".
+  3. **Action-by-Action Enterprise CEO Workspace Grounding (CEO-01..CEO-11)**:
+     - **CEO-01 (Inspect company operating picture — Deck P203/P204)**: /ceo/overview with period selector & focus division selector, 4 enterprise KPI cards (Company Revenue Target vs Achieved %, Total Wins 145 / 1500, Strategic Buffer ₹0.5 Cr / 100 wins, Governance & Risks count), full 4-division leadership table (Wealth Management, Commercial Banking, Markets & Trading, Real Estate Advisory), and "Record Strategic Commitment" drawer.
+     - **CEO-02 (Compare verticals fairly — Deck P205/P206)**: /ceo/verticals side-by-side benchmarking cards across all 4 operational divisions with Revenue Run-Rate, Gross Margin %, Blended CAC, Avg Ticket, FTE count, Rev/FTE, and Lead Velocity.
+     - **CEO-03 (Review National Manager contribution — Deck P207/P208)**: /ceo/nms featuring 4-NM Directory Selector toggle dynamically loading quota delivery & governance evidence for Vikram Malhotra (Wealth), Suresh Nair (Banking), Sanjay Singhania (Markets), and Aditya Singhania (Real Estate).
+     - **CEO-04 (Approve company & vertical targets — Deck P209/P210)**: /ceo/targets with target bridge cards (Enterprise Revenue Budget ₹17 Cr, Allocated to Verticals ₹16.5 Cr, Strategic Buffer ₹0.5 Cr / 100 wins), real-time over-allocation blocker, 4-vertical allocation table (Wealth 500 wins, Banking 300 wins, Markets 400 wins, Real Estate 200 wins), Save Draft, and Ratify & Cascade to NMs action atomically synchronizing `national_targets`.
+     - **CEO-05 (Review consolidated company forecast — Deck P211/P212)**: /ceo/forecast with top 3 cards (Division Bottom-Up Sum, Executive Macro Adjustment, Signed-Off Board Forecast), full Division Bottom-Up Submissions Table across all 4 divisions with reported revenue, wins, variance %, confidence, and status, macro assumptions textarea, and "Sign Off Forecast for Board" action.
+     - **CEO-06 (Approve growth or capacity initiative — Deck P213/P214)**: /ceo/growth with capital envelope cards, initiative register table with capital, ROI %, sponsor, status, and Approve/Reject buttons, "Propose Strategic Growth Initiative" drawer supporting all 4 operational verticals and executive sponsors.
+     - **CEO-07 (Resolve cross-vertical priority conflict — Deck P215/P216)**: /ceo/conflicts with dynamic dispute resolution between any of the 4 operational divisions, prospect context, source vs counter argument twin cards, and Award to Source / Award to Counter / 50/50 Split Attribution buttons with immediate ruling persistence.
+     - **CEO-08 (Review critical complaint or operating risk — Deck P217/P218)**: /ceo/risks with board-level risk register across 4 verticals, severity badges (Existential, Critical, High), accountable executive assignment, mitigation deadline, "Sign Off Mitigation" action, and "Log Operating Risk" drawer.
+     - **CEO-09 (Conduct NM structured leadership reviews — Deck P219/P220)**: /ceo/nms "Conduct NM Leadership Review (CEO-09)" drawer with 4-rating picker, strategic alignment, operational execution, team health & retention, board readiness, and next executive review date.
+     - **CEO-10 (Create executive or board meeting pack — Deck P221/P222)**: /ceo/board with certified snapshots preview, high-res binary PDF export (%PDF) streaming download with Finverse palette (`#113F3D`), distribution schedules table, and "Configure Board Pack Schedule" drawer.
+     - **CEO-11 (Follow through on executive commitments — Deck P223/P224)**: /ceo/commitments with directive tracker across NMs, CFO, and Executive Office, due dates, and "Mark Fulfilled" action recording verified outcome notes.
+  4. **Executed Verification Evidence**:
+     - `apps/api/test/ceo.api.test.ts`: **13/13 tests passed (100% green in 12.1s)** against live PostgreSQL 16 Alpine (`:5433`).
+     - Playwright Dedicated E2E Suite `apps/web/e2e/ceo-enterprise-workspace.spec.ts`: **22/22 tests passed (100% green in 29.2s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`).
+     - Playwright Render-Loop Suite `apps/web/e2e/ceo-render-loop.spec.ts`: **6/6 tests passed (100% green in 13.1s)**.
+     - Security role-denial tests verified: non-CEO roles attempting direct navigation to `/ceo/*` receive `<DeniedPanel>` "Workspace unavailable - outside your current scope".
+     - Visual Evidence Capture: **22 high-resolution screenshots captured** across Desktop and Mobile viewports in `evidence/screenshots/ceo_workspace/` and `evidence/screenshots/CEO-01..11`.
+     - Database Forward Migration `database/migrations/0035_ceo_enterprise_targets.sql`: applied cleanly and verified on PostgreSQL 16 Alpine.
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across `@finverse/contracts`, `@finverse/api`, `@finverse/web`.
+     - Monorepo Lint (`pnpm -r lint --quiet`): **0 errors** across monorepo.
+     - Monorepo Build (`pnpm build`): **0 errors (built cleanly in 1.19s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (`scripts/build_requirements_graph.py`): Re-synchronized with canonical documents.
+     - Code Graph (`graphify extract . --code-only`): Refreshed and up to date.
+  6. **Completion Gate**: **Enterprise CEO Workspace Fully Audited, Reconciled, and Verified Complete**. Strictly halted at the CEO gate without advancing to CFO or other roles. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 081 — Enterprise CFO Workspace Audit & Verification (CFO-01..CFO-19)
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Enterprise Multi-Vertical CFO Workspace Audit & Action Deck Grounding**:
+     - Audited Chief Financial Officer executive workspace (**CFO-01 through CFO-19**) with persona Ananya Roy (`ananya@finverse.demo` / `demo1234`, `EMP-011`), assigned to `Enterprise · Executive Scope` covering all 4 operational verticals (Wealth Management, Commercial Banking, Markets & Trading, Real Estate Advisory).
+     - Grounded in authentic Action Deck PDF pages P225 through P262: verified financial operating overview, sales-to-finance handoffs, multi-vertical revenue recognition with dual-control preparation/posting, tax invoices with multi-vertical categorization, bank receipt matching & allocation, suspense account clearing, three-way sales-revenue-cash reconciliation bridge with audit watermarking, AR ageing breakdown (0-30, 31-60, 61-90, 90+ days) and collection recovery, refund governance with DoA approval limits, credit notes & reversing entries, incentive scheme review with 15% clawback reserves and payroll freeze, incentive dispute resolution, period close governance certification (4 required checklist items), controlled period reopening with 24h unlock expiration, vertical budget vs actuals variance tracking across all 4 operational verticals, forecast finance concurrence review, high-resolution binary board pack PDF export (`%PDF`), and DoA policy matrix governance.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel accordion for Executive / Management expanded cleanly, populating authenticated session with role = 'CFO', verticalGrants = ['wealth', 'banking', 'markets', 'real_estate'], and landing at `/cfo/overview`.
+     - Non-CFO security denial verified: unauthorized roles accessing `/cfo/*` receive `<DeniedPanel>` "Workspace unavailable - outside your current scope".
+     - Dual-control segregation of duties verified: `Self-Approval Forbidden [Deck P230]` strictly enforced. Preparer Priya Nair (`EMP-012`, Finance Controller) cannot self-approve; Ananya Roy (`EMP-011`, CFO) executes independent secondary approval.
+  3. **Action-by-Action Enterprise CFO Workspace Grounding (CFO-01..CFO-19)**:
+     - **CFO-01 (Inspect consolidated financial picture — Deck P225/P226)**: `/cfo/overview` with period selector & focus division selector (All Operational Divisions, Wealth, Banking, Markets, Real Estate), brand dark teal (`#113F3D`) hero priority card, 4 financial metrics cards (Gross Revenue Target ₹18.5 Cr vs Recognized ₹12.4 Cr, Cash Realized ₹11.2 Cr, AR Outstanding ₹1.2 Cr, Governance / Variance ₹0), operating signals with 7-day sparklines, needs-attention breakdowns, commitments table, and 3-card right rail guidance stack (`HOW THIS WORKS`, `WHEN A CHECK FAILS`, `PERMISSION & EVIDENCE`).
+     - **CFO-02 (Verify sales-to-finance handoffs — Deck P227/P228)**: `/cfo/recognition` queue with multi-vertical sales milestones (Wealth AUM fee, Banking loan origination, Markets trading fees, Real Estate advisory brokerage), twin cards (`SALES MILESTONE EVIDENCE` vs `FINANCE CONCURRENCE & EARNINGS TRIGGER`), Return for correction, and Verify & Accept workflow.
+     - **CFO-03 (Post revenue recognition entries — Deck P229/P230)**: `/cfo/recognition` with dual-control preparation modal supporting all 4 verticals, independent posting under open period checks, and period-lock guard.
+     - **CFO-04 (Issue tax invoices — Deck P231/P232)**: `/cfo/invoices` supporting all 4 operational verticals, GSTIN line items, client PAN verification, and immutable invoice ledger insertion.
+     - **CFO-05 (Import bank receipts — Deck P233/P234)**: `/cfo/receipts` batch CSV/UTR import with duplicate bank reference (UTR) collision rejection (409 Conflict / VALIDATION_FAILED).
+     - **CFO-06 (Match payment receipts to invoices — Deck P235/P236)**: `/cfo/matching` twin cards (`BANK RECEIPT ALLOCATION` vs `INVOICE SETTLEMENT LEDGER`), atomic payment allocation with row-level locks, and over-allocation guard.
+     - **CFO-07 (Clear suspense account entries — Deck P237/P238)**: `/cfo/suspense` classifying unallocated bank receipts and assigning operational investigation tasks.
+     - **CFO-08 (Reconcile sales, revenue, and cash — Deck P239/P240)**: `/cfo/reconciliation` 3-way reconciliation bridge (Sales vs Revenue vs Cash), explained timing differences vs unexplained residuals, and immutable freeze snapshot watermark with versioning (`v1.0`, `v2.0`).
+     - **CFO-09 (Manage AR ageing and collections — Deck P241/P242)**: `/cfo/ageing` ageing buckets (0-30, 31-60, 61-90, 90+ days), collector assignment, and Promise-to-Pay (PTP) recording.
+     - **CFO-10 (Govern refunds and cancellations — Deck P243/P244)**: `/cfo/refunds` twin cards (`REFUND ELIGIBILITY EVIDENCE` vs `DOA LIMIT & PAYMENT DISBURSEMENT`), DoA limit validation (`DOA-2026-V1`), approval status gating, and disbursement tracking.
+     - **CFO-11 (Issue credit notes and reversing entries — Deck P245/P246)**: `/cfo/recognition` reversing entry modal preserving immutable ledger audit history with exact minor unit paise precision.
+     - **CFO-12 (Review and freeze incentive pools — Deck P247/P248)**: `/cfo/incentives` multi-vertical incentive schemes, 15% mandatory clawback reserve, payroll freeze certification, and hardened camelCase/snake_case allocation mapping.
+     - **CFO-13 (Resolve incentive disputes — Deck P249/P250)**: `/cfo/incentives` twin cards (`EMPLOYEE DISPUTE CLAIM` vs `FINANCE ARBITRATION & ADJUSTMENT`) with justified dispute adjustment persistence.
+     - **CFO-14 (Certify period close — Deck P251/P252)**: `/cfo/period-close` requiring all 4 governance checklist items (Ledger reconciled, Unfrozen reconciliations cleared, Variance below materiality threshold `0.00`, Open disputes resolved) with audit hash generation.
+     - **CFO-15 (Request or approve period reopening — Deck P253/P254)**: `/cfo/period-close` dual-control reopening request with 24-hour time-limited unlock expiration.
+     - **CFO-16 (Track vertical budget vs actuals — Deck P255/P256)**: `/cfo/planning` budget lines table across Wealth, Banking, Markets, and Real Estate comparing allocated budget vs committed vs actual variance with performance notes.
+     - **CFO-17 (Provide finance concurrence on forecasts — Deck P257/P258)**: `/cfo/planning` forecast review modal supporting all 4 verticals, concurrence ratings (Fully Concur, Conditional Concurrence, Non-Concur), and finance assumptions capture.
+     - **CFO-18 (Certify and deliver the finance pack — Deck P259/P260)**: `/cfo/reports` binary PDF pack export (`%PDF`), governance watermark, and recurring distribution schedules.
+     - **CFO-19 (Govern DoA and finance policies — Deck P261/P262)**: `/cfo/policies` delegation of authority matrix, threshold limits, and policy change proposal workflow.
+  4. **Executed Verification Evidence**:
+     - `apps/api/test/cfo.api.test.ts`: **34/34 tests passed (100% green in 16.3s)** against live PostgreSQL 16 Alpine (`:5433`).
+     - Playwright Dedicated E2E Suite `apps/web/e2e/cfo-enterprise-workspace.spec.ts`: **20/20 tests passed (100% green in 33.1s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`).
+     - Playwright Dual-Control Segregation Suite `apps/web/e2e/cfo-two-person.spec.ts`: **Passed 100% green** on desktop and mobile (`Self-Approval Forbidden [Deck P230]`).
+     - Playwright Render-Loop Suite `apps/web/e2e/cfo-render-loop.spec.ts`: **Passed 100% green** across all 9 CFO routes on desktop and mobile.
+     - Security role-denial tests verified: non-CFO roles attempting direct navigation to `/cfo/*` receive `<DeniedPanel>` "Workspace unavailable - outside your current scope".
+     - Visual Evidence Capture: **38 high-resolution screenshots captured** (19 desktop, 19 mobile for CFO-01..CFO-19) in `evidence/screenshots/cfo_workspace/`.
+     - Database Forward Migration `database/migrations/0036_cfo_enterprise_multivertical.sql`: applied cleanly and verified on PostgreSQL 16 Alpine.
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across `@finverse/contracts`, `@finverse/api`, `@finverse/web`.
+     - Monorepo Lint (`pnpm -r lint --quiet`): **0 errors** across monorepo.
+     - Monorepo Build (`pnpm build`): **0 errors (built cleanly in 1.19s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (`scripts/build_requirements_graph.py`): Re-synchronized with canonical documents.
+     - Code Graph (`graphify extract . --code-only`): Refreshed and up to date.
+  6. **Completion Gate**: **Enterprise CFO Workspace Fully Audited, Reconciled, and Verified Complete**. Strictly halted at the CFO gate without advancing to Super Admin, Foundation, or other roles. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 082 — Data Entry Workspace Audit & Action Deck Alignment (DE-01..DE-07)
+- **Date**: 2026-10-18
+- **Completed Objectives**:
+  1. **Data Entry Workspace Audit & Action Deck Grounding**:
+     - Audited Data Entry operator workspace (**DE-01 through DE-07**) with persona Deepa Patel (`deepa@finverse.demo` / `demo1234`, `EMP-015`), assigned to `Granted intake · Source-specific grant`.
+     - Grounded in authentic Action Deck PDF pages P263 through P276: verified single enquiry capture with multi-vertical routing, batch CSV file upload with formula injection protection and SHA-256 hash guard, rejected rows correction with immutable raw payload lineage, duplicate candidate review with Twin Cards and restricted cross-vertical privacy disclosures, batch publication to Team Lead unassigned pools (`TL-02/03`) with zero operator ownership guarantee, contact provenance and source register with suspension governance (including Aarav Shah `FV-1042` contact trace), and quality reports with Twin Cards, horizontal progress bars, and streaming `%PDF` binary export.
+  2. **Working Demo Access & Authorization**:
+     - Demo Access Panel on `/login` verified: selecting Deepa Patel populates authenticated session with role = 'DE', scoped to `Granted intake · Source-specific grant`, and lands at `/data-entry/intake`.
+     - Non-DE security denial verified: unauthorized roles (e.g. Asha SC) accessing `/data-entry/*` receive `<DeniedPanel>` "Workspace unavailable - outside your current scope".
+     - Zero lead ownership invariant verified: `owner_employee_id` remains NULL; published leads route directly to designated frontline Team Lead unassigned pools.
+  3. **Action-by-Action Data Entry Grounding (DE-01..DE-07)**:
+     - **DE-01 (Capture a source-backed enquiry — Deck P263/P264)**: `/data-entry/intake` with Prospect & Contact Coordinates across 4 verticals (Wealth, Banking, Markets, Real Estate) and dynamically mapped destination teams (`TEAM-WEALTH-ALPHA/BETA`, `TEAM-BANKING-ALPHA/BETA`, `TEAM-MARKETS-ALPHA/BETA`, `TEAM-REALESTATE-ALPHA/BETA`), product quick-picks, authorized source selector, consent proof reference, and real-time validation receipt card with immutable reference ID and duplicate disposition.
+     - **DE-02 (Upload and map a data file — Deck P265/P266)**: `/data-entry/batches` with 4-vertical templates (1-click load buttons for Wealth, Banking, Markets, Real Estate sample CSVs), formula injection protection (automatic single-quote sanitization for `=, +, -, @`), SHA-256 batch hash guard (idempotent re-upload rejection with 409 conflict), and active batches list.
+     - **DE-03 (Correct rejected intake rows — Deck P267/P268)**: `/data-entry/validation` matching `P267.jpg` with search & filter bar (search by Name/Phone/Ref, filter by Reason/Vertical), table of Quarantined Rows, correction drawer/panel with original raw payload inspection, validation error explanation, mandatory correction audit reason, and revalidate & save action.
+     - **DE-04 (Review a possible duplicate — Deck P269/P270)**: `/data-entry/duplicates` with authentic Twin Cards architecture (`SUBMITTED EVIDENCE / DECISION REQUEST` vs `YOUR AUTHORITY / INDEPENDENT DECISION`), candidate queue bar, restricted cross-vertical privacy notice ("Direct cross-vertical disclosure restricted under customer privacy policy [Deck P270]"), and independent decision controls (`Approve as Distinct New Enquiry`, `Link Repeat Enquiry`, `Escalate to Data Steward`).
+     - **DE-05 (Publish valid rows to allocation — Deck P271/P272)**: `/data-entry/publish` with authentic Twin Cards architecture (`BATCH PUBLISHING SPECIFICATION` vs `ALLOCATION COMMITMENT & TARGET`), batch selection table, zero operator ownership guarantee (`owner_employee_id: NULL`), frontline destination (`TL-02/03` unassigned pool), and publication receipt rendering canonical lead IDs.
+     - **DE-06 (Maintain source evidence and contact provenance — Deck P273/P274)**: `/data-entry/sources` with dual tabs: Tab A Prospect Contact Provenance matching `P273.jpg` (Aarav Shah `FV-1042` contact coordinates, SHA-256 consent hash, consent reference, and 3-stage interaction timeline: Explicit Consent Logged -> Intake Ingestion & Validation -> Enqueued to Team Lead Pool); Tab B Source Register & Suspension Governance (registered sources table, active/suspended toggle, and suspension quarantine governance).
+     - **DE-07 (Export an intake quality report — Deck P275/P276)**: `/data-entry/reports` with authentic Twin Cards architecture (`REPORT DEFINITION` with 6 period buttons vs `SELECTED SCOPE & QUALITY METRICS` with 4 horizontal progress bars for Completed/In-progress/Needs-review/Excluded), tamper-evident audit notice, CSV worklist export (formula sanitized), and binary `%PDF` streaming download with Finverse palette (`#113F3D`).
+  4. **Executed Verification Evidence**:
+     - `apps/api/test/data-entry.api.test.ts`: **8/8 tests passed (100% green in 12.3s)** against live PostgreSQL 16 Alpine (`:5433`).
+     - Playwright Dedicated E2E Suite `apps/web/e2e/data-entry-workspace.spec.ts`: **16/16 tests passed (100% green in 24.7s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`).
+     - Security role-denial tests verified: non-DE roles (`asha@finverse.demo`, role `SC`) receive `<DeniedPanel>` "Workspace unavailable - outside your current scope".
+     - Visual Evidence Capture: **14 high-resolution screenshots captured** (7 desktop, 7 mobile for DE-01..DE-07) in `evidence/screenshots/data_entry_workspace/` and `evidence/screenshots/DE-01..07`.
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across `@finverse/contracts`, `@finverse/api`, `@finverse/web`.
+     - Monorepo Lint (`pnpm -r lint --quiet`): **0 errors** across monorepo.
+     - Monorepo Build (`pnpm build`): **0 errors (built cleanly in 1.60s)**.
+  5. **Knowledge Graphs Freshness**:
+     - Requirements Graph (`scripts/build_requirements_graph.py`): Re-synchronized with canonical documents.
+     - Code Graph (`graphify extract . --code-only`): Refreshed and up to date.
+  6. **Completion Gate**: **Data Entry Workspace Fully Audited, Reconciled, and Verified Complete**. Preserved all Superadmin, HR, CEO, and CFO implementations and database records. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 083 — Data Entry narrowed to manual save and database verification
+- **Date**: 2026-10-18. Owner decision supersedes the Step 082 DE operator scope. The active role now has one screen, `Enter & verify`, with required name/mobile/email/vertical and optional WhatsApp/location. The server blocks DE access to legacy batch, validation, duplicate, publish, source, and report routes; old UI bookmarks redirect to the single screen. Historical data and SA maintenance access were preserved.
+- Additive migration `0037_manual_data_entry.sql` stores the selected vertical, operator, optional contact fields, and staged status in PostgreSQL. Save does not create a lead or assign a caller. The UI issues an independent GET before claiming database confirmation.
+- **Executed Evidence**:
+  - `apps/api/test/manual-data-entry.api.test.ts`: **2/2 tests passed (100% green)** verifying manual save, staged status, independent database readback, vertical grant checking, and legacy route blocks.
+  - `apps/api/test/data-entry.api.test.ts`: **8/8 tests passed (100% green)** verifying legacy intake routes deny DE with 403 Forbidden while SA maintains historical pipeline operations.
+  - Playwright E2E `apps/web/e2e/data-entry-workspace.spec.ts`: **2/2 tests passed (100% green in 4.1s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`), testing required field validation, vertical assignment checks, independent readback banner (`Confirmed in the database.`), re-verification from the saved records table, optional field persistence (WhatsApp and Location), and legacy URL redirects.
+  - Visual Evidence Captured:
+    * `evidence/screenshots/data_entry_workspace/DE_enter_and_verify_desktop.png` (Desktop 1536x800 full-page)
+    * `evidence/screenshots/data_entry_workspace/DE_enter_and_verify_mobile.png` (Mobile 390x844 full-page)
+  - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across all workspace packages (`@finverse/contracts`, `@finverse/api`, `@finverse/web`).
+  - Monorepo Lint (`pnpm -r lint --quiet`): **0 errors** across all projects.
+  - Monorepo Build (`pnpm build`): **0 errors (built cleanly in 1.73s)**.
+- **Completion Gate**: Data Entry workspace audit, alignment to 'Enter & verify', and regression checks complete. Preserved all Superadmin, HR, CEO, and CFO records. Dev preview servers remain active on http://localhost:5173 and http://localhost:4000. No commit, push, or deployment executed.
+
+### Step 084 — HR & Extended HRMS Architecture, Traceability & Execution Plan
+- **Date**: 2026-10-19.
+- Completed comprehensive architectural alignment for Human Resources (`HR-01`..`HR-07`, Action Deck P277–P290) and owner-added HRMS capabilities.
+- Addressed: universal multi-tier superior approval routing across all 4 verticals (`SC` -> `TL` -> `MG` -> `RM` -> `NM` -> `CEO`), explicit non-self approvers for governance roles, paid WFH attendance engine with check-in/out and mandatory progress evidence logs, vertical-scoped workforce visibility, holiday calendars and working days, and non-overlapping 28th-to-27th payroll periods with pro-rata joiner calculations and `[Deck P320]` decision inventory.
+- Synchronized canonical documents: `docs/process/implementation-plan.md` (Section 8), `docs/product/prd.md` (Section 5.2 & 6.1), `docs/architecture/backend-schema.md` (Section 3.2 & 4), `docs/product/app-flow.md` (Section 6).
+
+### Step 085 — Shared Leave Request & Superior Approval Engine (HRMS Slice 1)
+- **Date**: 2026-10-19.
+- **Completed Objectives**:
+  1. **Database Schema & Persistence**:
+     - Applied additive migration `0038_employee_leave_requests.sql` to live PostgreSQL 16 Alpine (`:5433`) on both `finverse_crm` and `finverse_test`.
+     - Created tables `employee_leave_requests`, `leave_approval_actions`, and `approver_configurations` with indexing, audit constraints, and initial governance approver route seeds.
+  2. **Type-Safe Domain Contracts**:
+     - Created `packages/contracts/src/leave.ts` exporting Zod schemas and TypeScript types for `SubmitLeaveRequestInput`, `DecideLeaveRequestInput`, `ConfigureApproverInput`, and records.
+  3. **Backend Logic & REST Endpoints**:
+     - Implemented `apps/api/src/repo/leave.ts` with line-of-command resolution, explicit governance approver lookups, strict self-approval prevention (`422 SELF_APPROVAL_FORBIDDEN`), unconfigured route blocking (`422 UNCONFIGURED_APPROVER`), and automatic sync of approved leave into `employee_leaves` (`status: active`, `allocation_status: unavailable`). Pending leave does not dampen allocation until approved.
+     - Mounted routes under `/api/leave` in `apps/api/src/routes/leave.ts` and `apps/api/src/app.ts`.
+  4. **Frontend UI Components**:
+     - `apps/web/src/components/leave/LeaveModal.tsx`: Shared modal accessible to all roles via desktop sidebar and mobile navigation drawer. Provides "Apply for Leave", "My Requests", and "Approvals Queue" tabs with full validation, duration calculation, and audit history view.
+     - `apps/web/src/pages/HrPages.tsx`: Enhanced `HrAvailabilityPage` with dual tabs: Tab A Organization Leave Governance (KPI cards, multi-facet filtering, enterprise table, audit trail modal, executive approver route editor), and Tab B Manual Lead Allocation Override (`HR-05`).
+  5. **Executed Test Evidence**:
+     - Backend API Suite (`node --import tsx --test test/leave.api.test.ts`): **11/11 tests passed (100% green in 12.4s)** covering request routing, date validation, requester self-view, supervisory queue, supervisory span isolation (foreign TL denied with 403), approval with timestamp & `employee_leaves` sync, self-approval denial (422), rejection with notes, withdrawal, unconfigured route blocking (422), and HR multi-facet filtering.
+     - Playwright Browser Journey (`npx playwright test e2e/leave-journey.spec.ts --workers=1`): **2/2 passed (100% green in 10.7s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`), verifying Asha (SC) submit -> Tara (TL) approve -> Pooja (HR) organization visibility & audit history.
+     - Screenshots captured in `evidence/screenshots/leave_management/`: `leave_employee_request_desktop/mobile.png`, `leave_superior_queue_desktop/mobile.png`, `leave_hr_audit_desktop/mobile.png`.
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`pnpm lint`): **0 errors**.
+  6. **Completion Gate**: Shared Leave Request & Superior Approval Engine verified end-to-end. Preserved all employee records and approved leaves. Zero attendance or payroll code was started. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 086 — Attendance, Paid WFH, Holiday Calendar & HR Resource Visibility (HRMS Slice 2 & 3)
+- **Date**: 2026-10-19.
+- **Completed Objectives**:
+  1. **Database Schema & Persistence**:
+     - Applied additive migration `0039_attendance_wfh_holidays.sql` to live PostgreSQL 16 Alpine (`:5433`) on both `finverse_crm` and `finverse_test`.
+     - Created tables `work_locations`, `holiday_calendars`, `calendar_holidays`, `attendance_records`, `attendance_progress_logs`, and `attendance_regularization_requests` with indexing and seed profiles for 2026 (Mumbai, Bengaluru, Delhi hubs).
+  2. **Type-Safe Domain Contracts**:
+     - Created `packages/contracts/src/attendance.ts` exporting Zod schemas and TypeScript types for `CheckInInput`, `CheckOutInput`, `ProgressLogInput`, `RegularizationRequestInput`, `RegularizationDecisionInput`, `SupervisorReviewInput`, `ResourceViewQuery`, and response models.
+     - Exported all contracts via `packages/contracts/src/index.ts` and verified with `pnpm --filter @finverse/contracts build`.
+  3. **Backend Logic & REST Endpoints**:
+     - Implemented `apps/api/src/repo/attendance.ts` with start/end of work tracking, role-appropriate shift progress updates, supervisor missing/inconsistent reviews, auditable regularization workflow with superior resolution, self-approval prevention (`422 SELF_APPROVAL_FORBIDDEN`), supervisory span isolation (`403 FORBIDDEN`), and HR organization-wide / manager-scoped resource view using `TO_CHAR(..., 'YYYY-MM-DD')` to prevent local timezone shifting.
+     - Mounted routes under `/api/attendance` in `apps/api/src/routes/attendance.ts` and `apps/api/src/app.ts`.
+  4. **Frontend UI Components**:
+     - `apps/web/src/components/attendance/AttendanceModal.tsx`: Shared modal accessible to all roles via "Attendance & WFH" trigger in desktop sidebar and mobile navigation drawer in `WorkspaceShell.tsx`. Provides Today's Attendance, Progress Updates, Regularization & Exceptions, and Recent History tabs.
+     - `apps/web/src/pages/HrPages.tsx`: Enhanced `HrAvailabilityPage` with triple tabs, featuring Tab 0 "Resource Visibility & Attendance" with one-click vertical selector (`all`, `wealth`, `banking`, `markets`, `real_estate`), 7 classification summary metrics, search/role filters, scheduled working days notice, daily breakdown table with 7 distinct classification chips, location holiday calendars preview, and supervisor exceptions review queue.
+  5. **Executed Test Evidence**:
+     - Backend API Suite (`node --import tsx --test test/attendance.api.test.ts`): **14/14 tests passed (100% green in 12.2s)** covering start of work (office/wfh), mid-day progress logs, end of work, CRM activity independence (low CRM activity does not mark absent), supervisor exceptions queue, regularization request lifecycle, superior decision with audit trace, self-approval prevention (422), supervisory span isolation (403), location-based holiday calendars, one-click vertical scoping, and role/team aggregations.
+     - Playwright Browser Journey (`npx playwright test e2e/attendance-resource-journey.spec.ts --workers=1`): **2/2 passed (100% green in 20.5s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`), testing WFH check-in with deliverables -> progress update -> regularization submission -> HR resource visibility dashboard with one-click vertical filtering, 7 classification metrics, and employee profile inspection.
+     - Screenshots captured in `evidence/screenshots/attendance_resource_visibility/`:
+       * `hr_resource_visibility_dashboard_desktop.png` / `hr_resource_visibility_dashboard_mobile.png`
+       * `regularization_request_desktop.png` / `regularization_request_mobile.png`
+       * `resource_profile_inspection_desktop.png` / `resource_profile_inspection_mobile.png`
+       * `wfh_employee_day_desktop.png` / `wfh_employee_day_mobile.png`
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`eslint . --quiet`): **0 errors**.
+  6. **Completion Gate**: Attendance, Paid WFH, Holiday Calendar & HR Resource Visibility verified end-to-end. Preserved all employee records, leaves, and horizontal permissions. Zero payroll finalization (`payroll_periods` execution, non-overlapping 28th-27th cutoffs, or `[Deck P320]` rules) code was started. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 087 — Effective-Dated Salary Records & Non-Overlapping 28th–27th Payroll Preview (HRMS Slice 4)
+- **Date**: 2026-10-19.
+- **Completed Objectives**:
+  1. **Database Schema & Persistence**:
+     - Applied additive migration `0040_compensation_payroll_preview.sql` to live PostgreSQL 16 Alpine (`:5433`) on both `finverse_crm` and `finverse_test`.
+     - Added `joining_date date` column to `employees` (`EMP-004` set to `2026-01-10`; existing synthetic employees set to `2026-01-01`).
+     - Created tables `employee_compensation_plans`, `compensation_change_logs`, and `payroll_cycles` with comprehensive indexes and audit constraints.
+     - Seeded initial non-overlapping 28th–27th payroll cycles: `2026-01-INITIAL` (10–27 Jan 2026, 18 calendar days, `is_initial_joiner_cycle: true`), `2026-01-STD` (28 Dec 2025 – 27 Jan 2026, 31 calendar days), `2026-02-STD` (28 Jan 2026 – 27 Feb 2026, 31 calendar days), and `2026-03-STD` (28 Feb 2026 – 27 Mar 2026, 28 calendar days).
+  2. **Type-Safe Domain Contracts**:
+     - Created `packages/contracts/src/payroll.ts` exporting Zod schemas and TypeScript types for `DivisorFormulaPolicy`, `CreateCompensationPlanInput`, `CompensationPlanRecord`, `CompensationAuditRecord`, `PayrollCycleRecord`, `PayrollPreviewQuery`, `PayrollPreviewItem`, `PayrollPreviewResponse`, and `FinalizePayrollInput`.
+     - Exported all payroll contracts via `packages/contracts/src/index.ts` and compiled cleanly via `pnpm --filter @finverse/contracts build`.
+  3. **Backend Logic & REST Endpoints**:
+     - Implemented `apps/api/src/repo/payroll.ts` with `assertPayrollAccess` privacy guard (`HR`, `CFO`, `SA`, `CEO` granted; frontline sales managers `TL`, `MG`, `RM`, `NM` and callers denied with `403 FORBIDDEN`), compensation CRUD with atomic previous-plan closure and audit logging, cycle retrieval, pro-rata preview engine, and policy-gated finalization.
+     - Enforced core calculation rules:
+       * Mid-cycle joiner 10 January case: initial 10–27 January period shown separately (18 calendar days); earned wages cannot be held until 28 February.
+       * 3-way divisor policy comparison: `thirty_day` (standard 30-day corporate divisor), `working_days` (scheduled working days excluding weekends & statutory holidays), and `calendar_days` (actual calendar days in cycle).
+       * Offline work protection: zero CRM updates or WFH produces zero automatic deductions.
+       * Policy gates `[Deck P320]`: Any attempt to finalize payroll or export disbursement batches is rejected server-side with `422 UNRESOLVED_POLICY_GATES`.
+     - Mounted routes under `/api/payroll` and `/api/compensation` in `apps/api/src/routes/payroll.ts` and `apps/api/src/app.ts`.
+  4. **Frontend UI Components**:
+     - `apps/web/src/components/payroll/PayrollPreviewTab.tsx`: Interactive preview dashboard with cycle selector, divisor formula toggles, vertical filtering tabs, summary metrics, 10 Jan mid-cycle joiner banner, `[Deck P320]` policy gates notice, transparent breakdown table, calculation inspector modal (with gross-to-net breakdown and pro-rata factor notes), and compensation plan management drawer with audit history.
+     - `apps/web/src/pages/HrPages.tsx`: Added Tab 2 "Payroll Calculation Preview" to `HrAvailabilityPage` and exported `HrPayrollPreviewPage` mounted at `/hr/payroll` with sidebar navigation.
+  5. **Executed Test Evidence**:
+     - Backend API Suite (`node --import tsx --test test/payroll.api.test.ts`): **10/10 tests passed (100% green in 11.9s)** against live PostgreSQL 16 Alpine covering caller/TL privacy denial (403), HR/CFO authorization (200), compensation plan revision with mandatory reason, 10 Jan mid-cycle joiner 18-day pro-rata calculation, standard cycle joiner capping, 3-way divisor switching, CRM activity independence (zero deductions for zero CRM updates), and `422 UNRESOLVED_POLICY_GATES` finalization rejection.
+     - Playwright Browser Journey (`npx playwright test e2e/payroll-preview-journey.spec.ts --workers=1`): **4/4 passed (100% green in 11.9s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`), verifying initial joiner banner, divisor policy switching, calculation inspector modal, policy gate dialog rejection, and compensation plan drawer with audit trail.
+     - Screenshots captured in `evidence/screenshots/payroll_preview/`:
+       * `payroll_preview_dashboard_desktop.png` / `payroll_preview_dashboard_mobile.png`
+       * `mid_cycle_joiner_inspection_desktop.png` / `mid_cycle_joiner_inspection_mobile.png`
+       * `policy_gates_rejection_desktop.png` / `policy_gates_rejection_mobile.png`
+       * `compensation_audit_log_desktop.png` / `compensation_audit_log_mobile.png`
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`eslint . --quiet`): **0 errors**.
+  6. **Completion Gate**: Effective-Dated Salary Records & Non-Overlapping 28th–27th Payroll Preview verified end-to-end. Preserved all employee records, leaves, attendance, and horizontal permissions. System only generates previews; zero salary disbursement or bank export was executed. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 088 — Bulk Prospect Import & Deterministic Fair Auto-Routing (Data Entry Workspace Extension)
+- **Date**: 2026-10-22.
+- **Completed Objectives**:
+  1. **Database Persistence & Additive Migrations**:
+     - Applied additive migration `0041_bulk_prospect_import.sql` to live PostgreSQL 16 Alpine (`:5433`) on both `finverse_crm` and `finverse_test`.
+     - Created tables `prospect_import_jobs` (tracks job status, destination vertical, row counts, and team/caller breakdown) and `prospect_import_rows` (tracks row-level provenance, payload, normalization, assigned caller, lead ID, and failure reasons).
+     - Added `import_id text REFERENCES prospect_import_jobs(id)`, `whatsapp_phone text`, and `location text` to `leads`.
+  2. **Type-Safe Domain Contracts**:
+     - Created contracts in `packages/contracts/src/data-entry.ts`: `bulkImportRowInputSchema`, `createBulkImportJobSchema`, `processChunkSchema`, and exported types `BulkImportJobSummary`, `BulkImportRowRecord`, and `BulkImportReportRow`.
+     - Built package via `pnpm --filter @finverse/contracts build`.
+  3. **Backend Logic & REST Endpoints**:
+     - Implemented `apps/api/src/repo/data-entry.ts` with bulk import ingestion, in-file duplicate detection, CRM lead duplicate detection, schema validation, deterministic fair least-loaded auto-routing (`openLeads ASC, id ASC` across active SCs not away and not on leave; WFH callers eligible), unassigned exception queue for Team Leads, and CSV reconciliation report generator.
+     - Registered routes in `apps/api/src/routes/data-entry.ts`: `POST /api/data-entry/bulk-import/jobs`, `GET /jobs/:id`, `GET /jobs/:id/rows`, `POST /jobs/:id/process-chunk`, and `GET /jobs/:id/report`.
+  4. **Frontend UI Components**:
+     - Created `apps/web/src/components/data-entry/BulkProspectImportTab.tsx`: drag-and-drop file upload (`.xlsx`, `.csv`), rectangular paste textarea, column auto-mapping, row-numbered preview table, live progress bar, reconciliation balance cards, and CSV report download.
+     - Updated `apps/web/src/pages/ManualDataEntryPage.tsx` with unified mode switcher tabs (`Single Manual Entry` and `Bulk Spreadsheet Import`).
+  5. **Executed Test Evidence**:
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`pnpm -r lint`): **0 errors** across contracts, api, web.
+     - Monorepo Build (`pnpm -r build`): **0 errors**; dist bundles generated cleanly.
+     - Backend API Suite (`node --import tsx --test test/bulk_import.api.test.ts`): **5/5 tests passed (100% green in 58.5s)**:
+       * Cross-vertical grant denial (`403 FORBIDDEN`) & caller isolation (398ms).
+       * Duplicate detection (in-file & existing CRM leads) and idempotency retry (218ms).
+       * Deterministic routing fairness across callers (least active first & WFH eligible) (155ms).
+       * No-eligible-caller exception handling (unassigned queue for Team Lead) (121ms).
+       * 10,000-row synthetic multi-chunk processing in 44.08s; reconciliation equation holds strictly (`10,000 = 9,900 assigned + 50 duplicates + 50 invalid + 0 unassigned`); CSV report verified; assigned caller queue readback verified.
+     - Playwright Browser Journey (`npx playwright test e2e/bulk-import-journey.spec.ts`): **2/2 passed (100% green in 4.2s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`).
+     - Evidence Screenshots (4): `evidence/screenshots/bulk_import/`:
+       * `DE_bulk_import_reconciliation_desktop.png` (205 KB)
+       * `DE_bulk_import_reconciliation_mobile.png` (580 KB)
+       * `SC_queue_bulk_imported_lead_desktop.png` (87 KB)
+       * `SC_queue_bulk_imported_lead_mobile.png` (188 KB)
+  6. **Completion Gate**: Data Entry Bulk Prospect Import & Deterministic Fair Auto-Routing verified end-to-end. Preserved all employee records, caller queues, and permissions. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+### Step 089 — Multi-Vertical Destination Visibility & Dynamic Scope Grants in Bulk Spreadsheet Import
+- **Date**: 2026-10-22.
+- **Completed Objectives**:
+  1. **Database Persistence & Additive Migrations**:
+     - Applied additive migration `0042_data_entry_multivertical_grants.sql` to live PostgreSQL 16 Alpine (`:5433`) on both `finverse_crm` and `finverse_test`.
+     - Seeded active assignments `ASG-DE-M` (`markets`, `TEAM-MARKETS-ALPHA`) and `ASG-DE-RE` (`real_estate`, `TEAM-REALESTATE-ALPHA`) for demo Data Entry operator Deepa Patel (`EMP-015`).
+     - Updated `database/seed.ts` with the new assignments in demo seed.
+  2. **Vertical Harmonization & Dynamic Scope Rendering**:
+     - Updated `apps/web/src/components/data-entry/BulkProspectImportTab.tsx` and `apps/web/src/pages/ManualDataEntryPage.tsx` to dynamically render granted verticals based on session grants (`session.verticalGrants`), canonicalizing `real-estate` to `real_estate`.
+     - Display labels accurately render: `Wealth`, `Commercial Banking`, `Markets & Trading`, and `Real Estate`.
+     - Updated `apps/api/src/repo/data-entry.ts` to canonicalize `real-estate` -> `real_estate` for SQL queries and lead insertion while matching assignments across both hyphen and underscore conventions.
+  3. **Executed Test Evidence**:
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`pnpm -r lint`): **0 errors** across contracts, api, web.
+     - Backend API Suite (`node --import tsx --test test/bulk_import.api.test.ts`): **6/6 tests passed (100% green in 61.9s)**:
+       * Negative testing: `EMP-DE-LIMITED` with only `wealth` grant receives `403 FORBIDDEN` for `markets` and `real-estate`.
+       * Deepa Patel (`EMP-015`) with demo multi-vertical grants succeeds with `201 Created` across all 4 verticals.
+       * Four-vertical import execution: tested `wealth`, `banking`, `markets`, `real-estate`. Confirmed canonical lead creation in DB and confirmed leads appear in assigned frontline callers' queues.
+     - Manual Data Entry API Suite (`node --import tsx --test test/manual-data-entry.api.test.ts`): **2/2 tests passed (100% green in 11.6s)**.
+     - Playwright Browser Journey (`pnpm --filter @finverse/web exec playwright test e2e/bulk-import-journey.spec.ts`): **2/2 passed** (Desktop & Mobile).
+     - Live Browser Subagent Proof: Visited `/data-entry/intake`, verified all four vertical buttons (`Wealth`, `Commercial Banking`, `Markets & Trading`, `Real Estate`), and exercised interactive vertical switching.
+### Step 090 — Complete Row Preview & Strict Selected-Vertical Routing in Bulk Spreadsheet Import
+- **Date**: 2026-10-22.
+- **Completed Objectives**:
+  1. **Complete Row Preview with Responsive Windowing**:
+     - Updated `apps/web/src/components/data-entry/BulkProspectImportTab.tsx`:
+       * Added preview size control bar with buttons: `15`, `50`, `100`, and `All (N)` / `All`.
+       * For datasets $\le$ 500 rows (such as the operator's 68-row file), selecting "All" renders all 68 rows directly.
+       * For large files (10,000+ rows), added high-performance responsive windowed pagination (chunks of 500) preventing browser main-thread freezing while allowing the operator to inspect every single row.
+       * Shows exact range indicators (e.g. `Showing all 68 of 68 rows` or `Showing 1–50 of 68 rows`), total row counts, pagination controls (`Prev`, `Page X of Y`, `Next`), and preserves row numbers (`row.rowIndex`) and column mappings.
+  2. **Strict Selected-Vertical Routing & Invariant Enforcement**:
+     - Updated `apps/api/src/repo/data-entry.ts`:
+       * Removed `'TEAM-WEALTH-ALPHA'` cross-vertical fallback logic.
+       * Strictly matches teams and callers by selected vertical: callers must have active Sales Caller assignments on teams in that exact vertical.
+       * If selected vertical has no eligible team configured, rows are held as explicit same-vertical `unassigned_exception` with `rejection_reason = "No active team configured for vertical '...'."` and `team_id: null`.
+       * If callers are unavailable or at capacity, rows are held as explicit same-vertical `unassigned_exception` with `rejection_reason = "All sales callers in vertical '...' are unavailable or at capacity."` and `team_id: primaryTeamId`, `owner_employee_id: null`.
+       * In-transaction database assertions: verifies `lead.vertical = vertical`, `team.vertical = vertical`, `caller_assignment.vertical = vertical`, and `caller_assignment.team_id = lead.team_id`.
+       * Retries cannot alter previously successful assignments (`if (r.status === 'assigned' || r.canonical_lead_id) continue;`).
+  3. **Historical Database Cross-Vertical Audit**:
+     - Audited both `finverse_crm` and `finverse_test` on PostgreSQL 16 Alpine (`fvc2-postgres:5433`). Found **0 historical records** with mismatched vertical/team/caller values across `leads`, `teams`, `assignments`, and `prospect_import_rows` (no silent rewriting necessary or executed).
+  4. **Executed Test Evidence**:
+     - Backend API Suite (`apps/api/test/bulk_import.api.test.ts`): **9/9 tests passed (100% green in 94.5s)**:
+       * Wealth import with only non-Wealth callers available (held as same-vertical `unassigned_exception`).
+       * Selected vertical with no eligible team (held as same-vertical `unassigned_exception` with `team_id: null`).
+       * Retry idempotency: retries cannot change previously successful assignments.
+     - Playwright E2E Suite (`apps/web/e2e/bulk-import-journey.spec.ts`): **4/4 tests passed (100% green in 12.1s)** across Desktop Chromium (`1536x800`) and Mobile Chromium (`390x844`):
+       * 68-row "All" preview rendered all 68 rows ("Showing all 68 of 68 rows").
+       * 1,200-row file chunked responsively in 500-row pages ("Showing 1–500 of 1200 rows (paged for responsiveness)").
+       * Dynamic caller queue verification passed on both desktop and mobile.
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`pnpm -r lint`): **0 errors** across contracts, api, web.
+     - Monorepo Build (`pnpm -r build`): **0 errors**; dist bundles generated cleanly in 3.49s.
+  5. **Completion Gate**: Both issues resolved, verified, and audited. Historical records intact. Dev preview servers remain active on `http://localhost:5173` and `http://localhost:4000`. No commit, push, or deployment executed.
+
+
+
+### Step 091 — Client Workflow Change: Priority Leads, Concurrency-Safe Round-Robin & Persistent Caller Alert
+- **Date**: 2026-10-25.
+- **Completed Objectives**:
+  1. **Dual-Tier Priority & Assigned-Time Ordering**:
+     - Added is_priority BOOLEAN NOT NULL DEFAULT FALSE and ssigned_at TIMESTAMPTZ DEFAULT now() to leads (migration  043_priority_leads_and_round_robin.sql).
+     - Updated listLeads in pps/api/src/repo/leads.ts: ORDER BY l.is_priority DESC, l.assigned_at DESC NULLS LAST, (SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open') ASC NULLS LAST, l.id ASC.
+     - Priority leads appear first in all views; within groups, most recently assigned leads appear first; yesterday's assignments appear below today's at the same priority level; deterministic id ASC tie-breaker.
+  2. **Data Entry Manual & Bulk Priority Ingestion with Audit Trail**:
+     - Added is_priority to intake_rows and prospect_import_rows.
+     - Updated packages/contracts: added isPriority to LeadSummary, LeadDetail, manualProspectSchema, ulkImportRowInputSchema, and row records.
+     - Updated ManualDataEntryPage.tsx: added interactive priority toggle checkbox, confirmed readback badge, and saved records badge.
+     - Updated BulkProspectImportTab.tsx: auto-detects priority column, allows dropdown column mapping, per-row priority toggle buttons in spreadsheet preview, passes isPriority in row payloads, and includes Priority column in CSV download.
+     - Persists priority to canonical leads.is_priority and appends immutable audit records in lead_events (kind = 'priority-marked') and lead_audit (ield = 'is_priority', before_value = 'false', after_value = 'true').
+  3. **Persisted Concurrency-Safe Round-Robin Cursor**:
+     - Created 
+ound_robin_cursors table ((vertical, team_id) PRIMARY KEY, last_assigned_employee_id TEXT, updated_at TIMESTAMPTZ).
+     - Implemented SELECT ... FOR UPDATE row locking in processImportJobChunk to prevent race conditions during concurrent chunk execution.
+     - Eligible callers are active Sales Callers in the vertical and authorized team who are not away or on approved leave. WFH alone does **not** disqualify a caller.
+     - Strict vertical isolation enforced (never assigns cross-vertical); retries are idempotent and never alter existing assignments; unassigned exceptions retain is_priority = true.
+  4. **Persistent Dismissible Caller Alert & Badging**:
+     - Updated LeadInboxPage.tsx: renders ★ Priority badge on reference and assignment time columns.
+     - Computes unacknowledged priority leads against dismissed IDs in localStorage (inverse_dismissed_priority_leads_).
+     - Prominent dismissible notification alert banner displayed when unacknowledged priority leads exist; dismissal persists across page refreshes.
+  5. **Executed Test Evidence**:
+     - Dedicated API Suite (node --import tsx --test test/priority_lead_ordering.api.test.ts): **5/5 tests passed (100% green)**:
+       * Test 1: Ordering (Priority first, recent assignments first, yesterday below today, stable ID tie-breaker).
+       * Test 2: Manual Data Entry isPriority persistence & readback.
+       * Test 3: Bulk Import per-row priority, lead creation, lead_events, and lead_audit.
+       * Test 4: Concurrency-safe round-robin cursor distribution, WFH eligibility, cursor persistence.
+       * Test 5: Vertical isolation & unassigned exception queue preservation.
+     - Bulk Import API Suite (
+ode --import tsx --test test/bulk_import.api.test.ts): **9/9 tests passed (100% green in 92.5s)**.
+     - Real Estate API Suite (
+ode --import tsx --test test/real_estate.api.test.ts): **5/5 tests passed (100% green)**.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across contracts, api, web.
+     - Monorepo Lint (pnpm -r lint): **0 errors** across contracts, api, web.
+     - Monorepo Build (pnpm -r build): **0 errors** across contracts, api, web.
+  6. **Localhost Runtime Verification**:
+     - API Dev Server listening on http://localhost:4000 (PID daemon task-755).
+     - Web Dev Server listening on http://localhost:5173 (PID daemon task-762).
+     - Verified live HTTP response on both ports.
+
+### Step 092 — Secure Calling Preparation, Masked Destination Dialling & Synthetic Voice Provider Adapter
+- **Date**: 2026-10-25.
+- **Completed Objectives**:
+  1. **Strict Prospect Number Masking & Zero Leakage to Sales Callers**:
+     - Updated pps/api/src/repo/leads.ts: getLead strictly masks prospect phone (+91 •••••) for scope.role === 'SC', ensuring the complete raw phone number never reaches Sales Caller API responses, browser state, HTML, notifications, exports, or logs.
+     - Updated pps/api/src/repo/pipeline.ts: listAudit strictly masks efore_value and fter_value on phone corrections for Sales Callers.
+     - Verified with deep payload inspection in secure_calling.api.test.ts: raw formatted and clean digit strings are absent from caller responses.
+  2. **Server-Side Destination Resolution & "Call Now" Dialling by Lead ID**:
+     - Built POST /api/calls/initiate accepting only { leadId: string, idempotencyKey?: string }.
+     - Backend verifies caller currently owns the lead (
+equireLeadForWrite), verifies vertical/team scope, and enforces active contact suppression (channelEligibleForCall).
+     - Destination number is resolved privately in server memory and passed directly to the voice provider adapter.
+  3. **Restricted Server-Side Approved Calling Identities**:
+     - Applied additive migration  044_secure_calling_and_bonvoice_preparation.sql to live PostgreSQL 16 Alpine (:5433) on inverse_crm and inverse_test.
+     - Created caller_calling_identities table mapping employee_id to approved calling identities/DIDs (e.g. +918040000001 for Asha Rao EMP-001).
+     - Unconfigured caller call initiation attempts are strictly rejected with 422 CALLER_IDENTITY_NOT_CONFIGURED.
+  4. **Pluggable Voice Provider Adapter & Synthetic Test Provider**:
+     - Built VoiceProviderAdapter interface in pps/api/src/voice/provider.ts.
+     - Implemented SyntheticTestVoiceProvider generating synthetic references (SYN-CALL-...) and simulated evidence status without making external calls or inventing fake Bonvoice endpoints.
+     - Implemented BonvoiceVoiceProvider adapter stub that safely reports pending vendor documentation/credentials without making real calls or claiming live integration.
+  5. **Honest UI & Vendor Integration Checklist**:
+     - Updated RecordForms.tsx: CallPanel displays honest "Test call simulation — Bonvoice provider integration pending credentials from vendor" label, "Call now" button sending only leadId, and displays provider reference and masked target.
+     - Created comprehensive docs/vendor/bonvoice-integration-checklist.md documenting exact API, webhook, authentication, agent DID, masking, and sandbox requirements.
+  6. **Executed Test Evidence**:
+     - Dedicated API Suite (node --import tsx --test test/secure_calling.api.test.ts): **6/6 tests passed (100% green in 1.6s)**:
+       * Test 1: Strict phone masking & zero number leakage to caller.
+       * Test 2: Audit history masks phone modifications for callers.
+       * Test 3: "Call now" initiates synthetic call with only lead ID and zero leakage.
+       * Test 4: Ownership guard blocks another caller.
+       * Test 5: Consent & contact suppression guard blocks call attempt.
+       * Test 6: Unconfigured caller identity blocks call with 422 error.
+     - Wealth Caller API Suite (
+ode --import tsx --test test/wealth.api.test.ts): **26/26 groups passed**.
+     - Priority Lead Ordering Suite (
+ode --import tsx --test test/priority_lead_ordering.api.test.ts): **5/5 tests passed**.
+     - Playwright E2E Suite (pnpm --filter @finverse/web exec playwright test e2e/wealth-caller.spec.ts): **18/18 tests passed (100% green in 29.4s)** across Desktop Chromium (1536x800) and Mobile Chromium (390x844).
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across contracts, api, web.
+     - Monorepo Lint (pnpm -r lint): **0 errors** across contracts, api, web.
+     - Monorepo Build (pnpm -r build): **0 errors** across contracts, api, web.
+
+
+### Step 093 — Relationship Manager (REL) Workflow & Role Model Replacement
+
+- **Completed Objectives**:
+  1. **New Operational Hierarchy & Invariants**:
+     - Modernized hierarchy: Sales Caller (`SC`) → Relationship Manager (`REL`) → Manager (`MG`) → Regional Manager (`RM`) → National Manager (`NM`).
+     - Invariant preserved: Existing code `RM` continues to mean Regional Manager. Distinct internal code `REL` used for Relationship Manager.
+     - Deprecated "Team Lead": Removed "Team Lead" across login demo accounts, navigation shells, module maps, page titles, badges, and assignment dropdowns.
+     - Additive migration `0045_relationship_manager_workflow.sql` safely migrated active `TL` assignments to `REL` on `:5433` (`finverse_crm` and `finverse_test`), leaving historic closed assignments (e.g. `ASG-WEALTH-005`) intact with `role = 'TL'`.
+  2. **TL-01..TL-18 Action Disposition Matrix**:
+     - Retained / Redesigned: `TL-01` -> `REL-01` (Mandate Portfolio Command in brand dark teal `#113F3D`); `TL-06` -> `REL-06` (Mandate Volume Targets); `TL-07` -> `REL-02` (Inbound Handoff Review Gate: Accept/Return); `TL-11`/`TL-16` -> `REL-05` (Deal Review Pack PDF export); `TL-15`/`TL-17` -> `REL-03`/`REL-04` (Partner Institutions Coordination & Prospect Detail File).
+     - Moved to Manager / Automation: `TL-02`/`TL-03` (Caller auto-routing & Manager rebalance `MG-03`); `TL-04`/`TL-05` (Workload & Quality review to `MG-04`/`MG-05`); `TL-10`/`TL-14`/`TL-18` (Pipelines, Escalations, Capacity planning to Manager).
+     - Retired: `TL-09` / `TL-12` / `TL-13` (Daily standups, internal team meetings retired per client operating model).
+  3. **Same-Vertical Fair Qualification & Handoff**:
+     - Sales Caller captures borrower needs, requested loan amount (dynamic numeric field, e.g. ₹75 Lakhs, not hard-coded ₹1 Cr threshold), facility type, and qualification evidence.
+     - Fair least-loaded Relationship Manager auto-assignment strictly inside SAME vertical (`vertical = caller.vertical`). Zero cross-vertical leaks.
+     - Callers see live handoff status (`pending`, `accepted`, `returned`) while sensitive bank partner proposals and credit terms are strictly withheld from caller endpoints.
+  4. **Relationship Manager Lifecycle & Partner Coordination**:
+     - Inbound review gate: Relationship Manager reviews handoff, accepts ownership (moving lead to `documents` stage) or returns with mandatory specific reason (>=5 chars).
+     - Partner Coordination (`REL-03`): RM negotiates terms with institutions (HDFC, ICICI, Axis, SBI, Kotak), logs proposals, sanction amounts, interest rates, and appraisal notes.
+     - Credit Bureau Checks (`REL-04`): Honest declaration — `isLiveProviderConnected: false`, score is null, states live CIBIL access pending credentials; zero fabricated scores.
+  5. **Executed Test Evidence**:
+     - Browser E2E Suite (`npx playwright test e2e/banking-rel-journey.spec.ts`): **3/3 passed (100% green in 11.9s)**:
+       * 1. Role Separation: Rohan Sen is `Relationship Manager` (`REL`), separate from Regional Manager (`RM`), legacy `/management/*` redirects to `/rel/portfolio`, RM denied access to REL.
+       * 2. Complete Banking Journey: Data Entry import → caller qualification → REL handoff → Rohan accepts → logs HDFC partner proposal → honest CIBIL notice verified.
+       * 3. Return to Caller Flow: Rohan returns deficient handoff with mandatory reason → caller Dev sees `RETURNED` status and clear reason.
+     - Dedicated API Suite (`node --import tsx --test test/rel_workflow.api.test.ts`): **9/9 tests passed (100% green in 700ms)**.
+     - Leave Routing Suite (`node --import tsx --test test/leave.api.test.ts`): **11/11 tests passed**.
+     - Monorepo Typecheck (`pnpm -r typecheck`): **0 errors** across contracts, api, web.
+     - Monorepo Lint (`pnpm -r lint`): **0 errors** across contracts, api, web.
+     - Monorepo Build (`pnpm -r build`): **0 errors** across contracts, api, web.
+
+
+### Step 094 — Wealth Relationship Manager (REL) Journey & SEBI Investor Suitability
+
+- **Completed Objectives**:
+  1. **Wealth-Specific Qualification & Products**:
+     - Sales Caller captures investible surplus (investibleSurplus), mandate product (mandateType), risk profile band (
+iskProfile), and investment horizon (investmentHorizon).
+     - Wealth products: Portfolio Management Services (PMS), Alternative Investment Fund (AIF), Discretionary Portfolio Advisory, Multi-Asset Allocation Solution, Structured Wealth Products, Mutual Fund Advisory & SIP.
+     - Extended stage machine: added 'discovery', 'suitability', 'proposal', 'onboarding'.
+  2. **Additive Migration 0046 (database/migrations/0046_wealth_relationship_manager.sql)**:
+     - Added wealth_requirement jsonb NOT NULL DEFAULT '{}'::jsonb to lead_handoffs.
+     - Added investible_surplus numeric to leads.
+     - Added canonical Wealth stages to leads_stage_check.
+     - Applied cleanly to both inverse_crm and inverse_test on :5433.
+  3. **Wealth Partner Collaboration (AMCs & Custodians)**:
+     - Log proposals with ICICI Prudential AMC, Kotak Alternate Assets, HDFC Asset Management, Motilal Oswal AMC, 360 ONE Asset Management, ASK Investment Managers, Standard Chartered Custody.
+     - Confidential AMC fee structures and carry terms stripped from caller responses.
+  4. **SEBI Investor Suitability & Depository Sync**:
+     - Honest declaration: Depository CKYC / KRA verified; zero fake credit scores or banking loan/CIBIL fields rendered for Wealth leads.
+  5. **Executed Test Evidence**:
+     - Browser E2E Suite (npx playwright test e2e/wealth-rel-journey.spec.ts e2e/banking-rel-journey.spec.ts): **6/6 passed (100% green in 35.9s)**:
+       * Wealth 1: Role & Vertical Scope: Tara Iyer is Wealth Relationship Manager, separate from Regional Manager Kavita Rao.
+       * Wealth 2: Complete Wealth Journey: Data Entry import into Wealth → Caller qualification with ₹75L surplus & PMS mandate → Tara Iyer inbound handoff review & acceptance → Kotak Alternate Assets AMC coordination → SEBI Suitability file review.
+       * Wealth 3: Return to Caller Flow: Tara Iyer returns deficient Wealth handoff (₹35L surplus below ₹50L PMS threshold) with mandatory reason → Caller sees RETURNED badge and documented reason.
+       * Banking 1, 2, 3: Full regression check passing 100%.
+     - Dedicated API Suite (node --import tsx --test test/wealth_rel_workflow.api.test.ts test/rel_workflow.api.test.ts): **18/18 tests passed (100% green in 2.01s)**.
+     - Monorepo Typecheck (pnpm -r typecheck): **0 errors** across contracts, api, web.
+     - Monorepo Lint (pnpm -r lint): **0 errors** across contracts, api, web.
+     - Monorepo Build (pnpm -r build): **0 errors** across contracts, api, web.
+
+### Step 095 — Markets/Trading Relationship Manager (REL) Journey & SEBI CKYC / Derivative Risk Suitability
+
+- **Completed Objectives**:
+  1. **Markets-Specific Domain Criteria & Qualification**:
+     - Sales Caller captures trading capital / initial margin commitment (`tradingCapital`), trading segment (`tradingSegment`: Equity Delivery & Intraday, F&O Derivatives, Commodities & Currencies, Direct Mutual Funds & SGBs), trading experience (`tradingExperience`: Beginner / Less than 1 Year, Intermediate 1-3 Years, Active / Professional 3+ Years), risk tolerance (`riskTolerance`: Conservative / Capital Protection, Moderate / Balanced Growth, High / Speculative), depository participant preference (`depositoryPreference`: CDSL, NSDL), income proof availability (`incomeProofAvailable`), existing broker (`existingBroker`).
+     - Pipeline lifecycle: Caller qualification advances lead from `new`/`contacted` to `'kyc'`; Relationship Manager review gate advances accepted handoff to `'risk-profile'`; return to caller reverts stage to `'contacted'`.
+  2. **Additive Migration 0047 (`database/migrations/0047_markets_relationship_manager.sql`)**:
+     - Added `markets_requirement jsonb NOT NULL DEFAULT '{}'::jsonb` to `lead_handoffs`.
+     - Added `trading_capital numeric` to `leads`.
+     - Updated `leads_stage_check` with canonical multi-vertical pipeline stages (`'discovery'`, `'suitability'`, `'proposal'`, `'onboarding'`, `'kyc'`, `'risk-profile'`, `'margin'`, `'terminal'`).
+     - Applied cleanly to both `finverse_crm` and `finverse_test` on `:5433`.
+  3. **Clearing Member & Prime Broker Collaboration**:
+     - Log coordination and tariff negotiations with institutional partners: NSE Clearing Limited (NCL), Indian Clearing Corporation (ICCL), Kotak Securities Institutional Equities, HDFC Securities (Institutional Broking), Motilal Oswal, Nuvama, Orbis, NSDL, CDSL.
+     - Confidential institutional clearing tariff structures strictly withheld from caller endpoints.
+  4. **SEBI Central KYC & Derivative Risk Suitability (Zero Fake CIBIL/Credit Bureau Checks)**:
+     - Rendered honest SEBI Central KYC & Derivative Risk Disclosure card with verified depository sync status and mandatory SEBI derivative statutory warning (*"9 out of 10 individual traders in equity Derivatives/F&O segment incur net losses"*).
+     - Banking credit bureau check fields and credit score strictly suppressed (`creditBureauCheck: null`, `bureauStatus: null`).
+  5. **Executed Test Evidence**:
+     - Dedicated API Suite (`node --import tsx --test test/markets_rel_workflow.api.test.ts`): **9/9 tests passed (100% green in 1.5s)**:
+       * Test 1: Role & Vertical Isolation: Meera Nair is Markets Relationship Manager (`REL`), separate from Regional Manager Rajesh Bansal.
+       * Test 2: Caller Kabir Joshi qualifies lead with ₹25L trading capital & F&O derivatives segment.
+       * Test 3: Fair routing to least-loaded Markets Relationship Manager (`MEERA`).
+       * Test 4: Relationship Manager acceptance advances lead from `kyc` to `risk-profile`.
+       * Test 5: Clearing member coordination with NSE Clearing Limited (NCL) logged with audit ref.
+       * Test 6: Honest SEBI CKYC & derivative risk disclosure returned; bureau check strictly null.
+       * Test 7: Deficient handoff return flow requires reason (>=5 chars) and reverts lead to `contacted`.
+       * Test 8: Non-owner access denied to other relationship managers.
+       * Test 9: Caller privacy: clearing tariff terms stripped from caller responses.
+     - Cross-Vertical Multi-Suite API Regression: **27/27 tests passed across Banking, Wealth, and Markets**:
+       `node --import tsx --test test/markets_rel_workflow.api.test.ts test/wealth_rel_workflow.api.test.ts test/rel_workflow.api.test.ts`
+     - Browser E2E Suite (`playwright test e2e/markets-rel-journey.spec.ts e2e/wealth-rel-journey.spec.ts e2e/banking-rel-journey.spec.ts`): **9/9 tests passed (100% green in 58.6s across all 3 verticals)**:
+       * Markets Test 1: Role & Vertical Scope: Meera Nair is Markets Relationship Manager (`REL`), separate from Regional Manager Rajesh Bansal.
+       * Markets Test 2: Complete Markets Journey: Bulk import into Markets & Trading → Caller qualification with ₹25L & F&O → Meera Nair review & acceptance → NCL coordination → SEBI CKYC card & 9/10 derivative risk disclosure.
+       * Markets Test 3: Return to Caller Flow: Meera Nair returns deficient handoff with reason → Kabir sees RETURNED status badge and documented reason.
+       * Wealth Tests 1, 2, 3: Full regression check passing 100%.
+       * Banking Tests 1, 2, 3: Full regression check passing 100%.
+     - Monorepo Quality Gates:
+       * `pnpm -r typecheck`: **0 errors** across `packages/contracts`, `apps/api`, `apps/web`.
+       * `pnpm -r lint`: **0 errors** across all packages.
+       * `pnpm -r build`: **0 errors** (all bundles compiled cleanly).
+
+### Step 096 — Real Estate Relationship Manager (REL) Journey & Combined Multi-Vertical Acceptance Check
+
+- **Completed Objectives**:
+  1. **Real Estate Domain Criteria & Qualification**:
+     - Sales Caller captures property budget commitment (udget), property type (propertyType), preferred location (preferredLocation), purchase timeline (purchaseTimeline), purchase purpose (purchasePurpose), site visit preference (siteVisitPreference), funding source (undingSource), possession preference (possessionPreference), and developer preference (developerPreference).
+     - Pipeline lifecycle: Caller qualification advances lead from 
+ew/contacted/
+equirement to 'site-visit'; Relationship Manager review gate advances accepted handoff to 'booking'; return to caller reverts stage to 'contacted'.
+  2. **Additive Migration 0048 (database/migrations/0048_real_estate_relationship_manager.sql)**:
+     - Added 
+eal_estate_requirement jsonb NOT NULL DEFAULT '{}'::jsonb to lead_handoffs.
+     - Added property_budget numeric to leads.
+     - Updated leads_stage_check with canonical Real Estate stages ('requirement', 'site-visit', 'booking', 'registration').
+     - Applied cleanly to both inverse_crm and inverse_test on :5433.
+  3. **Tier-1 Developer Partners & Institutional Property Funds Coordination**:
+     - Log allocations and private viewings with institutional partners: Lodha Luxury Collections, Godrej Properties Premium Projects, DLF Cybercity / Super Luxury, Prestige Estates Luxury Division, Oberoi Realty, Embassy Group Commercial & Residential, Brookfield Real Estate Fund, HDFC Capital Real Estate Debt Fund.
+     - Confidential commercial allotment and escrow terms strictly withheld from caller endpoints.
+  4. **RERA Compliance & 30-Year Title Search Verification (Zero Fake CIBIL/Credit Bureau Checks)**:
+     - Rendered honest RERA Compliance & Title Search Verification card with verified MahaRERA registration (MahaRERA P51800001234) and clear 30-year title search encumbrance verification.
+     - Banking credit bureau check fields and credit score strictly suppressed (creditBureauCheck: null, ureauStatus: null).
+  5. **Combined Independent Acceptance Across All 4 Verticals (All 7 Criteria Verified)**:
+     - Lead Ordering: Priority leads appear above normal leads; newest assignments appear first.
+     - Vertical Round-Robin Isolation: Cursors persist in 
+ound_robin_cursors with WFH eligibility.
+     - Caller Privacy: Number masking strictly prevents raw number leakage; priority alert notifications sent once.
+     - Secure Calling: Synthetic calling works and is explicitly labelled synthetic; real Bonvoice pending credentials.
+     - Multi-Vertical Journeys: All 4 verticals complete caller qualification -> RM handoff -> accept/return -> follow-up.
+     - Regional Manager Role Separation: RM retains separate regional hierarchy and cannot access REL workspaces.
+     - Honest Declarations: Zero fake CIBIL scores across all verticals.
+  6. **Executed Test Evidence**:
+     - Dedicated API Suite (
+ode --import tsx --test test/real_estate_rel_workflow.api.test.ts): **9/9 tests passed (100% green in 1.5s)**.
+     - Combined 6-Suite API Suite (
+ode --test-concurrency=1 --import tsx --test test/priority_lead_ordering.api.test.ts test/secure_calling.api.test.ts test/rel_workflow.api.test.ts test/wealth_rel_workflow.api.test.ts test/markets_rel_workflow.api.test.ts test/real_estate_rel_workflow.api.test.ts): **47/47 tests passed (100% green in 19.1s)**.
+     - Combined 4-Vertical Browser E2E Suite (playwright test e2e/banking-rel-journey.spec.ts e2e/wealth-rel-journey.spec.ts e2e/markets-rel-journey.spec.ts e2e/real-estate-rel-journey.spec.ts --project=desktop-chromium --workers=1): **12/12 scenarios passed across all 4 verticals (100% green in 56.7s)**.
+     - Monorepo Quality Gates:
+       * pnpm -r typecheck: **0 errors** across packages/contracts, pps/api, pps/web.
+       * pnpm -r lint: **0 errors** across all packages.
+       * pnpm -r build: **0 errors** (all bundles compiled cleanly in 1.53s).
+
+### Step 098 � Data Entry to Sales Caller Visibility & Priority Intake Workflow Reconciliation
+
+- **Intake Workflow Reconciliation**:
+  - Reconciled all three intake mechanisms: manual single entry (createManualRecord, publishManualRecord), legacy CSV batch upload/publish (uploadBatch, publishBatch), and high-volume chunked bulk import (createBulkImportJob, processImportJobChunk).
+  - Added route POST /api/data-entry/manual-records/:id/publish with Zod schema publishManualRecordSchema.
+  - Added client SDK function publishManualProspect(id, preferredTeamId) in apps/web/src/lib/data-entry-api.ts.
+  - Added additive migration 0049_intake_rows_unassigned_exception_status.sql allowing 'unassigned_exception' in intake_rows check constraint. Applied cleanly to finverse_test.
+- **Deterministic Routing & Priority Preservation**:
+  - Concurrency-safe round-robin allocation uses round_robin_cursors with SELECT ... FOR UPDATE OF rrc to select eligible active Sales Callers (SC) within target vertical and team.
+  - Priority selection (isPriority / is_priority) survives intake -> canonical lead -> caller API -> caller Lead Inbox and dashboard.
+  - Initial outreach call task, ownership event (kind: 'first-allocation'), and timeline events (kind: 'priority-marked') recorded.
+- **Unmistakable Staged Draft UI State**:
+  - Updated ManualDataEntryPage.tsx:
+    - Added two distinct form buttons: Save as Staged Draft and Save & Publish to Caller.
+    - Added status-aware readback card with amber alert for staged drafts and direct Publish to Caller Queue action.
+    - Added status badges (STAGED DRAFT, PUBLISHED, EXCEPTION) and Publish button in saved records table.
+- **Executed Test Evidence**:
+  - node --test-concurrency=1 --import tsx --test apps/api/test/intake_workflow.api.test.ts: **4/4 tests passed (100% green in 12.5s)**.
+  - node --test-concurrency=1 --import tsx --test apps/api/test/bulk_import.api.test.ts: **9/9 tests passed (100% green, including 10k synthetic multi-chunk reconciliation)**.
+  - node --test-concurrency=1 --import tsx --test apps/api/test/priority_lead_ordering.api.test.ts: **5/5 tests passed (100% green in 11.7s)**.
+  - npx tsx scripts/verify_de_sc_clickthrough.ts: **Verified end-to-end click-through with synthetic data**.
+  - pnpm -r typecheck: **0 errors**.
+  - pnpm -r lint: **0 errors**.
+  - pnpm build: **0 errors**.
+
+### Step 099 - Real Estate manual priority lead not reaching caller
+
+- Reproduced the reported operational state without displaying prospect details: the newest Real Estate priority intake row was staged, had no canonical lead, and could not appear in a caller inbox. A focused browser test showed that normal form submission did not send a publish request.
+- A new isolated API regression test reproduced HTTP 500 on direct publication: leads.intake_row_id referenced an intake row inserted later in the same request.
+- Corrected the transaction order, made normal manual submission use one atomic publish request, and retained an explicit Publish action for older drafts. The receipt identifies the single round-robin caller; other callers do not gain access.
+- Verified against finverse_test: intake suite 5/5. Focused browser test 2/2 on desktop and mobile. pnpm -r typecheck and pnpm -r build passed. pnpm -r lint exited 0 with 756 warnings.
+- Published only the newest staged priority Real Estate record through the authenticated Data Entry API. Confirmed via the assigned caller's API and browser that the lead is visible with a Priority badge. No reset or reseed; no commit, push or deployment.
+## Step 100 - Real Estate caller roster and routing eligibility
+- Investigated intake MR-mvqd4q7b-1-310698 without displaying prospect contact details. Database showed a published Real Estate lead owned by EMP-031, Kunal Rao, on TEAM-REALESTATE-BETA; his active SC assignment comes from migration 0032. He was absent from the demo login directory, explaining the reported mismatch.
+- Added his synthetic profile to the Real Estate Sales Caller demo picker. Live login resolved role SC and the assigned lead was visible in his inbox. No lead ownership, existing customer data, or assignment records were changed.
+- Hardened the allocator to consider only currently effective SC assignments. Focused intake API suite passed 6/6, including consecutive Real Estate round-robin and expired-assignment rejection; monorepo typecheck and web lint --quiet passed.
+- If the actual client roster excludes Kunal, his 11 existing Real Estate leads require an explicit audited migration to another eligible caller before his assignment is closed. No commit, push, or deployment.
+
+## Step 101 - Bulk round robin and caller exit redistribution
+- Client rule: distribute valid uploaded leads evenly among active Sales Callers in the selected vertical, with each lead assigned to its caller's team. Reassign a departing/promoted/moved caller's open leads only within the original team, retaining previous/new owner history.
+- Implemented separate locked vertical-wide and team-targeted cursor rows, effective-dated eligibility, same-team transactional handoff on Super Admin scope grant, transfer activation and offboarding, startup/60-second future-date reconciliation, and supervised holding if no same-team caller exists. The receiving caller inbox now shows a Reassigned badge and previous/current caller names.
+- Applied local additive migrations 0049 and 0050 to finverse_crm and 0050 to finverse_test. The system routing actor is disabled for login. Operational readback after migration found zero system-generated ownership events and zero new holding items; no existing leads were moved.
+- Executed verification: caller-routing.api.test.ts 6/6, including actual seven-row Real Estate bulk job 4/3 and 23 selections across ten callers with only one-lead difference; intake_workflow.api.test.ts 6/6; superadmin.api.test.ts 12/12, run separately to avoid shared test-fixture interference. Monorepo typecheck and API/web lint --quiet passed. No commit, push, or deployment.
+
+Step 101 final verification: focused caller-routing API suite 6/6 passed, including held-lead recovery after same-team capacity returned; monorepo typecheck, lint --quiet, and build passed. Requirements graph refreshed to 2036 nodes/4136 edges (135 actions, zero ungrounded verified claims); code graph refreshed to 3015 nodes/6676 edges. Existing stale execution evidence for unrelated role milestones remains open. No commit, push, or deployment.
+
+## Step 102 - HR Onboarding, Super Admin Activation & Universal Password Recovery
+- Implemented exact 4-field HR onboarding workflow (Full Name, Primary Mobile, WhatsApp [optional/same-as-mobile], Work Email). Enforced strict server-side unique mobile and unique email validation. HR is strictly blocked from choosing or viewing passwords, typing employee IDs, or activating logins.
+- Implemented atomic sequence generation for immutable Employee ID (EMP-xxx via DB sequence employee_id_seq) and created separate request/audit record in hr_lifecycle_requests with status 'submitted' and employees with status 'pending_approval'.
+- Implemented Super Admin review queue with complete audit history, approval with role/vertical/team/reporting Relationship Manager placement validation (verifying manager eligibility and vertical alignment), rejection with mandatory documented reason, and unique login username creation.
+- Implemented server-side generation of cryptographically secure one-time temporary passwords (scrypt hash stored; plaintext never logged or persisted), displayed only once through an access-controlled modal. Enforced mandatory password change upon first login via must_change_password flag and first-login modal.
+- Verified that activation atomically establishes assignments and permissions, making approved Sales Callers immediately eligible for round-robin leads in their assigned vertical and team while preserving existing lead-redistribution rules.
+- Implemented universal 'Forgot password?' flow on shared login page: neutral response to prevent account enumeration across all CRM profiles and verticals, cryptographically random single-use reset tokens (SHA-256 hashed), development outbox inspector (Local Delivery Adapter (Demo: No External Email Service)), atomic password replacement, token consumption, and active session revocation. Blocked pending, rejected, disabled, and offboarded profiles from recovery.
+- Reconciled 20 synthetic demo profiles (EMP-001..EMP-032) without duplication or data reset, backfilling unique usernames and phone numbers via additive migration 0051 (0051_hr_onboarding_and_account_activation.sql) applied to both finverse_crm and finverse_test.
+- Executed verification:
+  - apps/api/test/onboarding_and_auth.api.test.ts: 11/11 tests passed (100% green in 12.7s).
+  - apps/api/test/hr.api.test.ts: 8/8 tests passed.
+  - apps/api/test/superadmin.api.test.ts: 12/12 tests passed.
+  - Live Browser Subagent verification: recorded video hr_onboarding_sa_activation_1793121899431.webp and screenshot hr_sa_onboarding_verified_1793122138040.png.
+  - pnpm -r typecheck: 0 errors.
+  - pnpm -r lint: 0 errors (767 existing warnings).
+  - pnpm --filter @finverse/web build: Vite production bundle built in 1.24s.
+- No operational data dropped or reseeded; no commit, push, or deployment.
+
+## Step 103 - Onboarding & Routing Fixer — HR Placement Proposals, SA Placement Corrections, Immutable EMP-xxx Login, and Multi-Vertical 5-Caller Round-Robin Proofs
+- Corrected role brief docs/process/roles/onboarding-routing-fixer.md: HR inputs Full Name, Primary Mobile, WhatsApp (optional), Work Email, and proposes initial placement (Proposed Role, Vertical, Team, Superior). Server generates sequential immutable Employee ID (EMP-xxx). SA reviews proposal, can apply audited placement corrections, and approves or rejects. The permanent, non-editable login username is strictly the Employee ID (EMP-xxx); SA provisions a one-time temporary password.
+- Investigated and reproduced reported HR and SA browser screen failures:
+  * Superadmin pending queue tab evaluated o.status === 'pending_approval' || o.status === 'pending_admin', but DB status is 'submitted'; fixed to include 'submitted' and 'pending_approval'.
+  * Superadmin approval modal keyed on approvingReq.id, but repo returned r.id as request_id; fixed to support r.request_id || r.id and eliminate 404 error.
+  * Replaced custom username text input with disabled immutable Employee ID display badge.
+  * Explained root cause: earlier Step 102 relied solely on Supertest API bypass scripts with artificial usernames and mock IDs, never exercising browser component state or modal rendering.
+- Executed Journey 1 via live browser Playwright automation (scripts/run_journey1_proof.ts):
+  * HR submission (pooja@finverse.demo): Aarav Sen -> EMP-037.
+  * SA approval (alok@finverse.demo): verified proposed placement, confirmed disabled EMP-037 username, approved and generated temporary password Tmp#b4d49579A1!.
+  * Employee login: logged in via EMP-037 and temp password; FirstLoginPasswordModal intercepted and enforced password reset to PermanentPass#2026; unlocked /wealth/dashboard.
+  * Captured 8 browser screenshots (journey1_01_hr_form_filled.png through journey1_08_employee_workspace_loaded.png).
+- Executed Journey 2 via multi-vertical bulk upload proof (scripts/execute_journey2_proof.ts):
+  * Onboarded 15 new callers through the corrected HR -> SA flow to complete 5 callers per team across Wealth Alpha, Banking Alpha, Markets Alpha, and Real Estate Alpha.
+  * Established 20-caller roster (5 per vertical team) with exact Employee ID, Name, Role, Vertical, Team, and Superior.
+  * Uploaded 10-lead CSV batches via Data Entry (deepa@finverse.demo) across all 4 verticals: each batch distributed round-robin with exactly 2 leads per caller across all 5 callers.
+  * Verified leads appear in caller inboxes and Data Entry batch ledger, capturing 5 browser screenshots (journey2_wealth_inbox.png, journey2_banking_inbox.png, journey2_markets_inbox.png, journey2_realestate_inbox.png, journey2_data_entry_batches.png).
+- Executed verifications & quality gates:
+  * apps/api/test/onboarding_and_auth.api.test.ts: 11/11 tests passed.
+  * pnpm -r typecheck: 0 errors.
+  * pnpm -r lint: 0 errors (771 warnings).
+  * Preserved baseline demo profiles EMP-001 through EMP-032; no database resets; no commits, pushes, or deployments.
+
+## Step 104 - Onboarding & Routing Fixer Acceptance Check & Superior/Count Reconciliation
+- Reconciled roster count in PostgreSQL: 16 new callers onboarded via HR -> SA pipeline + 4 baseline callers = exactly 20 active Sales Callers across the 4 Alpha teams (5 callers per vertical). Corrected step 103 text summary which stated '15 new callers' due to Aarav Sen (EMP-037) being onboarded in Journey 1 prior to the 15-caller batch.
+- Audited superior roles and assignments: EMP-007, EMP-017, EMP-022, and EMP-028 are active Managers ('MG'), not Team Leads ('TL') or Relationship Managers ('REL'). Verified zero active 'TL' assignments exist in the database.
+- Corrected reporting hierarchy to adhere to approved workflow (SC -> REL -> MG -> RM -> NM): updated reporting_manager_id in PostgreSQL for all 20 callers to point directly to their team's Relationship Manager ('REL'):
+  * Wealth Alpha: Tara Iyer (EMP-003, REL)
+  * Banking Alpha: Rohan Sen (EMP-016, REL)
+  * Markets Alpha: Meera Nair (EMP-005, REL)
+  * Real Estate Alpha: Neha Gupta (EMP-027, REL)
+  Reordered HR_MANAGERS_BY_VERT and MANAGERS_BY_VERT in HrPages.tsx and SuperadminPages.tsx to list REL first for default superior placement.
+- Executed odd-sized real bulk uploads through Data Entry (deepa@finverse.demo) with 11 valid rows per vertical targeted to its five-caller Alpha team:
+  * Wealth Alpha (Batch B-mvrphj0d-1-821437): 3/2/2/2/2 distribution across Asha, Aarav, Rohan, Megha, Arjun.
+  * Banking Alpha (Batch B-mvrphj84-46-195490): 3/2/2/2/2 distribution across Dev, Priya, Amit, Sneha, Rajesh.
+  * Markets Alpha (Batch B-mvrphjce-91-494981): 3/2/2/2/2 distribution across Kabir, Vikram, Ananya, Karan, Ritu.
+  * Real Estate Alpha (Batch B-mvrphjg3-136-722224): 3/2/2/2/2 distribution across Sameer, Aditya, Pooja, Varun, Divya.
+  Verified 100% of newly created leads stayed within target team and vertical with zero cross-team or cross-vertical leaks.
+- Captured Playwright browser proof for newly onboarded callers:
+  * Wealth: EMP-037 Aarav Sen (acceptance_wealth_new_caller_EMP037.png)
+  * Banking: EMP-041 Priya Sharma (acceptance_banking_new_caller_EMP041.png)
+  * Markets: EMP-045 Vikram Singhal (acceptance_markets_new_caller_EMP045.png)
+  * Real Estate: EMP-050 Aditya Roy (acceptance_realestate_new_caller_EMP050.png)
+- Quality gates: pnpm -r typecheck passed (0 errors across contracts, api, web). All operational data preserved; zero db resets; zero git commits, pushes, or deployments.
+

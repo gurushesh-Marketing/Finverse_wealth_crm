@@ -1,7 +1,40 @@
 import { z } from 'zod';
 import { ROLES, VERTICALS } from './index';
 
-// HR-01: Request a New Employee Account (Joiner)
+// HR-01: Correct Employee Onboarding Capture (Full Name, Primary Mobile, WhatsApp, Email, Proposed Placement)
+export const hrSubmitOnboardingSchema = z.object({
+  fullName: z.string().trim().min(2, 'Full name must be at least 2 characters.'),
+  primaryMobile: z.string().trim().regex(/^(\+91[\-\s]?)?[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number (e.g. 9820011223 or +91 9820011223).'),
+  whatsappNumber: z.string().trim().optional(),
+  sameAsPrimaryMobile: z.boolean().optional(),
+  email: z.string().trim().email('Valid corporate email is required.').toLowerCase(),
+  proposedRole: z.enum(ROLES, { errorMap: () => ({ message: 'Select an authorized role.' }) }).default('SC'),
+  proposedVertical: z.enum(VERTICALS, { errorMap: () => ({ message: 'Select target vertical.' }) }).default('wealth'),
+  proposedTeamId: z.string().trim().nullable().optional(),
+  proposedSuperiorId: z.string().trim().nullable().optional(),
+});
+export type HrSubmitOnboardingInput = z.infer<typeof hrSubmitOnboardingSchema>;
+
+export interface HrSubmitOnboardingResponse {
+  success: boolean;
+  employeeId: string;
+  requestId: string;
+  status: 'Pending Super Admin Approval';
+  employee: {
+    id: string;
+    fullName: string;
+    email: string;
+    primaryMobile: string;
+    whatsappNumber: string;
+    status: 'pending_approval';
+    proposedRole?: string;
+    proposedVertical?: string;
+    proposedTeamId?: string | null;
+    proposedSuperiorId?: string | null;
+  };
+}
+
+// HR-01 (Legacy): Request a New Employee Account (Joiner)
 export const hrRequestAccountSchema = z.object({
   employeeName: z.string().trim().min(2, 'Employee name must be at least 2 characters.'),
   workEmail: z.string().trim().email('Valid corporate email is required.').toLowerCase(),
@@ -16,6 +49,7 @@ export const hrRequestAccountSchema = z.object({
   notes: z.string().trim().optional(),
 });
 export type HrRequestAccountInput = z.infer<typeof hrRequestAccountSchema>;
+
 
 // Approval Verification and Audit Contracts
 export const hrAttachApprovalSchema = z.object({

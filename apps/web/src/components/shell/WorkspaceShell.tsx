@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut } from 'lucide-react';
+import { Menu, X, LogOut, Calendar, Clock } from 'lucide-react';
 import { cn } from 'cn';
 import { useSession } from '../../lib/session';
 import { getAccessibleModuleGroups, findModuleByPath } from '../../lib/modules';
 import { Button } from '../ui/button';
+import { LeaveModal } from '../leave/LeaveModal';
+import { AttendanceModal } from '../attendance/AttendanceModal';
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { session } = useSession();
@@ -52,7 +54,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 export const ROLE_TITLES: Record<string, string> = {
   SC: 'Sales caller',
-  TL: 'Team lead',
+  REL: 'Relationship Manager',
+  TL: 'Relationship Manager',
   MG: 'Manager',
   RM: 'Regional manager',
   NM: 'National manager',
@@ -63,7 +66,13 @@ export const ROLE_TITLES: Record<string, string> = {
   SA: 'Super admin',
 };
 
-export function Sidebar() {
+export function Sidebar({
+  onOpenLeaveModal,
+  onOpenAttendanceModal,
+}: {
+  onOpenLeaveModal?: () => void;
+  onOpenAttendanceModal?: () => void;
+}) {
   const { session, logout } = useSession();
   return (
     <aside
@@ -83,10 +92,17 @@ export function Sidebar() {
         <div className="mt-1 text-xs text-muted-foreground">
           {session!.role === 'SA' || session!.role === 'HR'
             ? 'Company function · Explicit function grant'
+            : session!.role === 'DE'
+            ? 'Granted intake · Source-specific grant'
+            : session!.role === 'CEO' || session!.role === 'CFO'
+            ? `Enterprise · ${ROLE_TITLES[session!.role] || session!.role} · ${session!.employeeId}`
             : `${session!.verticalGrants.includes('real_estate') || session!.verticalGrants.includes('real-estate') ? 'Real Estate' : session!.verticalGrants.includes('markets') ? 'Markets' : session!.verticalGrants.includes('banking') ? 'Banking' : 'Wealth'} · ${ROLE_TITLES[session!.role] || session!.role} · ${session!.employeeId}`}
         </div>
         <div className="mt-2 text-sm font-medium text-foreground">
           {session!.displayName}
+          {session!.role === 'DE' && (
+            <span className="block text-[11px] text-muted-foreground font-normal">Intake user · Data Entry · {session!.employeeId}</span>
+          )}
           {session!.role === 'SA' && (
             <span className="block text-[11px] text-muted-foreground font-normal">Super Admin · {session!.employeeId}</span>
           )}
@@ -95,9 +111,27 @@ export function Sidebar() {
           )}
         </div>
         <Button
+          variant="outline"
+          size="sm"
+          className="mt-3 w-full justify-start text-xs border-[#113F3D]/20 text-[#113F3D] hover:bg-[#113F3D]/10"
+          data-testid="attendance-management-trigger"
+          onClick={onOpenAttendanceModal}
+        >
+          <Clock className="size-3.5 mr-2" aria-hidden="true" /> Attendance & WFH
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-1.5 w-full justify-start text-xs border-[#113F3D]/20 text-[#113F3D] hover:bg-[#113F3D]/10"
+          data-testid="leave-management-trigger"
+          onClick={onOpenLeaveModal}
+        >
+          <Calendar className="size-3.5 mr-2" aria-hidden="true" /> Time Off & Leave
+        </Button>
+        <Button
           variant="ghost"
           size="sm"
-          className="mt-2 w-full justify-start px-0 text-muted-foreground hover:text-destructive"
+          className="mt-1 w-full justify-start px-0 text-muted-foreground hover:text-destructive"
           onClick={() => void logout()}
         >
           <LogOut className="size-4" aria-hidden="true" /> Log out
@@ -107,7 +141,13 @@ export function Sidebar() {
   );
 }
 
-export function MobileNav() {
+export function MobileNav({
+  onOpenLeaveModal,
+  onOpenAttendanceModal,
+}: {
+  onOpenLeaveModal?: () => void;
+  onOpenAttendanceModal?: () => void;
+}) {
   const { session, logout } = useSession();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -166,9 +206,33 @@ export function MobileNav() {
             <div className="border-t border-sidebar-border px-4 py-3">
               <div className="text-sm font-medium text-foreground">{session!.displayName}</div>
               <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full justify-start text-xs border-[#113F3D]/20 text-[#113F3D] hover:bg-[#113F3D]/10"
+                data-testid="mobile-attendance-management-trigger"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenAttendanceModal?.();
+                }}
+              >
+                <Clock className="size-3.5 mr-2" aria-hidden="true" /> Attendance & WFH
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1.5 w-full justify-start text-xs border-[#113F3D]/20 text-[#113F3D] hover:bg-[#113F3D]/10"
+                data-testid="mobile-leave-management-trigger"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenLeaveModal?.();
+                }}
+              >
+                <Calendar className="size-3.5 mr-2" aria-hidden="true" /> Time Off & Leave
+              </Button>
+              <Button
                 variant="ghost"
                 size="sm"
-                className="mt-2 w-full justify-start px-0 text-muted-foreground hover:text-destructive"
+                className="mt-1 w-full justify-start px-0 text-muted-foreground hover:text-destructive"
                 onClick={() => void logout()}
               >
                 <LogOut className="size-4" aria-hidden="true" /> Log out
@@ -183,6 +247,8 @@ export function MobileNav() {
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { session } = useSession();
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const location = useLocation();
   const roleLabel = location.pathname.startsWith('/regional')
     ? 'Regional manager'
@@ -194,24 +260,31 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     ? 'Chief Executive Officer'
     : location.pathname.startsWith('/cfo')
     ? 'Chief Financial Officer'
-    : location.pathname.startsWith('/management')
-    ? 'Team leader'
-    : session?.role === 'TL'
-    ? 'Team lead (caller view)'
+    : location.pathname.startsWith('/rel')
+    ? 'Relationship Manager'
     : (session?.role && ROLE_TITLES[session.role]) || 'Sales caller';
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-background">
       <div className="border-b border-border bg-secondary px-4 py-1 text-center text-[11px] font-medium uppercase tracking-widest text-accent">
         Design preview · Synthetic data
       </div>
-      <Sidebar />
-      <MobileNav />
+      <Sidebar
+        onOpenLeaveModal={() => setLeaveModalOpen(true)}
+        onOpenAttendanceModal={() => setAttendanceModalOpen(true)}
+      />
+      <MobileNav
+        onOpenLeaveModal={() => setLeaveModalOpen(true)}
+        onOpenAttendanceModal={() => setAttendanceModalOpen(true)}
+      />
       <main className="lg:pl-64">
         <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-8">
           <p className="mb-2 text-xs text-muted-foreground">Finverse CRM / {roleLabel}</p>
           {children}
         </div>
       </main>
+      <LeaveModal isOpen={leaveModalOpen} onClose={() => setLeaveModalOpen(false)} />
+      <AttendanceModal open={attendanceModalOpen} onClose={() => setAttendanceModalOpen(false)} />
     </div>
   );
 }
+

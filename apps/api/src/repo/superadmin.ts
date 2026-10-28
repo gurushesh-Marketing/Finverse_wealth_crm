@@ -1,5 +1,8 @@
 import { randomBytes, createHash } from 'node:crypto';
 import type {
+  SaApproveOnboardingInput,
+  SaRejectOnboardingInput,
+  SaApproveOnboardingResponse,
   SaCreateAccountInput,
   SaGrantScopeInput,
   SaAdditionalScopeInput,
@@ -12,8 +15,10 @@ import type {
   SaRetryJobInput,
   SaDecideDelegationInput,
 } from '@finverse/contracts';
+
 import { pool } from './db';
 import { hashPassword } from '../lib/password';
+import { redistributeFormerCallerLeads } from './caller-reassignment';
 
 function makeId(prefix: string): string {
   return `${prefix}-${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -212,6 +217,238 @@ export async function consumeActivationToken(input: { token: string; password: s
   }
 }
 
+// Onboarding Requests Management (HR-01 -> SA Activation)
+export async function listPendingOnboardingRequests() {
+  const { rows } = await pool.query(`
+    SELECT r.id as request_id, r.employee_id, r.employee_name, r.employee_name as full_name, r.employee_email,
+           r.primary_mobile, r.whatsapp_number, r.status, r.created_at,
+           r.target_role as proposed_role, r.target_vertical as proposed_vertical,
+           r.target_team_id as proposed_team_id, r.supervisor_employee_id as proposed_superior_id,
+           t.name as proposed_team_name, sup.display_name as proposed_superior_name,
+           r.admin_decision_notes,
+           creator.display_name as submitted_by_name,
+           e.status as employee_status, e.mobile_number, e.whatsapp_number as emp_whatsapp
+      FROM hr_lifecycle_requests r
+      LEFT JOIN employees e ON e.id = r.employee_id
+      LEFT JOIN teams t ON t.id = r.target_team_id
+      LEFT JOIN employees sup ON sup.id = r.supervisor_employee_id
+      LEFT JOIN employees creator ON creator.id = r.created_by_employee_id
+     WHERE r.request_type = 'new_account'
+     ORDER BY r.created_at DESC
+  `);
+  return rows;
+}
+
+export async function approveOnboardingRequest(
+  input: SaApproveOnboardingInput,
+  actorId: string
+): Promise<SaApproveOnboardingResponse> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Fetch request and pending employee
+    const reqRes = await client.query(
+      `SELECT r.*, e.id as emp_id, e.status as emp_status, e.display_name, e.email
+         FROM hr_lifecycle_requests r
+         JOIN employees e ON e.id = r.employee_id
+        WHERE r.id = $1 AND r.request_type = 'new_account'`,
+      [input.requestId]
+    );
+    if (reqRes.rows.length === 0) {
+      throw new Error('NOT_FOUND: Onboarding request not found.');
+    }
+    const req = reqRes.rows[0];
+    if (req.status === 'activated_by_admin') {
+      throw new Error('REQUEST_ALREADY_ACTIVATED: This onboarding request has already been approved and activated.');
+    }
+    if (req.status === 'rejected') {
+      throw new Error('REQUEST_REJECTED: This onboarding request was previously rejected.');
+    }
+
+    const canonicalVertical = input.vertical === 'real-estate' ? 'real_estate' : input.vertical;
+
+    // 2. Validate team belongs to the selected vertical
+    const teamRes = await client.query(
+      `SELECT id, name, vertical FROM teams WHERE id = $1 AND (vertical = $2 OR vertical = REPLACE($2, '_', '-'))`,
+      [input.teamId, canonicalVertical]
+    );
+    if (teamRes.rows.length === 0) {
+      throw new Error(`VALIDATION_FAILED: Team placement '${input.teamId}' does not belong to the selected vertical '${input.vertical}'.`);
+    }
+
+    // 3. Validate reporting manager if provided
+    if (input.reportingManagerId) {
+      const mgrRes = await client.query(
+        `SELECT e.id, e.display_name, e.status, a.role, a.vertical
+           FROM employees e
+           JOIN assignments a ON a.employee_id = e.id
+          WHERE e.id = $1
+            AND e.status = 'active'
+            AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+            AND (a.vertical = $2 OR a.vertical = REPLACE($2, '_', '-'))
+            AND a.role IN ('REL', 'TL', 'MG', 'RM', 'NM', 'CEO')`,
+        [input.reportingManagerId, canonicalVertical]
+      );
+      if (mgrRes.rows.length === 0) {
+        throw new Error(`VALIDATION_FAILED: Reporting manager '${input.reportingManagerId}' does not belong to the selected vertical '${input.vertical}' or is not an eligible active manager.`);
+      }
+    }
+
+    // 4. Permanent non-editable login username is the Employee ID (EMP-xxx)
+    const permanentUsername = req.employee_id;
+
+    // 5. Generate secure one-time temporary password
+    const tempPassword = 'Tmp#' + randomBytes(4).toString('hex') + 'A1!';
+    const passwordHash = hashPassword(tempPassword);
+
+    // 6. Record audited placement corrections if SA adjusted HR's proposal
+    const placementCorrections: string[] = [];
+    if (req.target_role && req.target_role !== input.role) {
+      placementCorrections.push(`role: ${req.target_role} -> ${input.role}`);
+    }
+    if (req.target_vertical && req.target_vertical !== canonicalVertical) {
+      placementCorrections.push(`vertical: ${req.target_vertical} -> ${canonicalVertical}`);
+    }
+    if (req.target_team_id && req.target_team_id !== input.teamId) {
+      placementCorrections.push(`team: ${req.target_team_id} -> ${input.teamId}`);
+    }
+    if (req.supervisor_employee_id && req.supervisor_employee_id !== input.reportingManagerId) {
+      placementCorrections.push(`superior: ${req.supervisor_employee_id} -> ${input.reportingManagerId || 'none'}`);
+    }
+
+    const auditNotes = placementCorrections.length > 0
+      ? `Approved with audited placement corrections: ${placementCorrections.join(', ')}`
+      : 'Approved placement as proposed by HR';
+
+    // 7. Atomically activate employee, set password hash, permanent username (= EMP-xxx) and must_change_password
+    await client.query(
+      `UPDATE employees
+          SET password_hash = $1,
+              username = $2,
+              status = 'active',
+              must_change_password = true,
+              reporting_manager_id = $3
+        WHERE id = $4`,
+      [passwordHash, permanentUsername, input.reportingManagerId || null, req.employee_id]
+    );
+
+    // 8. Atomically create the effective assignment and permissions
+    const assignmentId = makeId('ASG');
+    await client.query(
+      `INSERT INTO assignments (id, employee_id, role, vertical, team_id, effective_from, effective_to)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NULL)`,
+      [assignmentId, req.employee_id, input.role, canonicalVertical, input.teamId]
+    );
+
+    // 9. Update request status with decision audit notes
+    const hrTargetVertical = canonicalVertical === 'real_estate' ? 'real-estate' : canonicalVertical;
+    await client.query(
+      `UPDATE hr_lifecycle_requests
+          SET status = 'activated_by_admin',
+              target_role = $1,
+              target_vertical = $2,
+              target_team_id = $3,
+              supervisor_employee_id = $4,
+              admin_decision_notes = $5
+        WHERE id = $6`,
+      [input.role, hrTargetVertical, input.teamId, input.reportingManagerId || null, auditNotes, req.id]
+    );
+
+    await client.query('COMMIT');
+
+    // 10. System audit log
+    await logSystemAudit(actorId, 'account.activated', 'employee', req.employee_id, {
+      requestId: req.id,
+      username: permanentUsername,
+      role: input.role,
+      vertical: canonicalVertical,
+      teamId: input.teamId,
+      reportingManagerId: input.reportingManagerId || null,
+      placementCorrections: placementCorrections.length > 0 ? placementCorrections : 'none',
+    });
+
+    return {
+      success: true,
+      employeeId: req.employee_id,
+      username: permanentUsername,
+      role: input.role,
+      vertical: canonicalVertical,
+      teamId: input.teamId,
+      temporaryPassword: tempPassword,
+      mustChangePassword: true,
+      message: `Account activated for ${req.employee_id}. Initial login username is ${permanentUsername}.`,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+
+export async function rejectOnboardingRequest(
+  input: SaRejectOnboardingInput,
+  actorId: string
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const reqRes = await client.query(
+      `SELECT r.*, e.id as emp_id, e.status as emp_status
+         FROM hr_lifecycle_requests r
+         JOIN employees e ON e.id = r.employee_id
+        WHERE r.id = $1 AND r.request_type = 'new_account'`,
+      [input.requestId]
+    );
+    if (reqRes.rows.length === 0) {
+      throw new Error('NOT_FOUND: Onboarding request not found.');
+    }
+    const req = reqRes.rows[0];
+    if (req.status === 'activated_by_admin') {
+      throw new Error('REQUEST_ALREADY_ACTIVATED: Cannot reject an already activated employee.');
+    }
+
+    // Set request to rejected and employee to rejected
+    await client.query(
+      `UPDATE hr_lifecycle_requests
+          SET status = 'rejected',
+              admin_decision_notes = $1
+        WHERE id = $2`,
+      [input.rejectionReason, req.id]
+    );
+
+    await client.query(
+      `UPDATE employees
+          SET status = 'rejected'
+        WHERE id = $1`,
+      [req.employee_id]
+    );
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(actorId, 'account.rejected', 'employee', req.employee_id, {
+      requestId: req.id,
+      rejectionReason: input.rejectionReason,
+    });
+
+    return {
+      success: true,
+      requestId: req.id,
+      employeeId: req.employee_id,
+      status: 'rejected',
+      message: 'Onboarding request rejected.',
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function listInvitations() {
   const res = await pool.query(
     `SELECT i.*, e.display_name, t.name as team_name,
@@ -227,6 +464,7 @@ export async function listInvitations() {
   );
   return res.rows;
 }
+
 
 // SA-02: Precise Role & Organisation Scope Grant
 export async function grantScope(input: SaGrantScopeInput, actorId: string) {
@@ -258,20 +496,22 @@ export async function grantScope(input: SaGrantScopeInput, actorId: string) {
     const todayStr = new Date().toISOString().split('T')[0];
     const isFuture = input.effectiveFrom > todayStr;
 
-    // Close prior different-role open assignments with non-overlapping boundaries
+    // A precise grant replaces the current role/scope. Additive grants use
+    // grantAdditionalScope instead; retaining an old SC team here would route
+    // new prospects to a caller who has moved away.
     if (isFuture) {
       await client.query(
         `UPDATE assignments
-         SET effective_to = ($1::date - INTERVAL '1 day')
-         WHERE employee_id = $2 AND role != $3 AND (effective_to IS NULL OR effective_to >= $1::date)`,
-        [input.effectiveFrom, input.employeeId, input.role]
+         SET effective_to = $1::date
+         WHERE employee_id = $2 AND (effective_to IS NULL OR effective_to >= $1::date)`,
+        [input.effectiveFrom, input.employeeId]
       );
     } else {
       await client.query(
         `UPDATE assignments
          SET effective_to = CURRENT_DATE - 1
-         WHERE employee_id = $1 AND role != $2 AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)`,
-        [input.employeeId, input.role]
+         WHERE employee_id = $1 AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)`,
+        [input.employeeId]
       );
     }
 
@@ -287,6 +527,10 @@ export async function grantScope(input: SaGrantScopeInput, actorId: string) {
       createdAssignments.push(asgId);
     }
 
+    const leadHandoff = isFuture
+      ? { reassigned: 0, held: 0 }
+      : await redistributeFormerCallerLeads(client, input.employeeId, actorId, 'role or scope grant changed');
+
     // Invalidate sessions to force token re-issue with updated scope
     await client.query('DELETE FROM sessions WHERE employee_id = $1', [input.employeeId]);
 
@@ -298,6 +542,7 @@ export async function grantScope(input: SaGrantScopeInput, actorId: string) {
       allowedTeamIds: input.allowedTeamIds,
       approverReference: input.approverReference,
       createdAssignments,
+      leadHandoff,
     });
 
     return { success: true, employeeId: input.employeeId, assignments: createdAssignments };
@@ -581,7 +826,7 @@ export async function activateTransfer(input: SaActivateTransferInput, actorId: 
     if (isFuture) {
       await client.query(
         `UPDATE assignments
-         SET effective_to = ($1::date - INTERVAL '1 day')
+         SET effective_to = $1::date
          WHERE employee_id = $2 AND (effective_to IS NULL OR effective_to >= $1::date)`,
         [effDateStr, request.employee_id]
       );
@@ -604,6 +849,10 @@ export async function activateTransfer(input: SaActivateTransferInput, actorId: 
        VALUES ($1, $2, $3, $4, $5, $6, NULL)`,
       [newAsgId, request.employee_id, request.proposed_role, targetVertical, request.proposed_team_id, startFrom]
     );
+
+    const leadHandoff = isFuture
+      ? { reassigned: 0, held: 0 }
+      : await redistributeFormerCallerLeads(client, request.employee_id, actorId, 'approved transfer or promotion activated');
 
     await client.query(
       `UPDATE employee_lifecycle_requests
@@ -631,6 +880,7 @@ export async function activateTransfer(input: SaActivateTransferInput, actorId: 
       newTeamId: request.proposed_team_id,
       effectiveFrom: startFrom,
       note: input.decisionNote,
+      leadHandoff,
     });
 
     return {
@@ -668,6 +918,8 @@ export async function offboardEmployee(input: SaOffboardEmployeeInput, actorId: 
       [input.employeeId]
     );
 
+    const leadHandoff = await redistributeFormerCallerLeads(client, input.employeeId, actorId, 'caller offboarded');
+
     // 3. Revoke all active sessions
     const sessionsRes = await client.query(`DELETE FROM sessions WHERE employee_id = $1 RETURNING token_hash`, [input.employeeId]);
     const revokedCount = sessionsRes.rowCount || 0;
@@ -703,7 +955,10 @@ export async function offboardEmployee(input: SaOffboardEmployeeInput, actorId: 
            VALUES ($1, $2, 'task', $3, $4, 'in_holding', $5)`,
           [queueId, input.employeeId, task.id, actorId, `Task offboarded from ${input.employeeId}; awaiting callback allocation`]
         );
-        await client.query(`UPDATE lead_tasks SET owner_employee_id = NULL WHERE id = $1`, [task.id]);
+        // The task owner FK is non-nullable. Preserve the former owner in
+        // history and cancel work that still needs supervised reallocation.
+        await client.query(`UPDATE reminders SET status = 'cancelled' WHERE task_id = $1 AND status = 'scheduled'`, [task.id]);
+        await client.query(`UPDATE lead_tasks SET status = 'cancelled' WHERE id = $1`, [task.id]);
         holdingItemsCount++;
       }
     }
@@ -715,6 +970,7 @@ export async function offboardEmployee(input: SaOffboardEmployeeInput, actorId: 
       effectiveTime: input.effectiveTime,
       sessionsRevoked: revokedCount,
       holdingItemsCount,
+      leadHandoff,
     });
 
     return {
@@ -809,65 +1065,7 @@ export async function requestAccountRecovery(input: SaAccountRecoveryInput, acto
 }
 
 export async function consumeAccountRecovery(input: { token: string; password: string }) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const tokenH = hashToken(input.token);
-    const recRes = await client.query(
-      `SELECT * FROM account_recovery_requests WHERE token_hash = $1`,
-      [tokenH]
-    );
-    if (recRes.rows.length === 0) {
-      throw new Error('INVALID_TOKEN: Invalid recovery token.');
-    }
-    const request = recRes.rows[0];
-    if (request.consumed_at || request.status === 'completed') {
-      throw new Error('TOKEN_ALREADY_USED: This recovery token has already been consumed. Reused tokens are rejected.');
-    }
-    if (new Date(request.expires_at) < new Date()) {
-      throw new Error('TOKEN_EXPIRED: Recovery token has expired. Please request a new recovery verification.');
-    }
-    const empRes = await client.query(
-      `SELECT id, status FROM employees WHERE id = $1`,
-      [request.employee_id]
-    );
-    if (empRes.rows.length === 0 || empRes.rows[0].status === 'disabled') {
-      throw new Error('ACCOUNT_INACTIVE: Inactive employment prevents credential recovery.');
-    }
-
-    // Immediately revoke all existing sessions so previous sessions become invalid
-    await client.query('DELETE FROM sessions WHERE employee_id = $1', [request.employee_id]);
-
-    const newHash = hashPassword(input.password);
-    await client.query(
-      `UPDATE employees SET password_hash = $1 WHERE id = $2`,
-      [newHash, request.employee_id]
-    );
-    await client.query(
-      `UPDATE account_recovery_requests SET consumed_at = NOW(), status = 'completed' WHERE id = $1`,
-      [request.id]
-    );
-    await client.query(
-      `UPDATE local_delivery_outbox SET consumed_at = NOW() WHERE raw_token = $1`,
-      [input.token]
-    );
-    await client.query('COMMIT');
-
-    await logSystemAudit(request.employee_id, 'account.recovery_completed', 'employee', request.employee_id, {
-      recoveryId: request.id,
-    });
-
-    return {
-      success: true,
-      employeeId: request.employee_id,
-      message: 'Password successfully updated. All prior sessions have been revoked.',
-    };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  return consumePasswordReset(input.token, input.password);
 }
 
 export async function listLocalDeliveryOutbox(limit = 50) {
@@ -1229,3 +1427,181 @@ export async function decideTemporaryGrant(input: SaDecideDelegationInput, actor
 
   throw new Error('INVALID_DECISION: Valid decisions are renew, expire, or revoke.');
 }
+
+// ====================================================================
+// SA-07 / Auth: Verified Self-Service & Admin Password Recovery
+// ====================================================================
+
+export async function requestPasswordReset(
+  identity: string,
+  ipAddress?: string
+): Promise<{ success: boolean; message: string }> {
+  const clean = identity.trim().toLowerCase();
+  const neutralMessage =
+    'If an active account matches the details provided, a password reset link has been dispatched to the registered address.';
+
+  // Query employee by email or username
+  const empRes = await pool.query<{ id: string; email: string; status: string; display_name: string }>(
+    `SELECT id, email, status, display_name FROM employees WHERE lower(email) = $1 OR lower(COALESCE(username, '')) = $1`,
+    [clean]
+  );
+
+  // If not found or not active (e.g. pending_approval, rejected, disabled), return neutral message immediately
+  if (empRes.rows.length === 0 || empRes.rows[0].status !== 'active') {
+    return { success: true, message: neutralMessage };
+  }
+
+  const emp = empRes.rows[0];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const recoveryId = makeId('REC');
+    const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour expiry
+
+    await client.query(
+      `INSERT INTO account_recovery_requests (
+        id, employee_id, issue_type, identity_check_procedure, token_hash,
+        expires_at, status, created_by_employee_id, created_at
+      ) VALUES ($1, $2, 'forgot_password', 'self_service_email', $3, $4, 'pending', $2, NOW())`,
+      [recoveryId, emp.id, tokenHash, expiresAt]
+    );
+
+    // Insert into local delivery outbox for local development/demo inspection
+    const outboxId = makeId('OUT');
+    await client.query(
+      `INSERT INTO local_delivery_outbox (
+        id, recipient_email, delivery_type, subject, action_url,
+        raw_token, expires_at, channel_label, created_at
+      ) VALUES ($1, $2, 'account_recovery', 'Reset your Finverse CRM Password', $3, $4, $5, 'Local Delivery Adapter (Demo: No External Email Service)', NOW())`,
+      [outboxId, emp.email, `/reset-password?token=${rawToken}`, rawToken, expiresAt]
+    );
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(emp.id, 'auth.password_reset_requested', 'employee', emp.id, {
+      recoveryId,
+      recipientEmail: emp.email,
+      ipAddress: ipAddress || 'unknown',
+    });
+
+    return { success: true, message: neutralMessage };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function consumePasswordReset(
+  token: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string; employeeId: string }> {
+  if (!token || typeof token !== 'string') {
+    throw new Error('INVALID_TOKEN: Password reset token is required.');
+  }
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    throw new Error('VALIDATION_FAILED: Password must be at least 8 characters.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const tokenH = hashToken(token.trim());
+    const recRes = await client.query(
+      `SELECT * FROM account_recovery_requests WHERE token_hash = $1`,
+      [tokenH]
+    );
+    if (recRes.rows.length === 0) {
+      throw new Error('INVALID_TOKEN: Invalid password reset token.');
+    }
+    const rec = recRes.rows[0];
+
+    if (rec.consumed_at || rec.status !== 'pending') {
+      throw new Error('TOKEN_ALREADY_USED: This recovery token has already been consumed. Reused tokens are rejected.');
+    }
+    if (new Date(rec.expires_at) < new Date()) {
+      throw new Error('TOKEN_EXPIRED: Recovery token has expired. Please request a new password reset link.');
+    }
+
+    const empRes = await client.query(
+      `SELECT id, status, email FROM employees WHERE id = $1`,
+      [rec.employee_id]
+    );
+    if (empRes.rows.length === 0 || empRes.rows[0].status !== 'active') {
+      throw new Error('ACCOUNT_INACTIVE: Inactive employment prevents account password reset.');
+    }
+    const emp = empRes.rows[0];
+
+    const newHash = hashPassword(newPassword);
+
+    // Atomically replace password hash and reset must_change_password
+    await client.query(
+      `UPDATE employees SET password_hash = $1, must_change_password = false WHERE id = $2`,
+      [newHash, emp.id]
+    );
+
+    // Invalidate the recovery token
+    await client.query(
+      `UPDATE account_recovery_requests SET consumed_at = NOW(), status = 'completed' WHERE id = $1`,
+      [rec.id]
+    );
+
+    // Invalidate in local_delivery_outbox
+    await client.query(
+      `UPDATE local_delivery_outbox SET consumed_at = NOW() WHERE raw_token = $1`,
+      [token.trim()]
+    );
+
+    // Revoke all existing sessions for this employee
+    const revokedRes = await client.query(
+      `DELETE FROM sessions WHERE employee_id = $1`,
+      [emp.id]
+    );
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(emp.id, 'auth.password_reset_completed', 'employee', emp.id, {
+      recoveryId: rec.id,
+      sessionsRevokedCount: revokedRes.rowCount || 0,
+    });
+
+    return {
+      success: true,
+      message: 'Password has been reset successfully. You can now sign in with your new password.',
+      employeeId: emp.id,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function changeEmployeePassword(
+  employeeId: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> {
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error('VALIDATION_FAILED: Password must be at least 8 characters.');
+  }
+
+  const newHash = hashPassword(newPassword);
+  await pool.query(
+    `UPDATE employees SET password_hash = $1, must_change_password = false WHERE id = $2 AND status = 'active'`,
+    [newHash, employeeId]
+  );
+
+  await logSystemAudit(employeeId, 'auth.password_changed', 'employee', employeeId, {
+    reason: 'First login or user profile password update',
+  });
+
+  return { success: true, message: 'Password updated successfully.' };
+}
+

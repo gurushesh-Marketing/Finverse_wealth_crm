@@ -28,6 +28,9 @@ interface LeadRow {
   record_version: number;
   created_at: Date;
   min_due: Date | null;
+  is_priority: boolean;
+  assigned_at: Date | null;
+  reassigned_from_name: string | null;
 }
 
 interface TaskRow {
@@ -71,11 +74,11 @@ function scopeSql(scope: Scope, params: unknown[], alias = 'l'): string {
   if (scope.role === 'SC') {
     params.push(scope.employeeId);
     ownerSql = `${alias}.owner_employee_id = $${params.length}`;
-  } else if (scope.role === 'TL') {
+  } else if (scope.role === 'REL' || scope.role === 'TL') {
     params.push(scope.employeeId);
     const meIdx = params.length;
     params.push(scope.teams);
-    ownerSql = `(${alias}.owner_employee_id = $${meIdx} OR ${alias}.team_id = ANY($${params.length}))`;
+    ownerSql = `(${alias}.owner_employee_id = $${meIdx} OR ${alias}.rel_owner_id = $${meIdx} OR ${alias}.team_id = ANY($${params.length}))`;
   }
   return `${alias}.vertical = ANY($${verticalIdx}) AND ${ownerSql}`;
 }
@@ -91,6 +94,9 @@ function toSummary(row: LeadRow): LeadSummary {
     teamName: row.team_name ?? '—',
     nextActionAt: row.min_due ? row.min_due.toISOString() : null,
     dueStatus: dueStatusFrom(row.min_due),
+    isPriority: Boolean(row.is_priority),
+    assignedAt: row.assigned_at ? row.assigned_at.toISOString() : null,
+    reassignedFromName: row.reassigned_from_name ?? null,
   };
 }
 
@@ -119,6 +125,13 @@ function toEvent(row: EventRow): TimelineEvent {
 
 const LEAD_SELECT = `
   SELECT l.*, e.display_name AS owner_name, t.name AS team_name,
+    (SELECT CASE WHEN oe.reason LIKE 'Automatic same-team caller reassignment:%'
+                        AND oe.to_owner_employee_id = l.owner_employee_id
+                 THEN former.display_name ELSE NULL END
+       FROM lead_ownership_events oe
+       LEFT JOIN employees former ON former.id = oe.from_owner_employee_id
+      WHERE oe.lead_id = l.id
+      ORDER BY oe.changed_at DESC, oe.id DESC LIMIT 1) AS reassigned_from_name,
     (SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open') AS min_due
   FROM leads l
   LEFT JOIN employees e ON e.id = l.owner_employee_id
@@ -156,7 +169,7 @@ export async function listLeads(scope: Scope, query: LeadsQuery): Promise<LeadSu
   }
   const { rows } = await pool.query<LeadRow>(
     `${LEAD_SELECT} WHERE ${where.join(' AND ')}
-     ORDER BY (SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open') ASC NULLS LAST, l.id ASC
+     ORDER BY l.is_priority DESC, l.assigned_at DESC NULLS LAST, (SELECT min(t2.due_at) FROM lead_tasks t2 WHERE t2.lead_id = l.id AND t2.status = 'open') ASC NULLS LAST, l.id ASC
      LIMIT 200`,
     params
   );
@@ -185,10 +198,11 @@ export async function getLead(scope: Scope, leadId: string): Promise<LeadDetail>
   );
 
   const isOwner = row.owner_employee_id === scope.employeeId;
+  const isCaller = scope.role === 'SC';
   return {
     id: row.id,
     displayName: row.display_name,
-    phone: isOwner ? row.phone : maskPhone(row.phone),
+    phone: isCaller ? maskPhone(row.phone) : (isOwner ? row.phone : maskPhone(row.phone)),
     email: isOwner ? row.email : null,
     preferredLanguage: row.preferred_language,
     product: row.product,
@@ -201,6 +215,8 @@ export async function getLead(scope: Scope, leadId: string): Promise<LeadDetail>
     recordVersion: row.record_version,
     vertical: row.vertical,
     createdAt: row.created_at.toISOString(),
+    isPriority: Boolean(row.is_priority),
+    assignedAt: row.assigned_at ? row.assigned_at.toISOString() : null,
     tasks: taskRows.map(toTask),
     timeline: eventRows.map(toEvent),
   };

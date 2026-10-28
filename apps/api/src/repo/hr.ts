@@ -1,6 +1,8 @@
 import { pool } from './db';
 import { logSystemAudit } from './superadmin';
 import type {
+  HrSubmitOnboardingInput,
+  HrSubmitOnboardingResponse,
   HrRequestAccountInput,
   HrRequestTransferInput,
   HrRequestPromotionInput,
@@ -12,6 +14,7 @@ import type {
   HrAttachApprovalInput,
   HrUpdateRequestInput,
 } from '@finverse/contracts';
+
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
@@ -150,8 +153,131 @@ export async function getHrRequest(id: string) {
   return res.rows[0];
 }
 
-// HR-01: Request a New Employee Account
+// HR-01: Correct Employee Onboarding (Full Name, Primary Mobile, WhatsApp, Email)
+export async function submitOnboarding(
+  input: HrSubmitOnboardingInput,
+  actorId: string
+): Promise<HrSubmitOnboardingResponse> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const email = input.email.trim().toLowerCase();
+    const primaryMobile = input.primaryMobile.trim();
+    const whatsapp = input.sameAsPrimaryMobile || !input.whatsappNumber ? primaryMobile : input.whatsappNumber.trim();
+
+    // Duplicate email verification: check existing employee or pending request
+    const existingEmp = await client.query(
+      `SELECT id FROM employees WHERE lower(email) = $1`,
+      [email]
+    );
+    if (existingEmp.rows.length > 0) {
+      throw new Error('DUPLICATE_IDENTITY: An employee with this email already exists in the company identity directory.');
+    }
+
+    const existingPending = await client.query(
+      `SELECT id FROM hr_lifecycle_requests WHERE lower(employee_email) = $1 AND status = 'submitted'`,
+      [email]
+    );
+    if (existingPending.rows.length > 0) {
+      throw new Error('DUPLICATE_IDENTITY: A pending onboarding request already exists for this email address.');
+    }
+
+    // Duplicate mobile verification: check existing employee or pending request
+    const existingMobileEmp = await client.query(
+      `SELECT id FROM employees WHERE mobile_number = $1 OR mobile_number = $2`,
+      [primaryMobile, primaryMobile.replace(/^\+91[\s-]*/, '')]
+    );
+    if (existingMobileEmp.rows.length > 0) {
+      throw new Error('DUPLICATE_IDENTITY: An employee with this mobile number already exists in the company directory.');
+    }
+
+    const existingPendingMobile = await client.query(
+      `SELECT id FROM hr_lifecycle_requests WHERE (primary_mobile = $1 OR primary_mobile = $2) AND status = 'submitted'`,
+      [primaryMobile, primaryMobile.replace(/^\+91[\s-]*/, '')]
+    );
+    if (existingPendingMobile.rows.length > 0) {
+      throw new Error('DUPLICATE_IDENTITY: A pending onboarding request already exists for this mobile number.');
+    }
+
+    // Generate atomic, immutable Employee ID via DB sequence
+    const idRes = await client.query(`SELECT generate_next_employee_id() AS next_id`);
+    const employeeId: string = idRes.rows[0].next_id;
+
+    const proposedRole = input.proposedRole || 'SC';
+    const canonicalVertical = input.proposedVertical === 'real-estate' ? 'real_estate' : (input.proposedVertical || 'wealth');
+    const hrTargetVertical = canonicalVertical === 'real_estate' ? 'real-estate' : canonicalVertical;
+    const proposedTeamId = input.proposedTeamId || null;
+    const proposedSuperiorId = input.proposedSuperiorId || null;
+
+    // Create pending employee record in employees
+    // Status is 'pending_approval'; permanent username is employeeId; password hash is unusable placeholder
+    await client.query(
+      `INSERT INTO employees (
+        id, email, username, password_hash, display_name, status,
+        mobile_number, whatsapp_number, must_change_password, reporting_manager_id, created_at
+      ) VALUES ($1, $2, $1, 'PENDING_SUPER_ADMIN_ACTIVATION', $3, 'pending_approval', $4, $5, true, $6, NOW())`,
+      [employeeId, email, input.fullName, primaryMobile, whatsapp, proposedSuperiorId]
+    );
+
+    // Create separate request / audit record in hr_lifecycle_requests
+    const reqId = makeId('REQ-HR-JOIN');
+    await client.query(
+      `INSERT INTO hr_lifecycle_requests (
+        id, request_type, employee_id, employee_name, employee_email,
+        primary_mobile, whatsapp_number, status, created_by_employee_id, created_at,
+        effective_date, approvals_summary, target_role, target_vertical,
+        target_team_id, supervisor_employee_id
+      ) VALUES ($1, 'new_account', $2, $3, $4, $5, $6, 'submitted', $7, NOW(), CURRENT_DATE, 'Submitted by HR', $8, $9, $10, $11)`,
+      [
+        reqId, employeeId, input.fullName, email, primaryMobile, whatsapp, actorId,
+        proposedRole, hrTargetVertical, proposedTeamId, proposedSuperiorId
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(actorId, 'hr.account.request', 'employee', employeeId, {
+      requestId: reqId,
+      fullName: input.fullName,
+      email,
+      primaryMobile,
+      whatsapp,
+      proposedRole,
+      proposedVertical: canonicalVertical,
+      proposedTeamId,
+      proposedSuperiorId,
+    });
+
+    return {
+      success: true,
+      employeeId,
+      requestId: reqId,
+      status: 'Pending Super Admin Approval',
+      employee: {
+        id: employeeId,
+        fullName: input.fullName,
+        email,
+        primaryMobile,
+        whatsappNumber: whatsapp,
+        status: 'pending_approval',
+        proposedRole,
+        proposedVertical: canonicalVertical,
+        proposedTeamId,
+        proposedSuperiorId,
+      },
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// HR-01 (Legacy): Request a New Employee Account
 export async function createAccountRequest(input: HrRequestAccountInput, actorId: string) {
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

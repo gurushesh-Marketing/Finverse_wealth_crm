@@ -17,6 +17,7 @@ import { pool } from './db';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
 import { requireLeadForRead, requireLeadForWrite, attributionFor, type ScopedLead } from '../wealth/scope';
+import { maskPhone } from './leads';
 import { LOSS_REASONS, STAGE_RULE_VERSION, WEALTH_STAGE_TRANSITIONS, ENQUIRY_SOURCES, canTransition, WEALTH_PRODUCTS } from '../wealth/rules';
 import {
   BANKING_STAGE_TRANSITIONS,
@@ -153,15 +154,19 @@ export async function listAudit(scope: Scope, leadId: string): Promise<AuditEntr
      WHERE a.lead_id = $1 ORDER BY a.occurred_at DESC`,
     [leadId]
   );
-  return rows.map((r: any) => ({
-    id: r.id,
-    field: r.field,
-    beforeValue: r.before_value,
-    afterValue: r.after_value,
-    reason: r.reason,
-    actorName: r.actor_name,
-    occurredAt: new Date(r.occurred_at).toISOString(),
-  }));
+  const isCaller = scope.role === 'SC';
+  return rows.map((r: any) => {
+    const isPhone = r.field === 'phone' || r.field === 'parsed_phone';
+    return {
+      id: r.id,
+      field: r.field,
+      beforeValue: isPhone && isCaller && r.before_value ? maskPhone(r.before_value) : r.before_value,
+      afterValue: isPhone && isCaller && r.after_value ? maskPhone(r.after_value) : r.after_value,
+      reason: r.reason,
+      actorName: r.actor_name,
+      occurredAt: new Date(r.occurred_at).toISOString(),
+    };
+  });
 }
 
 export async function createEnquiry(scope: Scope, input: EnquiryInput): Promise<Enquiry> {

@@ -36,12 +36,13 @@ sources = {
     'catalogue_json': 'docs/product/action_catalogue_v2.json',
     'brand_pdf': 'docs/brand/Finverse Wealth Brand Guidelines.pdf',
     'logo_pdf': 'docs/brand/NEW Finverse Logo.pdf',
-    # Canonical Markdown Documents
+    # Canonical Markdown documents and labelled product proposals
     'doc_prd': 'docs/product/prd.md',
     'doc_design_system': 'docs/design/design-system.md',
     'doc_architecture': 'docs/architecture/architecture.md',
     'doc_trd': 'docs/architecture/trd.md',
     'doc_app_flow': 'docs/product/app-flow.md',
+    'doc_data_entry_intake': 'docs/product/data-entry-intake-routing.md',
     'doc_design_flow': 'docs/design/design-flow.md',
     'doc_backend_schema': 'docs/architecture/backend-schema.md',
     'doc_implementation_plan': 'docs/process/implementation-plan.md',
@@ -330,10 +331,10 @@ add_node("brand_Typography", "Brand Typography: Manrope Headings, Inter Body, Je
 add_node("brand_SinglePrimaryRule", "Visual Rule: Single solid #113F3D primary action button per screen; secondary actions outline/ghost", sources['brand_pdf'], "P004", {'kind': 'visual_rule'})
 add_node("brand_LogoIntegrity", "Brand Asset: Original artwork only (never recolor finverse-logo.png; 1:1.22 proportion)", sources['logo_pdf'], "P001", {'kind': 'brand_asset'})
 
-# 4. Ingest Canonical Markdown Documents
+# 4. Ingest canonical Markdown documents and labelled product proposals
 doc_keys = [
     'doc_prd', 'doc_design_system', 'doc_architecture', 'doc_trd',
-    'doc_app_flow', 'doc_design_flow', 'doc_backend_schema', 'doc_implementation_plan'
+    'doc_app_flow', 'doc_data_entry_intake', 'doc_design_flow', 'doc_backend_schema', 'doc_implementation_plan'
 ]
 
 doc_meta = {
@@ -342,6 +343,7 @@ doc_meta = {
     'doc_architecture': ('Architecture', 'Master System Architecture'),
     'doc_trd': ('TRD', 'Technical Requirements Document'),
     'doc_app_flow': ('AppFlow', 'Master Application State & Flow Specification'),
+    'doc_data_entry_intake': ('DataEntryIntake', 'Data Entry Manual Record Contract'),
     'doc_design_flow': ('DesignFlow', 'Master UI/UX Screen & Interaction Flow Specification'),
     'doc_backend_schema': ('BackendSchema', 'Master Backend Relational Database Schema Specification'),
     'doc_implementation_plan': ('ImplementationPlan', 'Master Implementation & Resumption Plan')
@@ -363,6 +365,7 @@ for dk in doc_keys:
     doc_node_id = f"doc_{doc_short}"
     add_node(doc_node_id, f"Canonical Document: {doc_title}", rel_path, "L1", {
         'kind': 'canonical_document',
+        'approval_status': 'canonical',
         'sha256': doc_hash,
         'file_path': rel_path
     })
@@ -377,6 +380,7 @@ for dk in doc_keys:
         nid = f"sec_{doc_short}_{sec_id}"
         add_node(nid, f"[{doc_short}] {sec_title}", rel_path, f"L{line_no}", {
             'kind': 'canonical_section',
+            'approval_status': 'canonical',
             'doc_short': doc_short,
             'heading': sec_title,
             'sha256': sec_hash,
@@ -410,7 +414,7 @@ for dk in doc_keys:
     if section_lines:
         process_section(f"s{sec_id_counter}", current_sec_title, '\n'.join(section_lines), current_sec_start_line)
 
-print(f"Ingested {len(doc_section_nodes)} canonical document sections into graph.")
+print(f"Ingested {len(doc_section_nodes)} document sections into graph.")
 
 # Connect canonical sections to roles, verticals, brand, and shared requirements
 for sec_nid, sec_title, sec_content, sec_file in doc_section_nodes:

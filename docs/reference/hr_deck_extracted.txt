@@ -1,0 +1,217 @@
+=== PAGE 277 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+277
+
+
+=== PAGE 278 ===
+HR / JOINERS
+HR-01 Request a new employee account
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+278
+USER ACTION
+01
+Create the employee lifecycle request with approved
+placement.
+02
+Attach role, supervisor, employment dates and required
+training.
+03
+Submit for approvals and Super Admin provisioning.
+BEFORE IT CAN PROCEED
+HR cannot issue the role grant directly. Resolve duplicate employee identity through an audited
+process.
+SYSTEM COMMIT
+Create employment episode and provisioning request; notify required approvers.
+REPORTING CONSEQUENCE
+Track readiness, pending approvals and start-date risk.
+IF IT CANNOT COMPLETE
+Incomplete placement leaves access pending, never a default company-wide dashboard.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 279 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+279
+
+
+=== PAGE 280 ===
+HR / MOVERS & PROMOTIONS
+HR-02 Request an effective-dated team transfer
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+280
+USER ACTION
+01
+Capture the approved destination and reporting path.
+02
+Review lead, task, target and review ownership impact.
+03
+Submit the dated move for Super Admin activation.
+BEFORE IT CAN PROCEED
+Permanent employee identity stays unchanged. Current access ends at the change boundary;
+past facts are preserved.
+SYSTEM COMMIT
+Record lifecycle approval and handoff checklist with accountable owners.
+REPORTING CONSEQUENCE
+HR reports planned versus completed moves and unresolved handoff items.
+IF IT CANNOT COMPLETE
+A pending transfer does not expose the destination interface or move leads early.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 281 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+281
+
+
+=== PAGE 282 ===
+HR / MOVERS & PROMOTIONS
+HR-03 Request a promotion with retained career history
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+282
+USER ACTION
+01
+Record promotion approvals and new scope.
+02
+Specify treatment of old leads and ongoing reviews.
+03
+Submit and verify activation through the lifecycle status.
+BEFORE IT CAN PROCEED
+Old role permissions end by default. Career reports remain available as read-only history within
+the new interface.
+SYSTEM COMMIT
+Create new assignment interval and preserve prior role snapshots and performance identity.
+REPORTING CONSEQUENCE
+Promotion does not transfer past personal sales into new team performance.
+IF IT CANNOT COMPLETE
+Dual duties require explicit dated grants; they are never inferred from the promotion.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 283 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+283
+
+
+=== PAGE 284 ===
+HR / LEAVERS
+HR-04 Coordinate an employee exit
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+284
+USER ACTION
+01
+Record authorised exit and exact effective time.
+02
+Assign handoff owners for leads, tasks, reports and
+approvals.
+03
+Confirm Admin revocation and close the exit checklist.
+BEFORE IT CAN PROCEED
+Replacement must receive a new employee/account identity. Record retention follows the
+approved policy.
+SYSTEM COMMIT
+Schedule account disable and job/schedule ownership review. Preserve immutable history.
+REPORTING CONSEQUENCE
+Exit checklist tracks operational completion without copying the leavers personal performance to
+another person.
+IF IT CANNOT COMPLETE
+Urgent suspension routes immediately to Admin; business work goes to an accountable holding
+queue if no recipient exists.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 285 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+285
+
+
+=== PAGE 286 ===
+HR / AVAILABILITY
+HR-05 Record leave and allocation availability
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+286
+USER ACTION
+01
+Record approved leave or availability dates.
+02
+Notify the supervisor of open work requiring coverage.
+03
+Confirm effective availability used by routing.
+BEFORE IT CAN PROCEED
+HR visibility excludes unnecessary medical/private details from sales supervisors. Leave approval
+is a named policy.
+SYSTEM COMMIT
+Publish minimal availability flags and create coverage reminders.
+REPORTING CONSEQUENCE
+Capacity reports use available eligible staff; performance prorating follows the signed target
+policy.
+IF IT CANNOT COMPLETE
+Leave does not automatically transfer every lead. Supervisor must confirm the required handoff.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 287 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+287
+
+
+=== PAGE 288 ===
+HR / TRAINING & REVIEWS
+HR-06 Track probation, training and review completion
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+288
+USER ACTION
+01
+Inspect upcoming milestones and overdue training/reviews.
+02
+Assign reminders and request supervisor evidence.
+03
+Record completion or route an extension/role decision for
+approval.
+BEFORE IT CAN PROCEED
+Completion of training alone does not grant broader access. HR sees approved summaries, not
+unrestricted customer recordings.
+SYSTEM COMMIT
+Store milestone evidence, reviewer and lifecycle follow-up request.
+REPORTING CONSEQUENCE
+Track completion rates using eligible employee cohorts and explicit exclusions.
+IF IT CANNOT COMPLETE
+Expired intern grants trigger access review, not automatic permanent-role conversion.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 289 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+289
+
+
+=== PAGE 290 ===
+HR / PEOPLE REPORTS
+HR-07 Prepare a people operations pack
+HR / People lifecycle / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+290
+USER ACTION
+01
+Select workforce scope and approved report sections.
+02
+Preview minimised employee information and pending
+actions.
+03
+Generate a protected PDF for authorised management.
+BEFORE IT CAN PROCEED
+HR report access does not grant raw sales/customer or finance data.
+SYSTEM COMMIT
+Create report snapshot with scope, recipient and download audit.
+REPORTING CONSEQUENCE
+Separate employee lifecycle completion from sales performance and staffing forecasts.
+IF IT CANNOT COMPLETE
+Sensitive detail is redacted unless recipient has the specific field-level grant.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+

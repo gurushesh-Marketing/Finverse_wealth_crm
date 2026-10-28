@@ -2,6 +2,7 @@ import { createApp } from './app';
 import { env } from './config';
 import { executeDueReminders } from './repo/work';
 import { runDueSchedules } from './repo/tl';
+import { reconcileFormerCallerLeads } from './repo/caller-reassignment';
 
 const app = createApp();
 app.listen(env.API_PORT, () => {
@@ -27,3 +28,15 @@ const scheduleTimer = setInterval(() => {
     .catch((err) => console.error('[api] recurring report schedule tick failed:', err));
 }, 60_000);
 scheduleTimer.unref();
+
+// Pick up future-dated transfers/promotions when they become effective.
+const callerRoutingTick = () => {
+  reconcileFormerCallerLeads()
+    .then(({ reassigned, held }) => {
+      if (reassigned || held) console.log(`[api] caller leads rerouted: ${reassigned}; held: ${held}`);
+    })
+    .catch((err) => console.error('[api] caller reassignment tick failed:', err));
+};
+void callerRoutingTick();
+const callerRoutingTimer = setInterval(callerRoutingTick, 60_000);
+callerRoutingTimer.unref();

@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { parse as parseCookie, serialize as serializeCookie } from 'cookie';
-import { loginRequestSchema, toZodFieldErrors, type SessionResponse } from '@finverse/contracts';
+import {
+  loginRequestSchema,
+  toZodFieldErrors,
+  type SessionResponse,
+  changePasswordSchema,
+  forgotPasswordRequestSchema,
+} from '@finverse/contracts';
 import { HttpError, errorBody, unauthenticated } from '../lib/errors';
 import { verifyPassword } from '../lib/password';
 import {
@@ -182,6 +188,83 @@ export function authRouter(secureCookies: boolean): Router {
         msg.startsWith('ACCOUNT_INACTIVE')
       ) {
         res.status(422).json(errorBody('VALIDATION_FAILED', msg));
+        return;
+      }
+      next(err);
+    }
+  });
+
+  // SA-07 / Auth: Forgot Password (Neutral enumeration prevention + rate limited)
+  const forgotFailures = new Map<string, { count: number; resetAt: number }>();
+  const MAX_FORGOT_ATTEMPTS = 5;
+  const FORGOT_WINDOW_MS = 15 * 60 * 1000;
+
+  router.post('/forgot-password', async (req, res, next) => {
+    try {
+      const parsed = forgotPasswordRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(422).json(
+          errorBody('VALIDATION_FAILED', 'Enter your work email or username.', {
+            fieldErrors: toZodFieldErrors(parsed.error),
+          })
+        );
+        return;
+      }
+      const { identity } = parsed.data;
+      const key = `${req.ip ?? 'ip'}|${identity.toLowerCase()}`;
+      const now = Date.now();
+      const entry = forgotFailures.get(key) ?? { count: 0, resetAt: now + FORGOT_WINDOW_MS };
+      if (now > entry.resetAt) {
+        entry.count = 0;
+        entry.resetAt = now + FORGOT_WINDOW_MS;
+      }
+      if (entry.count >= MAX_FORGOT_ATTEMPTS) {
+        res
+          .status(429)
+          .json(
+            errorBody(
+              'RATE_LIMITED',
+              'Too many password recovery requests. Please wait a few minutes before trying again.'
+            )
+          );
+        return;
+      }
+      entry.count += 1;
+      forgotFailures.set(key, entry);
+
+      const { requestPasswordReset } = await import('../repo/superadmin');
+      const result = await requestPasswordReset(identity, req.ip);
+      res.status(200).json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Mandatory first login password change or authenticated self-service update
+  router.post('/change-password', async (req: AuthedRequest, res, next) => {
+    try {
+      const cookies = parseCookie(req.headers.cookie ?? '');
+      const token = cookies[SESSION_COOKIE];
+      if (!token) throw unauthenticated();
+      const employeeId = await findSessionEmployeeId(token);
+      if (!employeeId) throw unauthenticated();
+
+      const parsed = changePasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(422).json(
+          errorBody('VALIDATION_FAILED', 'Check the highlighted fields.', {
+            fieldErrors: toZodFieldErrors(parsed.error),
+          })
+        );
+        return;
+      }
+
+      const { changeEmployeePassword } = await import('../repo/superadmin');
+      const result = await changeEmployeePassword(employeeId, parsed.data.newPassword);
+      res.status(200).json({ data: result });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        res.status(err.status).json(errorBody(err.code, err.message));
         return;
       }
       next(err);

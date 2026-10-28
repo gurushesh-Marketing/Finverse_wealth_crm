@@ -74,6 +74,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ token, password }),
     }),
+  forgotPassword: (identity: string) =>
+    request<{ data: { success: boolean; message: string } }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ identity }),
+    }),
+  changePassword: (newPassword: string) =>
+    request<{ data: { success: boolean; message: string } }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
+    }),
   localDelivery: (limit = 20) =>
     request<{ data: any[] }>(`/api/auth/local-delivery?limit=${limit}`),
 };

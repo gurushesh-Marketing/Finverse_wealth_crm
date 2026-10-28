@@ -43,14 +43,16 @@ import {
   Users,
 } from 'lucide-react';
 
-function formatInr(val: number): string {
-  if (Math.abs(val) >= 10000000) {
-    return `₹${(val / 10000000).toFixed(2)} Cr`;
+function formatInr(val?: number | null): string {
+  if (val === undefined || val === null || isNaN(Number(val))) return '₹0';
+  const num = Number(val);
+  if (Math.abs(num) >= 10000000) {
+    return `₹${(num / 10000000).toFixed(2)} Cr`;
   }
-  if (Math.abs(val) >= 100000) {
-    return `₹${(val / 100000).toFixed(2)} L`;
+  if (Math.abs(num) >= 100000) {
+    return `₹${(num / 100000).toFixed(2)} L`;
   }
-  return `₹${val.toLocaleString('en-IN')}`;
+  return `₹${num.toLocaleString('en-IN')}`;
 }
 
 // =========================================================================
@@ -61,19 +63,20 @@ export function CfoOverviewPage() {
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('FY26-Q1');
+  const [focusVertical, setFocusVertical] = useState('all');
   const [showFreezeModal, setShowFreezeModal] = useState(false);
   const [explanationNotes, setExplanationNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, [period]);
+  }, [period, focusVertical]);
 
   async function loadData() {
     setLoading(true);
     try {
       const [ovData, recData] = await Promise.all([
-        cfoApi.getOverview(period),
+        cfoApi.getOverview(period, focusVertical === 'all' ? undefined : focusVertical),
         cfoApi.getReconciliations(),
       ]);
       setOverview(ovData.overview);
@@ -114,18 +117,59 @@ export function CfoOverviewPage() {
           title="Financial Balances & Cash Run-Rate (CFO-01)"
           subtitle="Real-time multi-vertical balance sheet rollup, revenue recognition, and three-way reconciliation bridge."
         />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select
+            aria-label="Filter by operational division"
+            value={focusVertical}
+            onChange={(e) => setFocusVertical(e.target.value)}
+            className="px-3 py-1.5 rounded border border-border bg-card text-foreground text-sm font-medium"
+          >
+            <option value="all">All Operational Divisions</option>
+            <option value="wealth">Wealth Management</option>
+            <option value="banking">Commercial Banking</option>
+            <option value="markets">Markets & Securities</option>
+            <option value="real_estate">Real Estate Advisory</option>
+          </select>
+          <select
+            aria-label="Filter by reporting period"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
             className="px-3 py-1.5 rounded border border-border bg-card text-foreground text-sm font-medium"
           >
             <option value="FY26-Q1">Fiscal 2026 — Q1</option>
             <option value="FY26-Q2">Fiscal 2026 — Q2</option>
+            <option value="FY26-Q3">Fiscal 2026 — Q3</option>
+            <option value="FY26-Q4">Fiscal 2026 — Q4</option>
           </select>
           <Button variant="outline" size="sm" onClick={loadData}>
             <RefreshCw className="w-4 h-4 mr-1" /> Refresh
           </Button>
+        </div>
+      </div>
+
+      {/* Enterprise Executive Priority Hero Card */}
+      <div className="rounded-xl p-5 text-white shadow-lg bg-[#113F3D] border border-[#0d312f]">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Shield className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                Enterprise Scope · Multi-Vertical Financial Cockpit
+              </span>
+              <span className="text-xs bg-emerald-900/60 border border-emerald-500/40 px-2 py-0.5 rounded text-emerald-200 font-semibold">
+                Certified Period Close
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Financial Governance & Cash Operating Picture</h2>
+            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-2xl">
+              Consolidated financial position across Wealth Management, Commercial Banking, Markets & Trading, and Real Estate Advisory. Dual-control approval segregation and three-way reconciliation active.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-xs text-emerald-200 block font-medium">Reconciled Operating Run-Rate</span>
+            <span className="text-2xl font-extrabold text-white mt-0.5 block">{formatInr(overview.recognisedRevenue)}</span>
+            <span className="text-[11px] text-emerald-300 block">Gross Margin: {overview.grossMarginPct}%</span>
+          </div>
         </div>
       </div>
 
@@ -355,6 +399,37 @@ export function CfoOverviewPage() {
           </div>
         </div>
       )}
+
+      {/* Three-Card Guidance Stack */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        <Card className="border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">How This Works</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground space-y-1.5">
+            <p>Balances roll up dynamically from immutable double-entry ledger postings across Wealth, Banking, Markets, and Real Estate.</p>
+            <p>Every recognized revenue transaction links to an approved source invoice and verifiable milestone evidence.</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">When A Check Fails</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground space-y-1.5">
+            <p>If cash-to-invoice match exceeds open balance or a reporting period is certified closed, mutations are blocked.</p>
+            <p>Unmatched cash is held in suspense and flagged for operational clarification without inflating revenue totals.</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Permission & Evidence</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground space-y-1.5">
+            <p>Four-eyes preparation and independent approval separation is strictly enforced per Deck P230.</p>
+            <p>All period close certifications require 4 verified pre-close checklist items with cryptographic watermarks.</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -378,7 +453,7 @@ export function CfoRecognitionPage() {
 
   // Recognition prepare form
   const [recPeriodId, setRecPeriodId] = useState('');
-  const [recVertical, setRecVertical] = useState<'wealth' | 'banking'>('wealth');
+  const [recVertical, setRecVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
   const [recGross, setRecGross] = useState(500000);
   const [recTax, setRecTax] = useState(90000);
   const [recAccount, setRecAccount] = useState('4001-WEALTH-PMS');
@@ -842,7 +917,9 @@ export function CfoRecognitionPage() {
                     className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
                   >
                     <option value="wealth">Wealth Management</option>
-                    <option value="banking">Banking & Lending</option>
+                    <option value="banking">Commercial Banking</option>
+                    <option value="markets">Markets & Securities / Trading</option>
+                    <option value="real_estate">Real Estate Advisory</option>
                   </select>
                 </div>
               </div>
@@ -1032,6 +1109,7 @@ export function CfoInvoicesPage() {
   const [itemDesc, setItemDesc] = useState('Wealth Advisory Retainer Q3');
   const [itemAmount, setItemAmount] = useState(300000);
   const [taxAmount, setTaxAmount] = useState(54000);
+  const [invVertical, setInvVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
 
   // Collection Form
   const [agentId, setAgentId] = useState('EMP-007');
@@ -1071,7 +1149,7 @@ export function CfoInvoicesPage() {
         periodId: invPeriodId || (periods[0]?.id || 'PER-2026-Q1'),
         clientName,
         clientPan: clientPan || undefined,
-        vertical: 'wealth',
+        vertical: invVertical,
         issueDate,
         dueDate,
         lineItems: [{ description: itemDesc, amount: Number(itemAmount) }],
@@ -1152,6 +1230,7 @@ export function CfoInvoicesPage() {
                 <tr>
                   <th className="p-2">Invoice #</th>
                   <th className="p-2">Client Name</th>
+                  <th className="p-2">Vertical</th>
                   <th className="p-2">Total Amount</th>
                   <th className="p-2">Paid</th>
                   <th className="p-2">Balance</th>
@@ -1166,6 +1245,7 @@ export function CfoInvoicesPage() {
                   <tr key={inv.id}>
                     <td className="p-2 font-mono font-bold text-primary">{inv.invoiceNumber}</td>
                     <td className="p-2 font-medium text-foreground">{inv.clientName}</td>
+                    <td className="p-2 capitalize font-mono text-[11px]"><span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{inv.vertical?.replace('_', ' ') || 'wealth'}</span></td>
                     <td className="p-2">{formatInr(inv.totalAmount)}</td>
                     <td className="p-2 text-emerald-600 font-medium">{formatInr(inv.paidAmount)}</td>
                     <td className="p-2 font-bold text-rose-600">{formatInr(inv.outstandingBalance)}</td>
@@ -1222,6 +1302,35 @@ export function CfoInvoicesPage() {
           <div className="bg-card border border-border rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
             <h3 className="text-lg font-bold text-foreground">Create Receivable Invoice (CFO-04)</h3>
             <form onSubmit={handleCreateInvoice} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Reporting Period</label>
+                  <select
+                    value={invPeriodId}
+                    onChange={(e) => setInvPeriodId(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    {periods.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.periodLabel} ({p.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Operational Division</label>
+                  <select
+                    value={invVertical}
+                    onChange={(e) => setInvVertical(e.target.value as any)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="wealth">Wealth Management</option>
+                    <option value="banking">Commercial Banking</option>
+                    <option value="markets">Markets & Securities / Trading</option>
+                    <option value="real_estate">Real Estate Advisory</option>
+                  </select>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-foreground">Client Name</label>
@@ -1805,15 +1914,23 @@ export function CfoIncentivesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
-                    {calc.employeeAllocations.map((alloc) => (
-                      <tr key={alloc.employeeId}>
-                        <td className="p-1.5 font-medium">{alloc.employeeName}</td>
-                        <td className="p-1.5 text-muted-foreground font-mono">{alloc.role}</td>
-                        <td className="p-1.5">{formatInr(alloc.grossIncentive)}</td>
-                        <td className="p-1.5 text-amber-600">-{formatInr(alloc.clawback)}</td>
-                        <td className="p-1.5 font-bold text-emerald-600">{formatInr(alloc.netPayable)}</td>
-                      </tr>
-                    ))}
+                    {(calc.employeeAllocations || []).map((alloc: any, idx: number) => {
+                      const empId = alloc.employeeId || alloc.employee_id || `alloc-${idx}`;
+                      const empName = alloc.employeeName || alloc.employee_name || 'Staff Member';
+                      const role = alloc.role || 'SC';
+                      const gross = alloc.grossIncentive ?? alloc.gross_incentive ?? 0;
+                      const claw = alloc.clawback ?? 0;
+                      const net = alloc.netPayable ?? alloc.net_payable ?? 0;
+                      return (
+                        <tr key={empId}>
+                          <td className="p-1.5 font-medium">{empName}</td>
+                          <td className="p-1.5 text-muted-foreground font-mono">{role}</td>
+                          <td className="p-1.5">{formatInr(gross)}</td>
+                          <td className="p-1.5 text-amber-600">-{formatInr(claw)}</td>
+                          <td className="p-1.5 font-bold text-emerald-600">{formatInr(net)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1990,6 +2107,8 @@ export function CfoPlanningPage() {
   const [showConcurModal, setShowConcurModal] = useState(false);
 
   // Concurrence form
+  const [concurPeriod, setConcurPeriod] = useState('FY26-Q1');
+  const [concurVertical, setConcurVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
   const [salesProj, setSalesProj] = useState(85000000);
   const [discRate, setDiscRate] = useState(12);
   const [paceDays, setPaceDays] = useState(45);
@@ -2020,8 +2139,8 @@ export function CfoPlanningPage() {
     e.preventDefault();
     try {
       await cfoApi.submitForecastConcurrence({
-        periodLabel: 'FY26-Q3',
-        vertical: 'wealth',
+        periodLabel: concurPeriod,
+        vertical: concurVertical,
         salesProjectedRevenue: Number(salesProj),
         financeDiscountRatePct: Number(discRate),
         cashConversionPaceDays: Number(paceDays),
@@ -2058,6 +2177,7 @@ export function CfoPlanningPage() {
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="p-2">Code</th>
+                  <th className="p-2">Vertical</th>
                   <th className="p-2">Cost Category</th>
                   <th className="p-2">Approved Budget</th>
                   <th className="p-2">Committed</th>
@@ -2071,6 +2191,7 @@ export function CfoPlanningPage() {
                 {budgets.map((b) => (
                   <tr key={b.id}>
                     <td className="p-2 font-mono font-bold text-primary">{b.budgetCode}</td>
+                    <td className="p-2 capitalize font-mono text-[11px]"><span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{b.vertical.replace('_', ' ')}</span></td>
                     <td className="p-2 font-semibold text-foreground">{b.costCategory}</td>
                     <td className="p-2">{formatInr(b.approvedBudget)}</td>
                     <td className="p-2 text-muted-foreground">{formatInr(b.committedCosts)}</td>
@@ -2147,6 +2268,34 @@ export function CfoPlanningPage() {
           <div className="bg-card border border-border rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
             <h3 className="text-lg font-bold text-foreground">Finance Forecast Concurrence (CFO-17)</h3>
             <form onSubmit={handleConcur} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Forecast Period</label>
+                  <select
+                    value={concurPeriod}
+                    onChange={(e) => setConcurPeriod(e.target.value)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="FY26-Q1">FY26 — Q1</option>
+                    <option value="FY26-Q2">FY26 — Q2</option>
+                    <option value="FY26-Q3">FY26 — Q3</option>
+                    <option value="FY26-Q4">FY26 — Q4</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground">Operational Division</label>
+                  <select
+                    value={concurVertical}
+                    onChange={(e) => setConcurVertical(e.target.value as any)}
+                    className="w-full mt-1 p-2 rounded border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="wealth">Wealth Management</option>
+                    <option value="banking">Commercial Banking</option>
+                    <option value="markets">Markets & Securities</option>
+                    <option value="real_estate">Real Estate Advisory</option>
+                  </select>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-foreground">Sales Projected Revenue (₹)</label>

@@ -11,6 +11,9 @@ import { pool } from './db';
 import type { Scope } from './users';
 import { forbidden, notFound, HttpError } from '../lib/errors';
 import { requireLeadForRead, requireLeadForWrite, attributionFor, type ScopedLead } from '../wealth/scope';
+import { maskPhone } from './leads';
+import { getActiveVoiceProvider } from '../voice/provider';
+import { getApprovedCallingIdentity } from '../voice/identities';
 import {
   WHATSAPP_TEMPLATES,
   channelEligibleForCall,
@@ -50,6 +53,8 @@ function toCall(row: any): CallRecord {
     needsWrapup: row.needs_wrapup,
     wrapupDisposition: row.wrapup_disposition,
     wrapupNote: row.wrapup_note,
+    providerCallReference: row.provider_call_reference ?? null,
+    destinationMasked: row.destination_masked ?? null,
   };
 }
 
@@ -68,31 +73,99 @@ function toMessage(row: any): MessageRecord {
   };
 }
 
-export async function startCall(scope: Scope, leadId: string, input: CallStartInput): Promise<CallRecord> {
+export async function startCall(scope: Scope, leadId: string, input: { mode?: string; idempotencyKey?: string }): Promise<CallRecord> {
+  // 1. Enforce caller ownership, vertical authorization, and role guard
   const lead = await requireLeadForWrite(scope, leadId);
+
+  // 2. Check consent and contact suppression state
   const suppressed = await activeSuppressions(leadId);
   if (!channelEligibleForCall(suppressed)) {
     throw forbidden('Contact suppression active: voice calls are blocked for this prospect.');
   }
+
+  // 3. Resolve caller's approved outbound calling identity from restricted server-side config
+  const callingIdentity = await getApprovedCallingIdentity(scope.employeeId);
+  if (!callingIdentity) {
+    throw new HttpError(
+      422,
+      'CALLER_IDENTITY_NOT_CONFIGURED',
+      'Approved calling identity is not configured for this sales caller. Contact administrator.',
+      {}
+    );
+  }
+
+  // 4. Concurrency & idempotency check
+  const idempotencyKey = input.idempotencyKey || `CALL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const existing = await pool.query(
     `SELECT * FROM calls WHERE idempotency_key = $1 AND actor_employee_id = $2 AND lead_id = $3`,
-    [input.idempotencyKey, scope.employeeId, leadId]
+    [idempotencyKey, scope.employeeId, leadId]
   );
   if (existing.rows[0]) return toCall(existing.rows[0]);
+
+  // 5. Privately resolve destination number and masked representation
+  const rawDestination = lead.phone;
+  const maskedDestination = maskPhone(rawDestination);
+
+  // 6. Invoke voice provider adapter (synthetic test provider / unconfigured Bonvoice stub)
   const callId = id('CALL');
+  const voiceProvider = getActiveVoiceProvider();
+  const providerResult = await voiceProvider.initiateOutboundCall({
+    callId,
+    leadId,
+    callerEmployeeId: scope.employeeId,
+    callerCallingIdentity: callingIdentity,
+    destinationNumber: rawDestination,
+    idempotencyKey,
+  });
+
+  // 7. Persist call record with provider reference and audit history
   try {
     const { rows } = await pool.query(
-      `INSERT INTO calls (id, lead_id, actor_employee_id, direction, provider_mode, idempotency_key, status, evidence_status, needs_wrapup)
-       VALUES ($1, $2, $3, 'outbound', $4, $5, 'connecting', 'simulated', false)
+      `INSERT INTO calls (
+         id, lead_id, actor_employee_id, direction, provider_mode, idempotency_key,
+         status, evidence_status, needs_wrapup, provider_call_reference,
+         caller_identity, destination_masked, failure_reason
+       )
+       VALUES ($1, $2, $3, 'outbound', $4, $5, $6, $7, false, $8, $9, $10, $11)
        RETURNING *`,
-      [callId, leadId, scope.employeeId, input.mode, input.idempotencyKey]
+      [
+        callId,
+        leadId,
+        scope.employeeId,
+        providerResult.providerName,
+        idempotencyKey,
+        providerResult.status,
+        providerResult.evidenceStatus,
+        providerResult.providerCallReference,
+        callingIdentity,
+        maskedDestination,
+        providerResult.failureReason ?? null,
+      ]
     );
+
+    // Record immutable audit event in lead_events
+    const [actorRole, actorTeamId, actorAssignmentId] = attributionFor(scope, lead.team_id);
+    const eventId = id('EVT');
+    await pool.query(
+      `INSERT INTO lead_events (id, lead_id, actor_employee_id, kind, note, actor_role, actor_team_id, assignment_id)
+       VALUES ($1, $2, $3, 'call', $4, $5, $6, $7)`,
+      [
+        eventId,
+        leadId,
+        scope.employeeId,
+        `Outbound call initiated via ${providerResult.providerName} (Ref: ${providerResult.providerCallReference}, Target: ${maskedDestination})`,
+        actorRole,
+        actorTeamId,
+        actorAssignmentId,
+      ]
+    );
+
     return toCall(rows[0]);
   } catch (err: any) {
     if (err?.code === '23505') {
       const again = await pool.query(
         `SELECT * FROM calls WHERE idempotency_key = $1 AND actor_employee_id = $2 AND lead_id = $3`,
-        [input.idempotencyKey, scope.employeeId, leadId]
+        [idempotencyKey, scope.employeeId, leadId]
       );
       if (again.rows[0]) return toCall(again.rows[0]);
     }

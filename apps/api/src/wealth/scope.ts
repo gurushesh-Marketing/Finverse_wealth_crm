@@ -11,11 +11,11 @@ export function readScopeSql(scope: Scope, params: unknown[], alias = 'l'): stri
   if (scope.role === 'SC') {
     params.push(scope.employeeId);
     ownerSql = `${alias}.owner_employee_id = $${params.length}`;
-  } else if (scope.role === 'TL') {
+  } else if (scope.role === 'REL' || scope.role === 'TL') {
     params.push(scope.employeeId);
     const meIdx = params.length;
     params.push(scope.teams);
-    ownerSql = `(${alias}.owner_employee_id = $${meIdx} OR ${alias}.team_id = ANY($${params.length}))`;
+    ownerSql = `(${alias}.owner_employee_id = $${meIdx} OR ${alias}.rel_owner_id = $${meIdx} OR ${alias}.team_id = ANY($${params.length}))`;
   }
   return `${alias}.vertical = ANY($${verticalIdx}) AND ${ownerSql}`;
 }
@@ -29,6 +29,7 @@ export interface ScopedLead {
   display_name: string;
   phone: string;
   email: string | null;
+  product: string;
   preferred_language: string;
   record_version: number;
 }

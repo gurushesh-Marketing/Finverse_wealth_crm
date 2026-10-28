@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-export const ROLES = ['SC', 'TL', 'MG', 'RM', 'NM', 'CEO', 'CFO', 'DE', 'HR', 'SA'] as const;
+export const ROLES = ['SC', 'REL', 'MG', 'RM', 'NM', 'CEO', 'CFO', 'DE', 'HR', 'SA', 'TL'] as const;
 export type Role = (typeof ROLES)[number];
+
+export const ACTIVE_ROLES = ['SC', 'REL', 'MG', 'RM', 'NM', 'CEO', 'CFO', 'DE', 'HR', 'SA'] as const;
+export type ActiveRole = (typeof ACTIVE_ROLES)[number];
 
 export const VERTICALS = ['wealth', 'banking', 'markets', 'real-estate', 'real_estate'] as const;
 export type Vertical = (typeof VERTICALS)[number];
@@ -61,6 +64,10 @@ export const ERROR_CODES = [
   'RATE_LIMITED',
   'MEDIA_TYPE',
   'INTERNAL',
+  'CALLER_IDENTITY_NOT_CONFIGURED',
+  'PROVIDER_NOT_CONFIGURED',
+  'HANDOFF_ALREADY_DECIDED',
+  'NO_ELIGIBLE_REL',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -74,6 +81,8 @@ export interface WorkspaceSession {
   allowedActions: string[];
   effectiveFrom: string;
   permissionVersion: string;
+  mustChangePassword?: boolean;
+  username?: string;
 }
 
 export interface ErrorDetails {
@@ -89,14 +98,31 @@ export interface ErrorResponse {
 }
 
 export const loginRequestSchema = z.object({
-  email: z.string().trim().min(1, 'Enter your work email.'),
+  email: z.string().trim().min(1, 'Enter your work email or username.'),
   password: z.string().min(1, 'Enter your password.'),
 });
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 
+export const changePasswordSchema = z.object({
+  newPassword: z.string().min(8, 'New password must be at least 8 characters.'),
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+export const forgotPasswordRequestSchema = z.object({
+  identity: z.string().trim().min(1, 'Enter your work email or username.'),
+});
+export type ForgotPasswordRequestInput = z.infer<typeof forgotPasswordRequestSchema>;
+
+export const resetPasswordWithTokenSchema = z.object({
+  token: z.string().trim().min(1, 'Reset token is required.'),
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+});
+export type ResetPasswordWithTokenInput = z.infer<typeof resetPasswordWithTokenSchema>;
+
 export interface SessionResponse {
   session: WorkspaceSession;
 }
+
 
 export const leadsQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
@@ -117,6 +143,9 @@ export interface LeadSummary {
   teamName: string;
   nextActionAt: string | null;
   dueStatus: DueStatus;
+  isPriority: boolean;
+  assignedAt?: string | null;
+  reassignedFromName?: string | null;
 }
 
 export interface TimelineEvent {
@@ -154,6 +183,8 @@ export interface LeadDetail {
   recordVersion: number;
   vertical?: string;
   createdAt: string;
+  isPriority: boolean;
+  assignedAt?: string | null;
   tasks: LeadTask[];
   timeline: TimelineEvent[];
 }
@@ -268,10 +299,16 @@ export interface Enquiry {
 }
 
 export const callStartSchema = z.object({
-  mode: z.string().trim().min(1),
-  idempotencyKey: z.string().trim().min(8).max(80),
+  mode: z.string().trim().min(1).optional().default('Approved business line'),
+  idempotencyKey: z.string().trim().min(8).max(80).optional(),
 });
 export type CallStartInput = z.infer<typeof callStartSchema>;
+
+export const callInitiateSchema = z.object({
+  leadId: z.string().min(1),
+  idempotencyKey: z.string().trim().min(8).max(80).optional(),
+});
+export type CallInitiateInput = z.infer<typeof callInitiateSchema>;
 
 export const wrapUpSchema = z.object({
   disposition: z.enum(['connected', 'no-answer', 'busy', 'wrong-number', 'callback']),
@@ -295,6 +332,8 @@ export interface CallRecord {
   needsWrapup: boolean;
   wrapupDisposition: string | null;
   wrapupNote: string | null;
+  providerCallReference?: string | null;
+  destinationMasked?: string | null;
 }
 
 export const manualActivitySchema = z.object({
@@ -863,3 +902,7 @@ export * from './cfo';
 export * from './superadmin';
 export * from './hr';
 export * from './data-entry';
+export * from './leave';
+export * from './attendance';
+export * from './payroll';
+export * from './rel';

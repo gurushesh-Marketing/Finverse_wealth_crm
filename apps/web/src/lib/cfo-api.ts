@@ -72,8 +72,11 @@ export const cfoApi = {
   },
 
   // CFO-01: Balances Overview
-  async getOverview(period?: string): Promise<{ overview: CfoBalancesOverview }> {
-    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+  async getOverview(period?: string, vertical?: string): Promise<{ overview: CfoBalancesOverview }> {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    if (vertical) params.append('vertical', vertical);
+    const q = params.toString() ? `?${params.toString()}` : '';
     return fetchJson(`/api/cfo/overview${q}`);
   },
 

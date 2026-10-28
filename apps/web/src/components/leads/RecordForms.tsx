@@ -485,6 +485,8 @@ export type { MeetingRecord, ProposalRecord };
 export function CallPanel({ leadId, onCallEnded }: { leadId: string; onCallEnded: () => void }) {
   const [callId, setCallId] = useState<string | null>(null);
   const [state, setState] = useState('idle');
+  const [providerRef, setProviderRef] = useState<string | null>(null);
+  const [maskedDest, setMaskedDest] = useState<string | null>(null);
   const s = useSubmit();
   const nextStates: Record<string, string[]> = {
     connecting: ['ringing', 'failed'],
@@ -493,17 +495,30 @@ export function CallPanel({ leadId, onCallEnded }: { leadId: string; onCallEnded
   };
   return (
     <div className="rounded-lg border border-border p-3">
-      <h3 className="mb-2 text-sm font-semibold">Place voice call (SC-06)</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold">Place voice call (SC-06)</h3>
+        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+          Test call simulation
+        </span>
+      </div>
       <div className="mb-2"><SimulatedChip /></div>
-      <LiveStatus>Call state: {state === 'idle' ? 'ready' : state}. SIMULATED, no provider integration.</LiveStatus>
+      <LiveStatus>Call state: {state === 'idle' ? 'ready' : state}. SIMULATED, no provider integration (Test call simulation — Bonvoice provider integration pending credentials from vendor).</LiveStatus>
+      {providerRef ? (
+        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground font-mono">
+          <span>Ref: <strong>{providerRef}</strong></span>
+          {maskedDest ? <span>Target: <strong>{maskedDest}</strong></span> : null}
+        </div>
+      ) : null}
       <div className="mt-2 flex flex-wrap gap-2">
         {!callId ? (
           <BusyButton size="sm" busy={s.busy} onClick={() => void s.run(async () => {
-            const call = await wealthApi.startCall(leadId, { mode: 'Approved business line', idempotencyKey: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` });
+            const call = await wealthApi.startCall(leadId, { idempotencyKey: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` });
             setCallId(call.id);
             setState(call.status);
+            setProviderRef(call.providerCallReference ?? null);
+            setMaskedDest(call.destinationMasked ?? null);
             return undefined as unknown as void;
-          })}>Start call</BusyButton>
+          })}>Call now</BusyButton>
         ) : (nextStates[state] ?? []).map((next) => (
           <Button key={next} size="sm" variant={next === 'ended' || next === 'failed' || next === 'no-answer' ? 'outline' : 'default'} onClick={() => void s.run(async () => {
             const updated = await wealthApi.callState(callId, next);

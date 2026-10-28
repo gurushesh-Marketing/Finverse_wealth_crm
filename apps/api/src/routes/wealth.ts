@@ -26,6 +26,7 @@ import {
   whatsappSendSchema,
   wrapUpSchema,
   callStartSchema,
+  callInitiateSchema,
   inboundMessageSchema,
 } from '@finverse/contracts';
 import { HttpError, errorBody } from '../lib/errors';
@@ -94,6 +95,10 @@ export function wealthRouter(): Router {
   // SC-06/07/08
   router.get('/leads/:id/conversations', wrap(async (req, res) => res.json(await comms.listConversations(req.auth!.scope, String(req.params.id)))));
   router.post('/leads/:id/calls', wrap(async (req, res) => res.status(201).json(await comms.startCall(req.auth!.scope, String(req.params.id), parse(callStartSchema, req)))));
+  router.post('/calls/initiate', wrap(async (req, res) => {
+    const input = parse(callInitiateSchema, req);
+    res.status(201).json(await comms.startCall(req.auth!.scope, input.leadId, { idempotencyKey: input.idempotencyKey }));
+  }));
   router.post('/calls/:id/state', wrap(async (req, res) => {
     res.json(await comms.advanceCall(req.auth!.scope, String(req.params.id), String((req.body ?? {}).status)));
   }));

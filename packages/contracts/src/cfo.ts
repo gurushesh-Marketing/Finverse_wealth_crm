@@ -65,7 +65,7 @@ export const LedgerEntrySchema = z.object({
   entryCode: z.string(),
   periodId: z.string(),
   entryType: z.enum(['revenue_recognition', 'cash_receipt', 'receivable_accrual', 'credit_note_reversal', 'refund_payout', 'tax_provision']),
-  vertical: z.enum(['wealth', 'banking', 'shared']),
+  vertical: z.enum(['wealth', 'banking', 'markets', 'real_estate', 'shared']),
   grossAmount: z.number(),
   taxAmount: z.number(),
   netAmount: z.number(),
@@ -90,7 +90,7 @@ export type LedgerEntry = z.infer<typeof LedgerEntrySchema>;
 
 export const PrepareRevenueRecognitionInputSchema = z.object({
   periodId: z.string(),
-  vertical: z.enum(['wealth', 'banking', 'shared']).default('wealth'),
+  vertical: z.enum(['wealth', 'banking', 'markets', 'real_estate', 'shared']).default('wealth'),
   grossAmount: z.number().positive(),
   taxAmount: z.number().nonnegative().default(0),
   policyCode: z.string().min(1),
@@ -110,7 +110,7 @@ export type ApproveRevenueRecognitionInput = z.infer<typeof ApproveRevenueRecogn
 
 export const PostRevenueRecognitionInputSchema = z.object({
   periodId: z.string(),
-  vertical: z.enum(['wealth', 'banking', 'shared']).default('wealth'),
+  vertical: z.enum(['wealth', 'banking', 'markets', 'real_estate', 'shared']).default('wealth'),
   grossAmount: z.number().positive(),
   taxAmount: z.number().nonnegative().default(0),
   policyCode: z.string().min(1),
@@ -192,7 +192,7 @@ export const CreateInvoiceInputSchema = z.object({
   leadId: z.string().optional(),
   clientName: z.string().min(2),
   clientPan: z.string().optional(),
-  vertical: z.enum(['wealth', 'banking']).default('wealth'),
+  vertical: z.enum(['wealth', 'banking', 'markets', 'real_estate']).default('wealth'),
   issueDate: z.string(),
   dueDate: z.string(),
   lineItems: z.array(InvoiceLineItemSchema).min(1),
@@ -468,7 +468,7 @@ export const VerticalBudgetLineSchema = z.object({
   id: z.string(),
   budgetCode: z.string(),
   fiscalYear: z.string(),
-  vertical: z.enum(['wealth', 'banking', 'shared_corporate']),
+  vertical: z.enum(['wealth', 'banking', 'markets', 'real_estate', 'shared_corporate']),
   costCategory: z.string(),
   approvedBudget: z.number(),
   committedCosts: z.number(),
@@ -506,7 +506,7 @@ export type ForecastFinanceReview = z.infer<typeof ForecastFinanceReviewSchema>;
 
 export const SubmitForecastConcurrenceInputSchema = z.object({
   periodLabel: z.string(),
-  vertical: z.enum(['wealth', 'banking']).default('wealth'),
+  vertical: z.enum(['wealth', 'banking', 'markets', 'real_estate']).default('wealth'),
   salesProjectedRevenue: z.number().positive(),
   financeDiscountRatePct: z.number().min(0).max(100).default(10),
   cashConversionPaceDays: z.number().int().positive().default(45),

@@ -35,6 +35,24 @@ const ROLE_ACTIONS: Record<Role, string[]> = {
     'document.read',
     'review.acknowledge',
   ],
+  REL: [
+    'prospect.read',
+    'prospect.update',
+    'activity.read',
+    'activity.create',
+    'task.manage',
+    'task.read',
+    'followup.create',
+    'report.read:personal',
+    'report.read:team',
+    'deal.read',
+    'deal.update',
+    'document.request',
+    'document.read',
+    'handoff.decide',
+    'partner.coordinate',
+    'review.acknowledge',
+  ],
   TL: [
     'prospect.read',
     'prospect.update',
@@ -120,14 +138,8 @@ const ROLE_ACTIONS: Record<Role, string[]> = {
     'policy.propose:finance',
   ],
   DE: [
-    'intake.read',
-    'intake.enquiry:create',
-    'intake.batch:upload',
-    'intake.row:correct',
-    'intake.duplicate:review',
-    'intake.batch:publish',
-    'intake.source:manage',
-    'intake.report:export',
+    'intake.record:create',
+    'intake.record:read',
   ],
   HR: [
     'hr.overview:read',
@@ -169,10 +181,13 @@ interface EmployeeRow extends AssignmentRow {
   display_name: string;
   status: string;
   password_hash: string;
+  must_change_password?: boolean;
+  username?: string | null;
 }
 
 const SELECT_COLUMNS = `
   SELECT e.id, e.email, e.display_name, e.status, e.password_hash,
+         COALESCE(e.must_change_password, false) as must_change_password, e.username,
          a.id AS assignment_id, a.role, a.vertical, a.team_id,
          to_char(a.effective_from, 'YYYY-MM-DD') AS effective_from
   FROM employees e
@@ -180,8 +195,9 @@ const SELECT_COLUMNS = `
 `;
 const WHERE_ACTIVE = `WHERE e.status = 'active' AND a.effective_from <= CURRENT_DATE AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)`;
 const ORDER_ASSIGNMENTS = `ORDER BY a.effective_from DESC, a.id DESC`;
-const SELECT_BY_EMAIL = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND lower(e.email) = lower($1) ${ORDER_ASSIGNMENTS}`;
+const SELECT_BY_EMAIL = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND (lower(e.email) = lower($1) OR lower(COALESCE(e.username, '')) = lower($1) OR lower(e.id) = lower($1)) ${ORDER_ASSIGNMENTS}`;
 const SELECT_BY_ID = `${SELECT_COLUMNS} ${WHERE_ACTIVE} AND e.id = $1 ${ORDER_ASSIGNMENTS}`;
+
 
 async function buildContext(rows: EmployeeRow[]): Promise<AuthContext> {
   const latest = rows[0]!;
@@ -270,7 +286,10 @@ async function buildContext(rows: EmployeeRow[]): Promise<AuthContext> {
     allowedActions: combinedActions,
     effectiveFrom,
     permissionVersion,
+    mustChangePassword: Boolean(latest.must_change_password),
+    username: latest.username ?? undefined,
   };
+
   return {
     employeeId: latest.id,
     displayName: latest.display_name,

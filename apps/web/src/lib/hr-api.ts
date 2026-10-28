@@ -1,5 +1,7 @@
 import type {
   HrRequestAccountInput,
+  HrSubmitOnboardingInput,
+  HrSubmitOnboardingResponse,
   HrRequestTransferInput,
   HrRequestPromotionInput,
   HrCoordinateExitInput,
@@ -30,6 +32,10 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const hrApi = {
   getOverview: () => req<any>('/overview'),
+
+  // Onboarding (HR enters 4 fields, auto-generates employee ID & pending approval)
+  submitOnboarding: (data: HrSubmitOnboardingInput) =>
+    req<HrSubmitOnboardingResponse>('/onboarding/submit', { method: 'POST', body: JSON.stringify(data) }),
 
   // Requests tracker
   listRequests: (params?: { type?: string; status?: string }) => {

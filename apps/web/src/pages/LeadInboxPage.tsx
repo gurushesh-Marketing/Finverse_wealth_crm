@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { EnquiryInput, LeadSummary, SavedView } from '@finverse/contracts';
 import { api, ApiError } from '../lib/api';
 import { wealthApi } from '../lib/wealth-api';
+import { useSession } from '../lib/session';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -20,6 +21,7 @@ function fmt(iso: string | null): string {
 const EMPTY_FILTERS = { search: '', stage: '', due: '', source: '', product: '' };
 
 export function LeadInboxPage() {
+  const { session } = useSession();
   const location = useLocation();
   const isBanking = location.pathname.startsWith('/banking');
   const isMarkets = location.pathname.startsWith('/markets');
@@ -57,6 +59,46 @@ export function LeadInboxPage() {
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [viewName, setViewName] = useState('');
   const [showContractModal, setShowContractModal] = useState(false);
+
+  const storageKey = `finverse_dismissed_priority_leads_${session?.employeeId || 'caller'}`;
+  const [dismissedLeadIds, setDismissedLeadIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(`finverse_dismissed_priority_leads_${session?.employeeId || 'caller'}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (session?.employeeId) {
+      try {
+        const stored = localStorage.getItem(`finverse_dismissed_priority_leads_${session.employeeId}`);
+        if (stored) {
+          setDismissedLeadIds(JSON.parse(stored));
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [session?.employeeId]);
+
+  const unacknowledgedPriorityLeads = useMemo(() => {
+    if (!leads) return [];
+    return leads.filter((l) => l.isPriority && !dismissedLeadIds.includes(l.id));
+  }, [leads, dismissedLeadIds]);
+
+  const handleDismissPriorityAlert = useCallback(() => {
+    if (!leads) return;
+    const currentPriorityIds = leads.filter((l) => l.isPriority).map((l) => l.id);
+    const updated = Array.from(new Set([...dismissedLeadIds, ...currentPriorityIds]));
+    setDismissedLeadIds(updated);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  }, [leads, dismissedLeadIds, storageKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -172,6 +214,44 @@ export function LeadInboxPage() {
         </div>
       ) : null}
 
+      {/* Persistent Dismissible Priority Lead Alert Banner */}
+      {unacknowledgedPriorityLeads.length > 0 && (
+        <div
+          role="alert"
+          className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent text-amber-950 dark:text-amber-100 shadow-sm"
+        >
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-base">
+              ★
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm tracking-tight">
+                  High-Priority Leads Assigned ({unacknowledgedPriorityLeads.length})
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-400/50">
+                  Immediate Outreach
+                </span>
+              </div>
+              <p className="text-xs text-amber-900/80 dark:text-amber-200/80 mt-0.5">
+                You have {unacknowledgedPriorityLeads.length} prioritized lead{unacknowledgedPriorityLeads.length > 1 ? 's' : ''} in your queue. Priority leads appear first with earliest assigned outreach required. (Dismissal is stored locally per browser).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDismissPriorityAlert}
+              className="h-8 border-amber-500/40 text-amber-950 dark:text-amber-100 hover:bg-amber-500/20 text-xs font-semibold"
+              title="Dismiss priority alert for this caller in this browser (persisted via localStorage)"
+            >
+              Dismiss alert (this browser)
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Filters Area matching Deck P045 */}
       <Card>
         <CardContent className="pt-4">
@@ -263,18 +343,40 @@ export function LeadInboxPage() {
                 {leads.map((lead) => (
                   <tr key={lead.id} className="transition-colors hover:bg-secondary/40">
                     <td className="px-4 py-3 font-mono text-xs font-semibold">
-                      <Link
-                        to={`${basePath}/prospects/${lead.id}`}
-                        className="text-primary underline-offset-4 hover:underline"
-                      >
-                        {lead.id}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`${basePath}/prospects/${lead.id}`}
+                          className="text-primary underline-offset-4 hover:underline"
+                        >
+                          {lead.id}
+                        </Link>
+                        {lead.isPriority && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 border border-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                            ★ Priority
+                          </span>
+                        )}
+                        {lead.reassignedFromName && (
+                          <span className="inline-flex rounded border border-primary/30 bg-[#DCEEEA] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                            Reassigned
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-foreground">{lead.displayName}</div>
                       <div className="text-xs text-muted-foreground">
                         {lead.source} · {lead.product}
+                        {lead.assignedAt && (
+                          <span className="ml-1.5 font-mono text-[11px] text-muted-foreground/80">
+                            · Assigned {fmt(lead.assignedAt)}
+                          </span>
+                        )}
                       </div>
+                      {lead.reassignedFromName && (
+                        <div className="mt-0.5 text-xs text-primary">
+                          From {lead.reassignedFromName} to {lead.ownerName}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={lead.stage === 'follow-up' || lead.stage === 'documents' || lead.stage === 'kyc' ? 'open' : lead.stage === 'converted' || lead.stage === 'disbursal' || lead.stage === 'active-funded' ? 'converted' : 'default'}>

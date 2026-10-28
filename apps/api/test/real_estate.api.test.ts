@@ -67,7 +67,7 @@ before(async () => {
   assertTestDatabaseGuard(env.DATABASE_URL);
   db = new Pool({ connectionString: env.DATABASE_URL });
   await cleanupChain();
-  await db.query(`UPDATE leads SET stage = 'new', email = 'ananya.d@luxuryestates.demo' WHERE id = 'FV-4001'`);
+  await db.query(`UPDATE leads SET stage = 'new', email = 'ananya.d@luxuryestates.demo', owner_employee_id = 'EMP-026', team_id = 'TEAM-REALESTATE-ALPHA' WHERE id = 'FV-4001'`);
   await db.query(`UPDATE leads SET team_id = 'TEAM-REALESTATE-BETA' WHERE id = 'FV-4003'`);
   server = createApp().listen(0);
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));

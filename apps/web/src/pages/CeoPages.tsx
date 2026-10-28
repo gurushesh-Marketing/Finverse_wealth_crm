@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { cn } from 'cn';
 import { ceoApi } from '../lib/ceo-api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -310,9 +311,9 @@ export function CeoOperatingPage() {
               <Select value={focusVertical} onChange={(e) => setFocusVertical(e.target.value)} className="w-44 text-xs">
                 <option value="all">All Divisions</option>
                 <option value="wealth">Wealth Management</option>
-                <option value="banking">Corporate Banking</option>
+                <option value="banking">Commercial Banking</option>
                 <option value="markets">Markets & Trading</option>
-                <option value="real-estate">Real Estate</option>
+                <option value="real_estate">Real Estate Advisory</option>
               </Select>
             </div>
             <Button size="sm" variant="outline" onClick={() => load()}>
@@ -446,7 +447,14 @@ export function CeoOperatingPage() {
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. FY27 Wealth Division Capacity Surge Requisition" />
           </FormField>
           <FormField label="Accountable Leader">
-            <Input value={accountableLeader} onChange={(e) => setAccountableLeader(e.target.value)} />
+            <Select value={accountableLeader} onChange={(e) => setAccountableLeader(e.target.value)} className="w-full text-xs">
+              <option value="Vikram Malhotra (NM - Wealth Management)">Vikram Malhotra (NM - Wealth Management)</option>
+              <option value="Suresh Nair (NM - Commercial Banking)">Suresh Nair (NM - Commercial Banking)</option>
+              <option value="Sanjay Singhania (NM - Markets & Securities)">Sanjay Singhania (NM - Markets & Securities)</option>
+              <option value="Aditya Singhania (NM - Real Estate Advisory)">Aditya Singhania (NM - Real Estate Advisory)</option>
+              <option value="Ananya Roy (CFO - Finance)">Ananya Roy (CFO - Finance)</option>
+              <option value="Rajiv Mehta (CEO - Executive)">Rajiv Mehta (CEO - Executive)</option>
+            </Select>
           </FormField>
           <FormField label="Actionable Executive Mandate">
             <Textarea value={mandate} onChange={(e) => setMandate(e.target.value)} placeholder="State board context, success metrics, and review cadence." rows={4} />
@@ -564,9 +572,17 @@ export function CeoVerticalsPage() {
   );
 }
 
+const NM_DIRECTORY: { id: string; name: string; vertical: 'wealth' | 'banking' | 'markets' | 'real-estate'; label: string }[] = [
+  { id: 'EMP-009', name: 'Vikram Malhotra', vertical: 'wealth', label: 'Wealth Management' },
+  { id: 'EMP-020', name: 'Suresh Nair', vertical: 'banking', label: 'Commercial Banking' },
+  { id: 'EMP-025', name: 'Sanjay Singhania', vertical: 'markets', label: 'Markets & Securities' },
+  { id: 'EMP-030', name: 'Aditya Singhania', vertical: 'real-estate', label: 'Real Estate Advisory' },
+];
+
 // ─── CEO-03 & CEO-09: National Leadership & NM Review ───
 export function CeoNmReviewPage() {
-  const [selectedNmId] = useState('EMP-009');
+  const [selectedNmId, setSelectedNmId] = useState('EMP-009');
+  const currentNm = NM_DIRECTORY.find((n) => n.id === selectedNmId) || NM_DIRECTORY[0];
   const loadContribution = useCallback(() => ceoApi.getNmContribution(selectedNmId), [selectedNmId]);
   const loadReviews = useCallback(() => ceoApi.listNmReviews(selectedNmId), [selectedNmId]);
 
@@ -590,19 +606,19 @@ export function CeoNmReviewPage() {
     await s.run(async () => {
       await ceoApi.saveNmReview({
         nmEmployeeId: selectedNmId,
-        vertical: 'wealth',
+        vertical: currentNm.vertical,
         periodLabel: 'October 2026',
         overallLeadershipRating: rating,
         strategicAlignment: strategicAlignment.trim(),
         operationalExecution: operationalExecution.trim(),
-        teamHealthAndRetention: teamHealth.trim() || 'Solid front-line retention; 0 caller attrition in South.',
+        teamHealthAndRetention: teamHealth.trim() || `Solid front-line retention across ${currentNm.label}.`,
         boardVisibilityReadiness: boardVisibility.trim() || 'Ready for Board Strategy presentation.',
-        strategicCommitments: ['Activate Mumbai BKC wealth hub', 'Deliver 500 wins target quota'],
+        strategicCommitments: ['Deliver quarterly division quota', 'Enforce operational SLAs and compliance'],
         nextReviewDate: nextDate,
       });
       setDrawerOpen(false);
       loadReviewsData();
-    }, 'National Manager leadership review recorded.');
+    }, `Leadership review recorded for ${currentNm.name}.`);
   };
 
   if (initialLoading) return <SkeletonRows rows={6} />;
@@ -620,10 +636,26 @@ export function CeoNmReviewPage() {
       {s.note ? <SuccessNote>{s.note}</SuccessNote> : null}
       {s.error ? <p role="alert" className="text-sm text-destructive">{s.error}</p> : null}
 
+      {/* NM Directory Selector */}
+      <div className="flex flex-wrap items-center gap-2 p-2 bg-card rounded-lg border border-border/60">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">Select National Manager:</span>
+        {NM_DIRECTORY.map((nm) => (
+          <Button
+            key={nm.id}
+            size="sm"
+            variant={selectedNmId === nm.id ? 'default' : 'outline'}
+            onClick={() => setSelectedNmId(nm.id)}
+            className="text-xs h-8"
+          >
+            {nm.name} ({nm.label})
+          </Button>
+        ))}
+      </div>
+
       <ContextCard
         pills={[
-          { label: 'National Leader', value: data?.nationalManager?.display_name || 'Vikram Malhotra' },
-          { label: 'Vertical Mandate', value: 'Wealth Management' },
+          { label: 'National Leader', value: data?.nationalManager?.display_name || currentNm.name },
+          { label: 'Vertical Mandate', value: currentNm.label },
           { label: 'Directives Fulfilled', value: `${data?.governanceRecord?.directivesFulfilled || 0}/${data?.governanceRecord?.directivesIssued || 0}` },
           { label: 'Forecast Variance', value: `${data?.governanceRecord?.forecastAccuracyVariancePercent || 0}%`, badgeTone: 'open' },
         ]}
@@ -751,12 +783,13 @@ export function CeoTargetsPage() {
   const loadTargets = useCallback(() => ceoApi.getTargets('October', 'FY2026-27'), []);
   const [data, load, { initialLoading, error, clearError }] = useLoad(loadTargets);
 
-  const [totalRevenueTarget, setTotalRevenueTarget] = useState<number>(150000000);
-  const [totalWinsTarget, setTotalWinsTarget] = useState<number>(1000);
+  const [totalRevenueTarget, setTotalRevenueTarget] = useState<number>(170000000);
+  const [totalWinsTarget, setTotalWinsTarget] = useState<number>(1500);
   const [allocations, setAllocations] = useState<any[]>([
     { vertical: 'wealth', revenueTarget: 75000000, winsTarget: 500, nmEmployeeId: 'EMP-009', nmName: 'Vikram Malhotra' },
-    { vertical: 'banking', revenueTarget: 45000000, winsTarget: 350, nmEmployeeId: 'EMP-004', nmName: 'Dev Kapoor' },
-    { vertical: 'real-estate', revenueTarget: 20000000, winsTarget: 100, nmEmployeeId: null, nmName: 'Aditya Singhania' },
+    { vertical: 'banking', revenueTarget: 45000000, winsTarget: 300, nmEmployeeId: 'EMP-020', nmName: 'Suresh Nair' },
+    { vertical: 'markets', revenueTarget: 25000000, winsTarget: 400, nmEmployeeId: 'EMP-025', nmName: 'Sanjay Singhania' },
+    { vertical: 'real_estate', revenueTarget: 20000000, winsTarget: 200, nmEmployeeId: 'EMP-030', nmName: 'Aditya Singhania' },
   ]);
   const s = useSubmitAction();
 
@@ -1048,6 +1081,51 @@ export function CeoForecastPage() {
             </Card>
           </div>
 
+          {/* Division Bottom-Up Submissions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Division Bottom-Up Submissions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-border/60 uppercase text-muted-foreground font-semibold">
+                      <th className="py-2.5 px-3">Division</th>
+                      <th className="py-2.5 px-3">National Leader</th>
+                      <th className="py-2.5 px-3">Submitted Forecast</th>
+                      <th className="py-2.5 px-3">Wins</th>
+                      <th className="py-2.5 px-3">Variance</th>
+                      <th className="py-2.5 px-3">Confidence</th>
+                      <th className="py-2.5 px-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/30">
+                    {(data?.verticalSubmissions || []).map((sub: any) => (
+                      <tr key={sub.vertical || sub.name} className="hover:bg-muted/30">
+                        <td className="py-3 px-3 font-semibold text-foreground uppercase">{String(sub.name || sub.vertical || '').replace('_', ' ')}</td>
+                        <td className="py-3 px-3 font-medium">{sub.nmName || 'Assigned NM'}</td>
+                        <td className="py-3 px-3 font-mono">₹{((sub.submittedForecastInr || sub.reportedRevenue || 0) / 10000000).toFixed(2)} Cr</td>
+                        <td className="py-3 px-3 font-bold text-primary">{sub.submittedWins || 300}</td>
+                        <td className="py-3 px-3">
+                          <span className={(sub.variancePercent ?? 0) >= 0 ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
+                            {(sub.variancePercent ?? 0) >= 0 ? `+${sub.variancePercent ?? 0}%` : `${sub.variancePercent}%`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 uppercase text-[11px] font-semibold">{sub.confidenceLevel || 'High'}</td>
+                        <td className="py-3 px-3">
+                          <Badge tone={(sub.submissionStatus || sub.status) === 'submitted' ? 'open' : 'pending'}>
+                            {String(sub.submissionStatus || sub.status || 'SUBMITTED').replace('_', ' ').toUpperCase()}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Board Macro Assumptions &amp; Regulatory Headwinds</CardTitle>
@@ -1095,7 +1173,7 @@ export function CeoGrowthPage() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [vertical, setVertical] = useState<'wealth' | 'banking' | 'markets' | 'real-estate'>('wealth');
+  const [vertical, setVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate' | 'real-estate'>('wealth');
   const [capital, setCapital] = useState<number>(15000000);
   const [roi, setRoi] = useState<number>(32.5);
   const [timeline, setTimeline] = useState<number>(6);
@@ -1111,7 +1189,7 @@ export function CeoGrowthPage() {
     await s.run(async () => {
       await ceoApi.createGrowthInitiative({
         title: title.trim(),
-        vertical,
+        vertical: (vertical === 'real_estate' ? 'real-estate' : vertical) as 'wealth' | 'banking' | 'markets' | 'real-estate',
         initiativeType: 'geographic_expansion',
         capitalRequired: capital,
         currency: 'INR',
@@ -1249,7 +1327,7 @@ export function CeoGrowthPage() {
                 <option value="wealth">Wealth Management</option>
                 <option value="banking">Corporate Banking</option>
                 <option value="markets">Markets &amp; Trading</option>
-                <option value="real-estate">Real Estate</option>
+                <option value="real_estate">Real Estate Advisory</option>
               </Select>
             </FormField>
             <FormField label="Capital Required (INR)">
@@ -1288,7 +1366,7 @@ export function CeoConflictsPage() {
       await ceoApi.arbitrateConflict(conflictId, {
         ceoDetermination: `Arbitrated in favor of ${awardedVertical.toUpperCase()} to maximize firm-wide fee margins.`,
         awardedVertical,
-        resolvedAttribution: `${awardedVertical === 'wealth' ? '70% Wealth / 30% Banking' : '50% / 50% split attribution'}`,
+        resolvedAttribution: `${awardedVertical === 'shared' ? '50% / 50% split attribution' : `100% ${awardedVertical.toUpperCase()}`}`,
       });
       load();
     }, 'Conflict determination recorded.');
@@ -1359,9 +1437,15 @@ export function CeoConflictsPage() {
 
                   {c.status === 'open' ? (
                     <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-border/40">
-                      <Button size="sm" variant="default" onClick={() => handleArbitrate(c.id, 'wealth')}>Award to Wealth</Button>
-                      <Button size="sm" variant="secondary" onClick={() => handleArbitrate(c.id, 'banking')}>Award to Banking</Button>
-                      <Button size="sm" variant="outline" onClick={() => handleArbitrate(c.id, 'shared')}>50/50 Split Attribution</Button>
+                      <Button size="sm" variant="default" onClick={() => handleArbitrate(c.id, c.source_vertical)}>
+                        Award to {c.source_vertical.replace('_', ' ').toUpperCase()}
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => handleArbitrate(c.id, c.conflicting_vertical)}>
+                        Award to {c.conflicting_vertical.replace('_', ' ').toUpperCase()}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleArbitrate(c.id, 'shared')}>
+                        50/50 Split Attribution
+                      </Button>
                     </div>
                   ) : (
                     <div className="text-xs text-primary font-semibold border-t border-border/40 pt-2">
@@ -1402,10 +1486,11 @@ export function CeoRisksPage() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [vertical, setVertical] = useState<'wealth' | 'banking' | 'markets' | 'real-estate'>('wealth');
+  const [vertical, setVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate' | 'real-estate'>('wealth');
   const [severity, setSeverity] = useState<'high' | 'critical' | 'existential'>('high');
   const [details, setDetails] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [accountableExec, setAccountableExec] = useState('Vikram Malhotra (NM - Wealth)');
   const s = useSubmitAction();
 
   const handleCreateRisk = async () => {
@@ -1415,12 +1500,12 @@ export function CeoRisksPage() {
     }
     await s.run(async () => {
       await ceoApi.createOperatingRisk({
-        vertical,
+        vertical: (vertical === 'real_estate' ? 'real-estate' : vertical) as 'wealth' | 'banking' | 'markets' | 'real-estate',
         riskCategory: 'regulatory_breach',
         severity,
         title: title.trim(),
         details: details.trim(),
-        accountableExecutive: 'Vikram Malhotra (NM - Wealth)',
+        accountableExecutive: accountableExec,
         decisionDeadline: new Date(deadline).toISOString(),
         mitigationMandate: 'Engage legal & compliance for formal audit remediation.',
       });
@@ -1537,6 +1622,7 @@ export function CeoRisksPage() {
                 <option value="wealth">Wealth</option>
                 <option value="banking">Banking</option>
                 <option value="markets">Markets</option>
+                <option value="real_estate">Real Estate</option>
               </Select>
             </FormField>
             <FormField label="Severity">
@@ -1547,6 +1633,16 @@ export function CeoRisksPage() {
               </Select>
             </FormField>
           </div>
+          <FormField label="Accountable Executive">
+            <Select value={accountableExec} onChange={(e) => setAccountableExec(e.target.value)} className="w-full text-xs">
+              <option value="Vikram Malhotra (NM - Wealth)">Vikram Malhotra (NM - Wealth)</option>
+              <option value="Suresh Nair (NM - Banking)">Suresh Nair (NM - Banking)</option>
+              <option value="Sanjay Singhania (NM - Markets)">Sanjay Singhania (NM - Markets)</option>
+              <option value="Aditya Singhania (NM - Real Estate)">Aditya Singhania (NM - Real Estate)</option>
+              <option value="Ananya Roy (CFO - Finance)">Ananya Roy (CFO - Finance)</option>
+              <option value="Rajiv Mehta (CEO - Executive)">Rajiv Mehta (CEO - Executive)</option>
+            </Select>
+          </FormField>
           <FormField label="Risk Details &amp; Exposure">
             <Textarea value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Document regulatory exposure, financial penalties, or client claims." rows={4} />
           </FormField>

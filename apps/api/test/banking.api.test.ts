@@ -521,7 +521,7 @@ test('Banking TL-01..18: Commercial Banking Team Lead workspace and supervisory 
 
 test('Banking Intake -> TL Allocation -> Caller Commercial Disbursal: Verified End-to-End lifecycle', async () => {
   // Step 1: Data Entry captures/publishes Banking Intake Batch
-  const deepaCookie = await loginAs('deepa@finverse.demo');
+  const legacyIntakeAdminCookie = await loginAs('alok@finverse.demo');
   const candidatePhone = `+91 98765 99${Math.floor(100 + Math.random() * 899)}`;
   const candidateName = `Apex Infrastructure Corp ${RUN_PREFIX}`;
 
@@ -532,7 +532,7 @@ test('Banking Intake -> TL Allocation -> Caller Commercial Disbursal: Verified E
 
   const uploadRes = await fetch(`${base}/api/data-entry/batches/upload`, {
     method: 'POST',
-    headers: { Cookie: deepaCookie, 'Content-Type': 'application/json' },
+    headers: { Cookie: legacyIntakeAdminCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       batchName: `${RUN_PREFIX}-BNK-BATCH`,
       sourceId: 'SRC-WEB-01',
@@ -550,7 +550,7 @@ test('Banking Intake -> TL Allocation -> Caller Commercial Disbursal: Verified E
   // Publish batch
   const pubRes = await fetch(`${base}/api/data-entry/batches/${batchId}/publish`, {
     method: 'POST',
-    headers: { Cookie: deepaCookie, 'Content-Type': 'application/json' },
+    headers: { Cookie: legacyIntakeAdminCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
   });
   assert.equal(pubRes.status, 200);

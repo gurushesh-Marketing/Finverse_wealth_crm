@@ -2,9 +2,13 @@ import { Router as makeRouter, type Response, type Router } from 'express';
 import { ZodError } from 'zod';
 import {
   batchUploadSchema,
+  createBulkImportJobSchema,
   duplicateDecisionSchema,
   enquiryCaptureSchema,
+  manualProspectSchema,
+  processChunkSchema,
   publishBatchSchema,
+  publishManualRecordSchema,
   qualityReportQuerySchema,
   rowCorrectionSchema,
   sourceEvidenceSchema,
@@ -60,6 +64,82 @@ function scopeOf(req: AuthedRequest): Scope {
 export function dataEntryRouter(): Router {
   const router = makeRouter();
   router.use(requireSession);
+
+  // Data Entry and Superadmin access boundary
+  router.use((req, res, next) => {
+    const scope = (req as AuthedRequest).auth!.scope;
+    if (scope.role === 'SA') {
+      return next();
+    }
+    if (scope.role !== 'DE') {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'This action is outside your role permissions.' },
+      });
+    }
+    if (
+      (req.path === '/manual-records' && ['GET', 'POST'].includes(req.method)) ||
+      (req.method === 'GET' && req.path.startsWith('/manual-records/')) ||
+      (req.method === 'POST' && req.path.endsWith('/publish')) ||
+      req.path.startsWith('/bulk-import') ||
+      req.path.startsWith('/batches') ||
+      req.path.startsWith('/duplicates') ||
+      req.path.startsWith('/rejected-rows') ||
+      req.path.startsWith('/sources') ||
+      req.path.startsWith('/reports') ||
+      req.path.startsWith('/enquiries')
+    ) {
+      return next();
+    }
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'This action is outside the Data Entry role.' } });
+  });
+
+  // Bulk Prospect Import routes (Owner decision)
+  router.post('/bulk-import/jobs', wrap(async (req, res) => {
+    const input = createBulkImportJobSchema.parse(req.body);
+    res.status(201).json(await de.createBulkImportJob(scopeOf(req), input));
+  }));
+
+  router.get('/bulk-import/jobs/:id', wrap(async (req, res) => {
+    res.json(await de.getBulkImportJob(scopeOf(req), req.params.id!));
+  }));
+
+  router.get('/bulk-import/jobs/:id/rows', wrap(async (req, res) => {
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+    const offset = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : undefined;
+    res.json(await de.getBulkImportRows(scopeOf(req), req.params.id!, { status, limit, offset }));
+  }));
+
+  router.post('/bulk-import/jobs/:id/process-chunk', wrap(async (req, res) => {
+    const { chunkSize } = processChunkSchema.parse(req.body ?? {});
+    res.json(await de.processImportJobChunk(scopeOf(req), req.params.id!, chunkSize));
+  }));
+
+  router.get('/bulk-import/jobs/:id/report', wrap(async (req, res) => {
+    const csv = await de.exportBulkImportReport(scopeOf(req), req.params.id!);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="bulk_import_${req.params.id}_report.csv"`);
+    res.send(csv);
+  }));
+
+  router.post('/manual-records', wrap(async (req, res) => {
+    const input = manualProspectSchema.parse(req.body);
+    res.status(201).json(await de.createManualRecord(scopeOf(req), input));
+  }));
+
+  router.get('/manual-records', wrap(async (req, res) => {
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    res.json({ records: await de.listManualRecords(scopeOf(req), search) });
+  }));
+
+  router.get('/manual-records/:id', wrap(async (req, res) => {
+    res.json(await de.getManualRecord(scopeOf(req), req.params.id!));
+  }));
+
+  router.post('/manual-records/:id/publish', wrap(async (req, res) => {
+    const input = publishManualRecordSchema.parse(req.body ?? {});
+    res.json(await de.publishManualRecord(scopeOf(req), req.params.id!, input));
+  }));
 
   // DE-06: Sources Register (P273–P274)
   router.get('/sources', wrap(async (req, res) => {

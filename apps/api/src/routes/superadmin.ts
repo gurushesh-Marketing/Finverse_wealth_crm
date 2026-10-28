@@ -1,6 +1,8 @@
 import { Router as makeRouter, type Response, type Router } from 'express';
 import { ZodError } from 'zod';
 import {
+  saApproveOnboardingSchema,
+  saRejectOnboardingSchema,
   saCreateAccountSchema,
   saGrantScopeSchema,
   saAdditionalScopeSchema,
@@ -13,6 +15,7 @@ import {
   saRetryJobSchema,
   saDecideDelegationSchema,
 } from '@finverse/contracts';
+
 import { requireSession, type AuthedRequest } from '../middleware/session';
 import * as sa from '../repo/superadmin';
 
@@ -47,6 +50,8 @@ function sendError(res: Response, err: unknown): void {
       return;
     }
     if (
+      msg.startsWith('VALIDATION_FAILED') ||
+      msg.startsWith('REQUEST_REJECTED') ||
       msg.startsWith('CYCLE_DETECTED') ||
       msg.startsWith('INVALID_CROSS_VERTICAL_PARENT') ||
       msg.startsWith('IDEMPOTENCY_MISMATCH') ||
@@ -114,8 +119,38 @@ export function createSuperadminRouter(): Router {
     })
   );
 
+  // Onboarding Requests from HR (Review, Approval, Activation & Rejection)
+  router.get(
+    '/onboarding/requests',
+    wrap(async (_req, res) => {
+      const data = await sa.listPendingOnboardingRequests();
+      res.json({ data });
+    })
+  );
+
+  router.post(
+    '/onboarding/approve',
+    wrap(async (req, res) => {
+      const parsed = saApproveOnboardingSchema.parse(req.body);
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.approveOnboardingRequest(parsed, actorId);
+      res.status(200).json({ data });
+    })
+  );
+
+  router.post(
+    '/onboarding/reject',
+    wrap(async (req, res) => {
+      const parsed = saRejectOnboardingSchema.parse(req.body);
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.rejectOnboardingRequest(parsed, actorId);
+      res.status(200).json({ data });
+    })
+  );
+
   // SA-01: Account Creation & Expiring Activation Invitations
   router.post(
+
     '/accounts/provision',
     wrap(async (req, res) => {
       const parsed = saCreateAccountSchema.parse(req.body);

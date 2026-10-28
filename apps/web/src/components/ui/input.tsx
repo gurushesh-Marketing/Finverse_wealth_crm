@@ -34,10 +34,10 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   );
 }
 
-export function FieldError({ children }: { children?: ReactNode }) {
+export function FieldError({ id, children }: { id?: string; children?: ReactNode }) {
   if (!children) return null;
   return (
-    <p role="alert" className="mt-1 text-[13px] text-destructive">
+    <p id={id} role="alert" className="mt-1 text-[13px] text-destructive">
       {children}
     </p>
   );

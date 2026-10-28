@@ -110,7 +110,7 @@ test('journey api contract', async () => {
     json: { email: 'tara@finverse.demo', password: 'demo1234' },
   });
   const taraCookie = cookieFrom(taraLogin.cookie);
-  assert.equal(taraLogin.body.session.role, 'TL');
+  assert.equal(taraLogin.body.session.role, 'REL');
   const logout = await call('POST', '/api/auth/logout', { json: {}, cookie: ashaCookie });
   assert.equal(logout.status, 204);
   const meAfter = await call<any>('GET', '/api/auth/me', { cookie: ashaCookie });

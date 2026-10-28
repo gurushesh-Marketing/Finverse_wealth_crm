@@ -44,7 +44,7 @@ test.describe('Chief Financial Officer Workspace — Render Loop & Request Stabi
 
     // 3. Changing Period Filter: triggers exactly 1 fetch
     const countBeforeFilter = overviewRequests;
-    const periodSelect = page.locator('select').first();
+    const periodSelect = page.getByRole('combobox', { name: /Filter by reporting period/i });
     const filterResponsePromise = page.waitForResponse(
       (res) => res.url().includes('/api/cfo/overview') && res.status() === 200
     );
