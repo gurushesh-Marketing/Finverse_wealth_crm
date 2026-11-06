@@ -694,3 +694,13 @@ Status: **100% COMPLETE & VERIFIED**
 | Odd-Sized 11-Row Bulk Upload Round-Robin Fairness (3/2/2/2/2 distribution) | apps/api/src/repo/data-entry.ts | 4 real 11-lead bulk batches published across all 4 verticals; strictly verified 3/2/2/2/2 per vertical team with zero leaks | **CURRENT_REVISION_VERIFIED** |
 | Newly Onboarded Caller Browser Inboxes | Playwright Chromium automation (scripts/execute_acceptance_check.ts) | acceptance_wealth_new_caller_EMP037.png, acceptance_banking_new_caller_EMP041.png, acceptance_markets_new_caller_EMP045.png, acceptance_realestate_new_caller_EMP050.png | **CURRENT_REVISION_VERIFIED** |
 | Quality Gates & Type Safety | pnpm -r typecheck | 0 errors across contracts, api, web | **CURRENT_REVISION_VERIFIED** |
+
+## Step 106: Current HR/Super Admin onboarding and placement correction
+
+This section supersedes older SA-01/HR-01 route and username descriptions above. The employee ID is immutable; SA chooses a unique, permanent login username linked to it. The legacy direct SA provisioning route now returns 410. Operational EMP-035 is still pending a human approval decision, so its first login is unverified.
+
+| Requirement | Current implementation | Executed evidence | State |
+|---|---|---|---|
+| HR request and live placement | `/api/hr/onboarding/submit`, `/api/hr/placement-options`, HR joiner form; active same-vertical team and team REL are enforced for SC | HR API 8/8, onboarding/auth 11/11 on repeat, credential API 9/9, team API 9/9; browser selectors matched live placement API | Technical path verified; EMP-035 decision pending |
+| SA decision and credentials | `/api/superadmin/hr/requests/:id/approve-onboarding`; SA-chosen username and temporary password, first-login change; legacy `/accounts/provision` returns 410 | SA API 12/12, credential API 9/9, browser approval/expiry checks desktop and mobile | Technical path verified; operational approval pending |
+| Four-vertical team and caller roster | `/api/superadmin/teams?vertical=...` and Ready and review cards | Browser/API reconciliation of all four verticals, every team ID/name, REL ID, caller count, and caller ID/name: 2/2 desktop/mobile | Verified, P0-02 closed |

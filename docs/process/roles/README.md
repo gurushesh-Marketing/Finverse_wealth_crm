@@ -35,6 +35,8 @@ only holds role instructions for running the team in the Antigravity IDE.
 >
 > Task-Specific Role Briefs:
 > - `onboarding-routing-fixer.md` — [Finverse Onboarding & Routing Fixer](onboarding-routing-fixer.md): Dedicated implementation owner for demo blockers in HR/SA onboarding and Data Entry bulk import routing.
+> - `release-coordinator.md` — one issue ledger and evidence-based 31 October release gate; coordinates existing Builder, QA, access/security and DevOps briefs.
+> - `supabase-deployment-rehearsal.md` — prepares the self-hosted Supabase staging and data-restore runbook for user-operated Hostinger deployment.
 
 ## Starting a role (manual)
 

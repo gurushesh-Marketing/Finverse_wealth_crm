@@ -1,5 +1,7 @@
 # AGENTS.md — Finverse CRM v2
 
+For the 31 October production target, read `docs/process/RELEASE_2026-10-31.md` and update `docs/process/RELEASE_ISSUES.md` before claiming a defect fixed or a release gate passed. These files coordinate the existing delivery standard; they do not override it.
+
 One CRM application for Wealth, Banking, Markets/Trading and Real Estate: one
 domain, one shared login. The server resolves each employee's role, vertical and
 team permissions and opens the authorized workspace. Authorization is enforced
@@ -16,6 +18,7 @@ Consult the canonical document governing the specific domain rather than guessin
 | **Architecture** | [`docs/architecture/architecture.md`](docs/architecture/architecture.md) | Monorepo topology, multi-vertical isolation, deny-by-default security, atomic transactions, outbox pattern, async workers, user-approved SDLC & SOLID policy. |
 | **Technical Specs** | [`docs/architecture/trd.md`](docs/architecture/trd.md) | REST API routes by role, standard error protocol, Zod contracts, OCC locking (`record_version`), idempotency keys, streaming PDFs, SOLID contract boundaries. |
 | **Application Flows** | [`docs/product/app-flow.md`](docs/product/app-flow.md) | Auth flow, lead state machine (`Not Contacted -> Converted/Lost/Reopened`), tiered escalations (SC->TL->MG->RM->NM->CEO->CFO), referrals. |
+| **WhatsApp CRM (deferred)** | [`docs/product/whatsapp-crm-integration.md`](docs/product/whatsapp-crm-integration.md) | After SA/HR acceptance: evaluate wacrm versus a focused Meta Cloud API adapter; preserve Finverse lead/role ownership and honest simulator labels. |
 | **UI/UX Interaction** | [`docs/design/design-flow.md`](docs/design/design-flow.md) | Six-zone workspace anatomy, drawer panel flows, mobile priority tasks & bottom sheets, modal dialogs, conflict resolution. |
 | **Relational Schema** | [`docs/architecture/backend-schema.md`](docs/architecture/backend-schema.md) | Actual implemented schema (migrations 0001–0014) vs planned schema (`DE`, `HR`, `SA`), table invariants matrix. |
 | **Execution Plan** | [`docs/process/implementation-plan.md`](docs/process/implementation-plan.md) | **Single Authoritative Delivery Standard & Canonical Workflow**: Universal 6-step loop, Action Deck grounding, navigable implementation traceability chain, post-deployment corrections, testing levels, 12 deck acceptance scenarios. |

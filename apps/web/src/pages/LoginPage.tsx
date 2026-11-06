@@ -25,6 +25,11 @@ export function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sessionExpired] = useState(() => {
+    const expired = sessionStorage.getItem('finverse-session-expired') === '1';
+    sessionStorage.removeItem('finverse-session-expired');
+    return expired;
+  });
 
   // Forgot password flow state
   const [showForgot, setShowForgot] = useState(false);
@@ -123,6 +128,11 @@ export function LoginPage() {
           </p>
         </CardHeader>
         <CardContent className="py-4">
+          {sessionExpired && !showForgot && (
+            <p role="alert" className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Your session ended. Sign in again to continue.
+            </p>
+          )}
           {denied ? (
             <DeniedPanel
               title="No active workspace"

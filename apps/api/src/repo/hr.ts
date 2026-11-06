@@ -13,15 +13,51 @@ import type {
   HrCreateReportScheduleInput,
   HrAttachApprovalInput,
   HrUpdateRequestInput,
+  PlacementOptions,
 } from '@finverse/contracts';
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 function makeId(prefix: string): string {
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${num}`;
+  return `${prefix}-${randomUUID()}`;
+}
+
+export async function getPlacementOptions(vertical: string): Promise<PlacementOptions> {
+  const normalized = vertical.replace('-', '_');
+  const [teams, superiors] = await Promise.all([
+    pool.query<PlacementOptions['teams'][number]>(
+      `SELECT t.id, t.name, t.vertical,
+              t.relationship_manager_id AS "relationshipManagerId",
+              rm.display_name AS "relationshipManagerName"
+         FROM teams t
+    LEFT JOIN employees rm ON rm.id = t.relationship_manager_id
+        WHERE REPLACE(t.vertical, '-', '_') = $1 AND t.status = 'active'
+        ORDER BY t.name, t.id`,
+      [normalized]
+    ),
+    pool.query<PlacementOptions['superiors'][number]>(
+      `SELECT id, name, role, vertical, "teamId"
+         FROM (
+           SELECT DISTINCT ON (e.id)
+                  e.id, e.display_name AS name, a.role, a.vertical,
+                  a.team_id AS "teamId"
+             FROM employees e
+             JOIN assignments a ON a.employee_id = e.id
+            WHERE e.status = 'active'
+              AND REPLACE(a.vertical, '-', '_') = $1
+              AND a.role IN ('REL', 'MG', 'RM', 'NM', 'CEO', 'CFO')
+              AND a.effective_from <= CURRENT_DATE
+              AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+            ORDER BY e.id, a.effective_from DESC, a.id DESC
+         ) eligible
+        ORDER BY role, name, id`,
+      [normalized]
+    ),
+  ]);
+  return { teams: teams.rows, superiors: superiors.rows };
 }
 
 export async function getHrOverview() {
@@ -210,8 +246,25 @@ export async function submitOnboarding(
     const proposedTeamId = input.proposedTeamId || null;
     const proposedSuperiorId = input.proposedSuperiorId || null;
 
+    if (proposedTeamId) {
+      const team = await client.query(
+        `SELECT id, status, relationship_manager_id
+           FROM teams
+          WHERE id = $1 AND REPLACE(vertical, '-', '_') = $2`,
+        [proposedTeamId, canonicalVertical]
+      );
+      if (team.rows.length === 0 || team.rows[0].status !== 'active') {
+        throw new Error('INVALID_PLACEMENT: Select an active team in the proposed vertical.');
+      }
+      if (proposedRole === 'SC' &&
+          (!team.rows[0].relationship_manager_id ||
+           proposedSuperiorId !== team.rows[0].relationship_manager_id)) {
+        throw new Error('INVALID_PLACEMENT: A Sales Caller must report to the selected team\'s Relationship Manager.');
+      }
+    }
+
     // Create pending employee record in employees
-    // Status is 'pending_approval'; permanent username is employeeId; password hash is unusable placeholder
+    // Pending employee uses its immutable ID as a placeholder until SA chooses a permanent username.
     await client.query(
       `INSERT INTO employees (
         id, email, username, password_hash, display_name, status,

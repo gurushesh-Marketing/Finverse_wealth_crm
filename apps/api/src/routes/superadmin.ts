@@ -1,9 +1,11 @@
 import { Router as makeRouter, type Response, type Router } from 'express';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 import {
   saApproveOnboardingSchema,
   saRejectOnboardingSchema,
-  saCreateAccountSchema,
+  saApproveLifecycleChangeSchema,
+  saApproveExitSchema,
+  saRejectHrRequestSchema,
   saGrantScopeSchema,
   saAdditionalScopeSchema,
   saRestructureHierarchySchema,
@@ -14,10 +16,15 @@ import {
   saIncidentActionSchema,
   saRetryJobSchema,
   saDecideDelegationSchema,
+  saCreateTeamSchema,
+  saUpdateTeamSchema,
+  saAssignCallerSchema,
+  VERTICALS,
 } from '@finverse/contracts';
 
 import { requireSession, type AuthedRequest } from '../middleware/session';
 import * as sa from '../repo/superadmin';
+import * as hr from '../repo/hr';
 
 function sendError(res: Response, err: unknown): void {
   if (err instanceof ZodError) {
@@ -119,7 +126,58 @@ export function createSuperadminRouter(): Router {
     })
   );
 
-  // Onboarding Requests from HR (Review, Approval, Activation & Rejection)
+  // HR Requests (Unified: New Employee, Role/Team/Vertical Change, Exit)
+  router.get(
+    '/hr/requests',
+    wrap(async (req, res) => {
+      const statusFilter = req.query.status as 'pending' | 'approved' | 'rejected' | undefined;
+      const vertical = req.query.vertical as string | undefined;
+      const data = await sa.listAllHrRequests(statusFilter, vertical);
+      res.json({ data });
+    })
+  );
+
+  router.post(
+    '/hr/requests/:id/approve-onboarding',
+    wrap(async (req, res) => {
+      const parsed = saApproveOnboardingSchema.parse({ ...req.body, requestId: req.params.id });
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.approveOnboardingRequest(parsed, actorId);
+      res.status(200).json({ data });
+    })
+  );
+
+  router.post(
+    '/hr/requests/:id/approve-lifecycle',
+    wrap(async (req, res) => {
+      const parsed = saApproveLifecycleChangeSchema.parse({ ...req.body, requestId: req.params.id });
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.approveLifecycleChangeRequest(parsed.requestId, parsed.decisionNotes, actorId);
+      res.status(200).json({ data });
+    })
+  );
+
+  router.post(
+    '/hr/requests/:id/approve-exit',
+    wrap(async (req, res) => {
+      const parsed = saApproveExitSchema.parse({ ...req.body, requestId: req.params.id });
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.approveExitRequest(parsed.requestId, parsed.decisionNotes, parsed.handoffSupervisedQueue, actorId);
+      res.status(200).json({ data });
+    })
+  );
+
+  router.post(
+    '/hr/requests/:id/reject',
+    wrap(async (req, res) => {
+      const parsed = saRejectHrRequestSchema.parse({ ...req.body, requestId: req.params.id });
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.rejectHrRequest(parsed.requestId, parsed.rejectionReason, actorId);
+      res.status(200).json({ data });
+    })
+  );
+
+  // Backwards compatible Onboarding Requests endpoints
   router.get(
     '/onboarding/requests',
     wrap(async (_req, res) => {
@@ -149,15 +207,25 @@ export function createSuperadminRouter(): Router {
   );
 
   // SA-01: Account Creation & Expiring Activation Invitations
+  router.get(
+    '/placement-options',
+    wrap(async (req, res) => {
+      const vertical = z.enum(VERTICALS).parse(req.query.vertical);
+      res.json({ data: await hr.getPlacementOptions(vertical) });
+    })
+  );
+
   router.post(
 
     '/accounts/provision',
-    wrap(async (req, res) => {
-      const parsed = saCreateAccountSchema.parse(req.body);
-      const actorId = req.auth!.session.employeeId;
-      const data = await sa.provisionAccount(parsed, actorId);
-      res.status(201).json({ data });
-    })
+    (_req, res) => {
+      res.status(410).json({
+        error: {
+          code: 'RETIRED_WORKFLOW',
+          message: 'Submit a joiner request in HR, then approve it from Super Admin Employees.',
+        },
+      });
+    }
   );
 
   router.get(
@@ -360,6 +428,64 @@ export function createSuperadminRouter(): Router {
     wrap(async (req, res) => {
       const limit = Number(req.query.limit) || 20;
       const data = await sa.listLocalDeliveryOutbox(limit);
+      res.json({ data });
+    })
+  );
+
+  // Teams & Relationship Manager Management
+  router.get(
+    '/teams',
+    wrap(async (req, res) => {
+      const vertical = typeof req.query.vertical === 'string' ? req.query.vertical : undefined;
+      const data = await sa.listTeams(vertical);
+      res.json({ data });
+    })
+  );
+
+  router.post(
+    '/teams',
+    wrap(async (req, res) => {
+      const parsed = saCreateTeamSchema.parse(req.body);
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.createTeam(parsed, actorId);
+      res.status(201).json({ data });
+    })
+  );
+
+  router.patch(
+    '/teams/:id',
+    wrap(async (req, res) => {
+      const parsed = saUpdateTeamSchema.parse(req.body);
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.updateTeam(req.params.id, parsed, actorId);
+      res.json({ data });
+    })
+  );
+
+  router.post(
+    '/teams/:id/callers',
+    wrap(async (req, res) => {
+      const parsed = saAssignCallerSchema.parse(req.body);
+      const actorId = req.auth!.session.employeeId;
+      const data = await sa.assignCallerToTeam(req.params.id, parsed, actorId);
+      res.json({ data });
+    })
+  );
+
+  router.get(
+    '/teams/eligible-managers',
+    wrap(async (req, res) => {
+      const vertical = typeof req.query.vertical === 'string' ? req.query.vertical : 'wealth';
+      const data = await sa.listEligibleRelationshipManagers(vertical);
+      res.json({ data });
+    })
+  );
+
+  router.get(
+    '/teams/eligible-callers',
+    wrap(async (req, res) => {
+      const vertical = typeof req.query.vertical === 'string' ? req.query.vertical : 'wealth';
+      const data = await sa.listEligibleCallers(vertical);
       res.json({ data });
     })
   );

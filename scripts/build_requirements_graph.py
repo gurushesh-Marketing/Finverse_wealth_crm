@@ -43,6 +43,7 @@ sources = {
     'doc_trd': 'docs/architecture/trd.md',
     'doc_app_flow': 'docs/product/app-flow.md',
     'doc_data_entry_intake': 'docs/product/data-entry-intake-routing.md',
+    'doc_whatsapp_crm': 'docs/product/whatsapp-crm-integration.md',
     'doc_design_flow': 'docs/design/design-flow.md',
     'doc_backend_schema': 'docs/architecture/backend-schema.md',
     'doc_implementation_plan': 'docs/process/implementation-plan.md',
@@ -334,7 +335,7 @@ add_node("brand_LogoIntegrity", "Brand Asset: Original artwork only (never recol
 # 4. Ingest canonical Markdown documents and labelled product proposals
 doc_keys = [
     'doc_prd', 'doc_design_system', 'doc_architecture', 'doc_trd',
-    'doc_app_flow', 'doc_data_entry_intake', 'doc_design_flow', 'doc_backend_schema', 'doc_implementation_plan'
+    'doc_app_flow', 'doc_data_entry_intake', 'doc_whatsapp_crm', 'doc_design_flow', 'doc_backend_schema', 'doc_implementation_plan'
 ]
 
 doc_meta = {
@@ -344,6 +345,7 @@ doc_meta = {
     'doc_trd': ('TRD', 'Technical Requirements Document'),
     'doc_app_flow': ('AppFlow', 'Master Application State & Flow Specification'),
     'doc_data_entry_intake': ('DataEntryIntake', 'Data Entry Manual Record Contract'),
+    'doc_whatsapp_crm': ('WhatsAppCRM', 'Deferred WhatsApp CRM Integration Plan'),
     'doc_design_flow': ('DesignFlow', 'Master UI/UX Screen & Interaction Flow Specification'),
     'doc_backend_schema': ('BackendSchema', 'Master Backend Relational Database Schema Specification'),
     'doc_implementation_plan': ('ImplementationPlan', 'Master Implementation & Resumption Plan')

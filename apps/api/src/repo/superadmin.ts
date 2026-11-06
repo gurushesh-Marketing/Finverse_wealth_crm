@@ -3,6 +3,10 @@ import type {
   SaApproveOnboardingInput,
   SaRejectOnboardingInput,
   SaApproveOnboardingResponse,
+  SaApproveLifecycleChangeInput,
+  SaApproveExitInput,
+  SaRejectHrRequestInput,
+  SaHrRequestItem,
   SaCreateAccountInput,
   SaGrantScopeInput,
   SaAdditionalScopeInput,
@@ -14,6 +18,13 @@ import type {
   SaIncidentActionInput,
   SaRetryJobInput,
   SaDecideDelegationInput,
+  SaCreateTeamInput,
+  SaUpdateTeamInput,
+  SaAssignCallerInput,
+  SaTeamItem,
+  SaTeamCaller,
+  SaEligibleRelationshipManager,
+  SaEligibleCaller,
 } from '@finverse/contracts';
 
 import { pool } from './db';
@@ -239,6 +250,80 @@ export async function listPendingOnboardingRequests() {
   return rows;
 }
 
+// Unified HR Requests List (New Employee, Role/Team/Vertical Change, Exit)
+export async function listAllHrRequests(
+  statusFilter?: 'pending' | 'approved' | 'rejected',
+  vertical?: string
+): Promise<SaHrRequestItem[]> {
+  let query = `
+    SELECT
+      r.id,
+      r.request_type as "requestType",
+      r.status,
+      r.employee_id as "employeeId",
+      r.employee_name as "employeeName",
+      r.employee_email as "employeeEmail",
+      r.primary_mobile as "primaryMobile",
+      r.whatsapp_number as "whatsappNumber",
+      r.target_role as "targetRole",
+      r.target_vertical as "targetVertical",
+      r.target_team_id as "targetTeamId",
+      t.name as "targetTeamName",
+      r.supervisor_employee_id as "supervisorEmployeeId",
+      sup.display_name as "supervisorName",
+      to_char(r.effective_date, 'YYYY-MM-DD') as "effectiveDate",
+      r.effective_time as "effectiveTime",
+      r.approvals_summary as "approvalsSummary",
+      r.handoff_plan as "handoffPlan",
+      r.old_workload_treatment as "oldWorkloadTreatment",
+      r.replacement_plan as "replacementPlan",
+      r.admin_decision_notes as "adminDecisionNotes",
+      creator.display_name as "createdByName",
+      r.created_at as "createdAt",
+      r.updated_at as "updatedAt",
+      cur_asg.role as "currentRole",
+      cur_asg.vertical as "currentVertical",
+      cur_team.name as "currentTeamName",
+      e.username as "currentUsername",
+      e.status as "employeeCurrentStatus"
+    FROM hr_lifecycle_requests r
+    LEFT JOIN employees e ON r.employee_id = e.id
+    LEFT JOIN teams t ON r.target_team_id = t.id
+    LEFT JOIN employees sup ON r.supervisor_employee_id = sup.id
+    LEFT JOIN employees creator ON r.created_by_employee_id = creator.id
+    LEFT JOIN LATERAL (
+      SELECT a.role, a.vertical, a.team_id
+      FROM assignments a
+      WHERE a.employee_id = r.employee_id
+        AND (a.effective_to IS NULL OR a.effective_to >= CURRENT_DATE)
+      ORDER BY a.effective_from DESC, a.id DESC
+      LIMIT 1
+    ) cur_asg ON true
+    LEFT JOIN teams cur_team ON cur_team.id = cur_asg.team_id
+    WHERE 1=1
+  `;
+  const params: any[] = [];
+  if (statusFilter === 'pending') {
+    query += ` AND r.status IN ('submitted', 'approved', 'approved_by_rm', 'pending_approval')`;
+  } else if (statusFilter === 'approved') {
+    query += ` AND r.status = 'activated_by_admin'`;
+  } else if (statusFilter === 'rejected') {
+    query += ` AND r.status IN ('rejected', 'returned')`;
+  }
+  if (vertical && vertical !== 'all') {
+    const normVert = vertical === 'real-estate' ? 'real_estate' : vertical;
+    params.push(normVert);
+    query += ` AND (
+      r.target_vertical = $${params.length} OR
+      (r.target_vertical IS NULL AND (cur_asg.vertical = $${params.length} OR REPLACE(cur_asg.vertical, '-', '_') = REPLACE($${params.length}, '-', '_'))) OR
+      REPLACE(r.target_vertical, '-', '_') = REPLACE($${params.length}, '-', '_')
+    )`;
+  }
+  query += ` ORDER BY r.created_at DESC`;
+  const res = await pool.query(query, params);
+  return res.rows;
+}
+
 export async function approveOnboardingRequest(
   input: SaApproveOnboardingInput,
   actorId: string
@@ -252,7 +337,8 @@ export async function approveOnboardingRequest(
       `SELECT r.*, e.id as emp_id, e.status as emp_status, e.display_name, e.email
          FROM hr_lifecycle_requests r
          JOIN employees e ON e.id = r.employee_id
-        WHERE r.id = $1 AND r.request_type = 'new_account'`,
+        WHERE r.id = $1 AND r.request_type = 'new_account'
+        FOR UPDATE OF r, e`,
       [input.requestId]
     );
     if (reqRes.rows.length === 0) {
@@ -265,25 +351,41 @@ export async function approveOnboardingRequest(
     if (req.status === 'rejected') {
       throw new Error('REQUEST_REJECTED: This onboarding request was previously rejected.');
     }
+    if (req.emp_status !== 'pending_approval') {
+      throw new Error('REQUEST_ALREADY_ACTIVATED: This employee is no longer pending approval.');
+    }
 
     const canonicalVertical = input.vertical === 'real-estate' ? 'real_estate' : input.vertical;
 
-    // 2. Validate team belongs to the selected vertical
+    // 2. Validate team belongs to the selected vertical (case-insensitive ID support)
     const teamRes = await client.query(
-      `SELECT id, name, vertical FROM teams WHERE id = $1 AND (vertical = $2 OR vertical = REPLACE($2, '_', '-'))`,
+      `SELECT id, name, vertical, status, relationship_manager_id
+         FROM teams
+        WHERE lower(id) = lower($1)
+          AND REPLACE(vertical, '-', '_') = REPLACE($2, '-', '_')`,
       [input.teamId, canonicalVertical]
     );
     if (teamRes.rows.length === 0) {
       throw new Error(`VALIDATION_FAILED: Team placement '${input.teamId}' does not belong to the selected vertical '${input.vertical}'.`);
     }
+    const validatedTeamId = teamRes.rows[0].id;
+    if (teamRes.rows[0].status !== 'active') {
+      throw new Error('VALIDATION_FAILED: Select an active team for this employee.');
+    }
+    if (input.role === 'SC' &&
+        (!teamRes.rows[0].relationship_manager_id ||
+         input.reportingManagerId !== teamRes.rows[0].relationship_manager_id)) {
+      throw new Error('VALIDATION_FAILED: Sales Callers must report to the selected team\'s active Relationship Manager.');
+    }
 
     // 3. Validate reporting manager if provided
+    let validatedMgrId: string | null = null;
     if (input.reportingManagerId) {
       const mgrRes = await client.query(
         `SELECT e.id, e.display_name, e.status, a.role, a.vertical
            FROM employees e
            JOIN assignments a ON a.employee_id = e.id
-          WHERE e.id = $1
+          WHERE lower(e.id) = lower($1)
             AND e.status = 'active'
             AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
             AND (a.vertical = $2 OR a.vertical = REPLACE($2, '_', '-'))
@@ -293,14 +395,27 @@ export async function approveOnboardingRequest(
       if (mgrRes.rows.length === 0) {
         throw new Error(`VALIDATION_FAILED: Reporting manager '${input.reportingManagerId}' does not belong to the selected vertical '${input.vertical}' or is not an eligible active manager.`);
       }
+      if (input.role === 'SC' && mgrRes.rows[0].role !== 'REL') {
+        throw new Error('VALIDATION_FAILED: A Sales Caller must report to a Relationship Manager.');
+      }
+      validatedMgrId = mgrRes.rows[0].id;
     }
 
-    // 4. Permanent non-editable login username is the Employee ID (EMP-xxx)
-    const permanentUsername = req.employee_id;
+    // 4. Validate Super Admin manually chosen username is unique across all accounts
+    const chosenUsername = input.username.trim();
+    const dupUsernameRes = await client.query(
+      `SELECT id FROM employees WHERE lower(username) = lower($1) AND id != $2`,
+      [chosenUsername, req.employee_id]
+    );
+    if (dupUsernameRes.rows.length > 0) {
+      throw new Error(`VALIDATION_FAILED: Login username '${chosenUsername}' is already taken. Please choose a unique username.`);
+    }
 
-    // 5. Generate secure one-time temporary password
-    const tempPassword = 'Tmp#' + randomBytes(4).toString('hex') + 'A1!';
-    const passwordHash = hashPassword(tempPassword);
+    // 5. Hash the Super Admin manually chosen temporary password (never store or log plaintext)
+    if (!input.temporaryPassword || input.temporaryPassword.length < 8) {
+      throw new Error('VALIDATION_FAILED: Temporary password must be at least 8 characters.');
+    }
+    const passwordHash = hashPassword(input.temporaryPassword);
 
     // 6. Record audited placement corrections if SA adjusted HR's proposal
     const placementCorrections: string[] = [];
@@ -310,18 +425,18 @@ export async function approveOnboardingRequest(
     if (req.target_vertical && req.target_vertical !== canonicalVertical) {
       placementCorrections.push(`vertical: ${req.target_vertical} -> ${canonicalVertical}`);
     }
-    if (req.target_team_id && req.target_team_id !== input.teamId) {
-      placementCorrections.push(`team: ${req.target_team_id} -> ${input.teamId}`);
+    if (req.target_team_id && req.target_team_id !== validatedTeamId) {
+      placementCorrections.push(`team: ${req.target_team_id} -> ${validatedTeamId}`);
     }
-    if (req.supervisor_employee_id && req.supervisor_employee_id !== input.reportingManagerId) {
-      placementCorrections.push(`superior: ${req.supervisor_employee_id} -> ${input.reportingManagerId || 'none'}`);
+    if (req.supervisor_employee_id && req.supervisor_employee_id !== validatedMgrId) {
+      placementCorrections.push(`superior: ${req.supervisor_employee_id} -> ${validatedMgrId || 'none'}`);
     }
 
     const auditNotes = placementCorrections.length > 0
       ? `Approved with audited placement corrections: ${placementCorrections.join(', ')}`
       : 'Approved placement as proposed by HR';
 
-    // 7. Atomically activate employee, set password hash, permanent username (= EMP-xxx) and must_change_password
+    // 7. Atomically activate employee, set password hash, permanent unique username, and must_change_password
     await client.query(
       `UPDATE employees
           SET password_hash = $1,
@@ -330,7 +445,7 @@ export async function approveOnboardingRequest(
               must_change_password = true,
               reporting_manager_id = $3
         WHERE id = $4`,
-      [passwordHash, permanentUsername, input.reportingManagerId || null, req.employee_id]
+      [passwordHash, chosenUsername, validatedMgrId, req.employee_id]
     );
 
     // 8. Atomically create the effective assignment and permissions
@@ -338,7 +453,7 @@ export async function approveOnboardingRequest(
     await client.query(
       `INSERT INTO assignments (id, employee_id, role, vertical, team_id, effective_from, effective_to)
        VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NULL)`,
-      [assignmentId, req.employee_id, input.role, canonicalVertical, input.teamId]
+       [assignmentId, req.employee_id, input.role, canonicalVertical, validatedTeamId]
     );
 
     // 9. Update request status with decision audit notes
@@ -350,34 +465,34 @@ export async function approveOnboardingRequest(
               target_vertical = $2,
               target_team_id = $3,
               supervisor_employee_id = $4,
-              admin_decision_notes = $5
+              admin_decision_notes = $5,
+              updated_at = NOW()
         WHERE id = $6`,
-      [input.role, hrTargetVertical, input.teamId, input.reportingManagerId || null, auditNotes, req.id]
+      [input.role, hrTargetVertical, validatedTeamId, validatedMgrId, auditNotes, req.id]
     );
 
     await client.query('COMMIT');
 
-    // 10. System audit log
+    // 10. System audit log (never logs plaintext password)
     await logSystemAudit(actorId, 'account.activated', 'employee', req.employee_id, {
       requestId: req.id,
-      username: permanentUsername,
+      username: chosenUsername,
       role: input.role,
       vertical: canonicalVertical,
-      teamId: input.teamId,
-      reportingManagerId: input.reportingManagerId || null,
+      teamId: validatedTeamId,
+      reportingManagerId: validatedMgrId,
       placementCorrections: placementCorrections.length > 0 ? placementCorrections : 'none',
     });
 
     return {
       success: true,
       employeeId: req.employee_id,
-      username: permanentUsername,
+      username: chosenUsername,
       role: input.role,
       vertical: canonicalVertical,
-      teamId: input.teamId,
-      temporaryPassword: tempPassword,
+      teamId: validatedTeamId,
       mustChangePassword: true,
-      message: `Account activated for ${req.employee_id}. Initial login username is ${permanentUsername}.`,
+      message: `Account activated for ${req.employee_id}. Initial login username is ${chosenUsername}.`,
     };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -387,9 +502,17 @@ export async function approveOnboardingRequest(
   }
 }
 
-
 export async function rejectOnboardingRequest(
   input: SaRejectOnboardingInput,
+  actorId: string
+) {
+  return rejectHrRequest(input.requestId, input.rejectionReason, actorId);
+}
+
+// Unified HR Request Rejection (New Employee, Role/Team Change, Exit)
+export async function rejectHrRequest(
+  requestId: string,
+  rejectionReason: string,
   actorId: string
 ) {
   const client = await pool.connect();
@@ -399,39 +522,54 @@ export async function rejectOnboardingRequest(
     const reqRes = await client.query(
       `SELECT r.*, e.id as emp_id, e.status as emp_status
          FROM hr_lifecycle_requests r
-         JOIN employees e ON e.id = r.employee_id
-        WHERE r.id = $1 AND r.request_type = 'new_account'`,
-      [input.requestId]
+         LEFT JOIN employees e ON e.id = r.employee_id
+        WHERE r.id = $1`,
+      [requestId]
     );
     if (reqRes.rows.length === 0) {
-      throw new Error('NOT_FOUND: Onboarding request not found.');
+      throw new Error('NOT_FOUND: HR request not found.');
     }
     const req = reqRes.rows[0];
     if (req.status === 'activated_by_admin') {
-      throw new Error('REQUEST_ALREADY_ACTIVATED: Cannot reject an already activated employee.');
+      throw new Error('REQUEST_ALREADY_ACTIVATED: Cannot reject an already activated request.');
     }
 
-    // Set request to rejected and employee to rejected
+    // Set request to rejected with reason
     await client.query(
       `UPDATE hr_lifecycle_requests
           SET status = 'rejected',
-              admin_decision_notes = $1
+              admin_decision_notes = $1,
+              updated_at = NOW()
         WHERE id = $2`,
-      [input.rejectionReason, req.id]
+      [rejectionReason, req.id]
     );
 
+    // If new employee onboarding, mark employee rejected so login access is blocked
+    if (req.request_type === 'new_account' && req.employee_id) {
+      await client.query(
+        `UPDATE employees
+            SET status = 'rejected'
+          WHERE id = $1`,
+        [req.employee_id]
+      );
+    }
+
+    // Also update employee_lifecycle_requests if linked
     await client.query(
-      `UPDATE employees
-          SET status = 'rejected'
-        WHERE id = $1`,
-      [req.employee_id]
+      `UPDATE employee_lifecycle_requests
+          SET status = 'rejected',
+              business_justification = business_justification || ' [Admin Rejected: ' || $1 || ']'
+        WHERE id = $2`,
+      [rejectionReason, req.id]
     );
 
     await client.query('COMMIT');
 
-    await logSystemAudit(actorId, 'account.rejected', 'employee', req.employee_id, {
+    await logSystemAudit(actorId, `hr_request.rejected.${req.request_type}`, 'hr_request', req.id, {
       requestId: req.id,
-      rejectionReason: input.rejectionReason,
+      requestType: req.request_type,
+      employeeId: req.employee_id,
+      rejectionReason,
     });
 
     return {
@@ -439,7 +577,237 @@ export async function rejectOnboardingRequest(
       requestId: req.id,
       employeeId: req.employee_id,
       status: 'rejected',
-      message: 'Onboarding request rejected.',
+      message: `HR request ${req.id} (${req.request_type}) rejected.`,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Unified HR Request Approval: Role/Team/Vertical Change (Mover)
+export async function approveLifecycleChangeRequest(
+  requestId: string,
+  notes: string | undefined,
+  actorId: string
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const reqRes = await client.query(
+      `SELECT r.*, e.status as emp_status
+         FROM hr_lifecycle_requests r
+         JOIN employees e ON r.employee_id = e.id
+        WHERE r.id = $1 AND r.request_type IN ('team_transfer', 'promotion')`,
+      [requestId]
+    );
+    if (reqRes.rows.length === 0) {
+      throw new Error('NOT_FOUND: Role/team change request not found.');
+    }
+    const req = reqRes.rows[0];
+    if (req.status === 'activated_by_admin') {
+      throw new Error('REQUEST_ALREADY_ACTIVATED: This request has already been activated.');
+    }
+    if (req.status === 'rejected') {
+      throw new Error('REQUEST_REJECTED: Cannot approve a rejected request.');
+    }
+
+    const canonicalVertical = req.target_vertical === 'real-estate' ? 'real_estate' : req.target_vertical;
+    const decisionNote = notes?.trim() || 'Approved and activated by Super Admin';
+
+    // Close active assignments today
+    await client.query(
+      `UPDATE assignments
+          SET effective_to = CURRENT_DATE - 1
+        WHERE employee_id = $1 AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)`,
+      [req.employee_id]
+    );
+
+    // Create new active assignment
+    const newAsgId = makeId('ASG-XFER');
+    await client.query(
+      `INSERT INTO assignments (id, employee_id, role, vertical, team_id, effective_from, effective_to)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NULL)`,
+      [newAsgId, req.employee_id, req.target_role, canonicalVertical, req.target_team_id]
+    );
+
+    // If supervisor assigned, update reporting_manager_id
+    if (req.supervisor_employee_id) {
+      await client.query(
+        `UPDATE employees SET reporting_manager_id = $1 WHERE id = $2`,
+        [req.supervisor_employee_id, req.employee_id]
+      );
+    }
+
+    // Redistribute former caller leads if an active caller was moved
+    const leadHandoff = await redistributeFormerCallerLeads(
+      client,
+      req.employee_id,
+      actorId,
+      'approved transfer or promotion activated'
+    );
+
+    // Mark HR request activated
+    await client.query(
+      `UPDATE hr_lifecycle_requests
+          SET status = 'activated_by_admin',
+              admin_decision_notes = $1,
+              updated_at = NOW()
+        WHERE id = $2`,
+      [decisionNote, req.id]
+    );
+
+    // Also update employee_lifecycle_requests if matching
+    await client.query(
+      `UPDATE employee_lifecycle_requests
+          SET status = 'activated_by_admin'
+        WHERE id = $1`,
+      [req.id]
+    );
+
+    // Revoke active sessions to enforce fresh role/vertical scope
+    await client.query('DELETE FROM sessions WHERE employee_id = $1', [req.employee_id]);
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(actorId, 'transfer.activate', 'employee', req.employee_id, {
+      requestId: req.id,
+      newAssignmentId: newAsgId,
+      newRole: req.target_role,
+      newVertical: canonicalVertical,
+      newTeamId: req.target_team_id,
+      leadHandoff,
+      notes: decisionNote,
+    });
+
+    return {
+      success: true,
+      status: 'activated_by_admin',
+      employeeId: req.employee_id,
+      newAssignmentId: newAsgId,
+      effectiveFrom: new Date().toISOString().split('T')[0],
+      leadHandoff,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Unified HR Request Approval: Employee Exit (Leaver)
+export async function approveExitRequest(
+  requestId: string,
+  notes: string | undefined,
+  handoffSupervisedQueue: boolean = true,
+  actorId: string
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const reqRes = await client.query(
+      `SELECT r.*, e.status as emp_status
+         FROM hr_lifecycle_requests r
+         JOIN employees e ON r.employee_id = e.id
+        WHERE r.id = $1 AND r.request_type = 'exit'`,
+      [requestId]
+    );
+    if (reqRes.rows.length === 0) {
+      throw new Error('NOT_FOUND: Employee exit request not found.');
+    }
+    const req = reqRes.rows[0];
+    if (req.status === 'activated_by_admin') {
+      throw new Error('REQUEST_ALREADY_ACTIVATED: This exit request has already been finalized.');
+    }
+    if (req.status === 'rejected') {
+      throw new Error('REQUEST_REJECTED: Cannot approve a rejected exit request.');
+    }
+
+    const decisionNote = notes?.trim() || 'Exit request approved and finalized by Super Admin';
+
+    // 1. Disable employee sign-in
+    await client.query(`UPDATE employees SET status = 'disabled' WHERE id = $1`, [req.employee_id]);
+
+    // 2. Close active assignments immediately (yesterday so today is inactive)
+    await client.query(
+      `UPDATE assignments SET effective_to = CURRENT_DATE - 1 WHERE employee_id = $1 AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)`,
+      [req.employee_id]
+    );
+
+    // 3. Redistribute open caller leads
+    const leadHandoff = await redistributeFormerCallerLeads(client, req.employee_id, actorId, 'caller exit finalized');
+
+    // 4. Revoke all active sessions
+    const sessionsRes = await client.query(`DELETE FROM sessions WHERE employee_id = $1 RETURNING token_hash`, [req.employee_id]);
+    const revokedCount = sessionsRes.rowCount || 0;
+
+    // 5. Holding queues for remaining work
+    let holdingItemsCount = 0;
+    if (handoffSupervisedQueue) {
+      const openLeadsRes = await client.query(
+        `SELECT id FROM leads WHERE owner_employee_id = $1 AND stage NOT IN ('converted', 'lost')`,
+        [req.employee_id]
+      );
+      for (const lead of openLeadsRes.rows) {
+        const queueId = makeId('HOLD');
+        await client.query(
+          `INSERT INTO holding_queues (id, source_employee_id, item_type, item_id, supervised_by_employee_id, status, notes)
+           VALUES ($1, $2, 'lead', $3, $4, 'in_holding', $5)`,
+          [queueId, req.employee_id, lead.id, actorId, `Lead offboarded from ${req.employee_id} via HR Exit; awaiting supervisor reallocation`]
+        );
+        await client.query(`UPDATE leads SET owner_employee_id = NULL WHERE id = $1`, [lead.id]);
+        holdingItemsCount++;
+      }
+
+      const openTasksRes = await client.query(
+        `SELECT id FROM lead_tasks WHERE owner_employee_id = $1 AND status = 'open'`,
+        [req.employee_id]
+      );
+      for (const task of openTasksRes.rows) {
+        const queueId = makeId('HOLD');
+        await client.query(
+          `INSERT INTO holding_queues (id, source_employee_id, item_type, item_id, supervised_by_employee_id, status, notes)
+           VALUES ($1, $2, 'task', $3, $4, 'in_holding', $5)`,
+          [queueId, req.employee_id, task.id, actorId, `Task offboarded from ${req.employee_id} via HR Exit; awaiting reallocation`]
+        );
+        await client.query(`UPDATE reminders SET status = 'cancelled' WHERE task_id = $1 AND status = 'scheduled'`, [task.id]);
+        await client.query(`UPDATE lead_tasks SET status = 'cancelled' WHERE id = $1`, [task.id]);
+        holdingItemsCount++;
+      }
+    }
+
+    // 6. Update HR request status
+    await client.query(
+      `UPDATE hr_lifecycle_requests
+          SET status = 'activated_by_admin',
+              admin_decision_notes = $1,
+              updated_at = NOW()
+        WHERE id = $2`,
+      [decisionNote, req.id]
+    );
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(actorId, 'employee.exit.finalized', 'employee', req.employee_id, {
+      requestId: req.id,
+      notes: decisionNote,
+      sessionsRevoked: revokedCount,
+      holdingItemsCount,
+      leadHandoff,
+    });
+
+    return {
+      success: true,
+      status: 'activated_by_admin',
+      employeeId: req.employee_id,
+      sessionsRevoked: revokedCount,
+      leadHandoff,
+      message: `Employee ${req.employee_id} exit finalized and access revoked.`,
     };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1603,5 +1971,441 @@ export async function changeEmployeePassword(
   });
 
   return { success: true, message: 'Password updated successfully.' };
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic Team Management & Relationship Manager Supervision (SA)
+// ---------------------------------------------------------------------------
+
+export async function listTeams(vertical?: string): Promise<SaTeamItem[]> {
+  const params: any[] = [];
+  let whereClause = '';
+  if (vertical && vertical !== 'all') {
+    params.push(vertical);
+    whereClause = `WHERE (t.vertical = $1 OR REPLACE(t.vertical, '-', '_') = REPLACE($1, '-', '_'))`;
+  }
+
+  const { rows: teamRows } = await pool.query<{
+    id: string;
+    name: string;
+    vertical: string;
+    status: 'active' | 'inactive';
+    relationship_manager_id: string | null;
+    relationship_manager_name: string | null;
+    created_at: string;
+    updated_at: string;
+  }>(
+    `SELECT t.id, t.name, t.vertical, t.status,
+            t.relationship_manager_id,
+            rm.display_name AS relationship_manager_name,
+            t.created_at, t.updated_at
+       FROM teams t
+  LEFT JOIN employees rm ON rm.id = t.relationship_manager_id
+       ${whereClause}
+      ORDER BY t.vertical, t.name`,
+    params
+  );
+
+  // Fetch active callers for each team
+  const { rows: callerRows } = await pool.query<{
+    team_id: string;
+    employee_id: string;
+    name: string;
+    email: string;
+    username: string | null;
+    assigned_at: string;
+  }>(
+    `SELECT a.team_id, e.id AS employee_id, e.display_name AS name,
+            e.email, e.username, a.effective_from AS assigned_at
+       FROM assignments a
+       JOIN employees e ON e.id = a.employee_id
+      WHERE a.role = 'SC'
+        AND e.status = 'active'
+        AND a.effective_from <= CURRENT_DATE
+        AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+      ORDER BY e.display_name`
+  );
+
+  const callersByTeam = new Map<string, SaTeamCaller[]>();
+  for (const c of callerRows) {
+    const list = callersByTeam.get(c.team_id) || [];
+    list.push({
+      employeeId: c.employee_id,
+      name: c.name,
+      email: c.email,
+      username: c.username,
+      assignedAt: c.assigned_at,
+    });
+    callersByTeam.set(c.team_id, list);
+  }
+
+  return teamRows.map((t) => {
+    const callers = callersByTeam.get(t.id) || [];
+    return {
+      id: t.id,
+      name: t.name,
+      vertical: t.vertical,
+      status: t.status,
+      relationshipManagerId: t.relationship_manager_id,
+      relationshipManagerName: t.relationship_manager_name,
+      callerCount: callers.length,
+      callers,
+      createdAt: t.created_at,
+      updatedAt: t.updated_at,
+    };
+  });
+}
+
+export async function createTeam(input: SaCreateTeamInput, actorId: string): Promise<SaTeamItem> {
+  const normVertical = input.vertical.toLowerCase().replace('_', '-');
+
+  // If relationshipManagerId is provided, validate active REL grant in this vertical
+  if (input.relationshipManagerId) {
+    const { rows: rmRows } = await pool.query<{ id: string }>(
+      `SELECT e.id
+         FROM employees e
+         JOIN assignments a ON a.employee_id = e.id
+        WHERE e.id = $1
+          AND e.status = 'active'
+          AND a.role = 'REL'
+          AND (a.vertical = $2 OR REPLACE(a.vertical, '-', '_') = REPLACE($2, '-', '_'))
+          AND a.effective_from <= CURRENT_DATE
+          AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+        LIMIT 1`,
+      [input.relationshipManagerId, normVertical]
+    );
+    if (rmRows.length === 0) {
+      throw new Error('VALIDATION_FAILED: Manager does not have an active Relationship Manager grant in this vertical.');
+    }
+  }
+
+  let teamId = input.id?.trim();
+  if (!teamId) {
+    const cleanVertical = normVertical.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanName = input.name.toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '');
+    teamId = `TEAM-${cleanVertical}-${cleanName}`;
+  }
+
+  // Ensure unique ID
+  const { rows: existing } = await pool.query(`SELECT id FROM teams WHERE id = $1`, [teamId]);
+  if (existing.length > 0) {
+    teamId = `${teamId}-${randomBytes(2).toString('hex').toUpperCase()}`;
+  }
+
+  await pool.query(
+    `INSERT INTO teams (id, name, vertical, relationship_manager_id, status, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())`,
+    [teamId, input.name.trim(), normVertical, input.relationshipManagerId || null]
+  );
+
+  await logSystemAudit(actorId, 'team.created', 'team', teamId, {
+    name: input.name,
+    vertical: normVertical,
+    relationshipManagerId: input.relationshipManagerId || null,
+  });
+
+  const teams = await listTeams(normVertical);
+  const created = teams.find((t) => t.id === teamId);
+  if (!created) {
+    throw new Error('INTERNAL: Failed to retrieve newly created team.');
+  }
+  return created;
+}
+
+export async function updateTeam(teamId: string, input: SaUpdateTeamInput, actorId: string): Promise<SaTeamItem> {
+  const { rows: teamRows } = await pool.query<{ id: string; name: string; vertical: string; relationship_manager_id: string | null; status: 'active' | 'inactive' }>(
+    `SELECT id, name, vertical, relationship_manager_id, status FROM teams WHERE id = $1`,
+    [teamId]
+  );
+  if (teamRows.length === 0) {
+    throw new Error('NOT_FOUND: Team not found.');
+  }
+  const currentTeam = teamRows[0];
+
+  let newRmId = currentTeam.relationship_manager_id;
+  if (input.relationshipManagerId !== undefined) {
+    if (input.relationshipManagerId !== null) {
+      const { rows: rmRows } = await pool.query<{ id: string }>(
+        `SELECT e.id
+           FROM employees e
+           JOIN assignments a ON a.employee_id = e.id
+          WHERE e.id = $1
+            AND e.status = 'active'
+            AND a.role = 'REL'
+            AND (a.vertical = $2 OR REPLACE(a.vertical, '-', '_') = REPLACE($2, '-', '_'))
+            AND a.effective_from <= CURRENT_DATE
+            AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+          LIMIT 1`,
+        [input.relationshipManagerId, currentTeam.vertical]
+      );
+      if (rmRows.length === 0) {
+        throw new Error('VALIDATION_FAILED: Manager does not have an active Relationship Manager grant in this vertical.');
+      }
+      newRmId = input.relationshipManagerId;
+    } else {
+      newRmId = null;
+    }
+  }
+
+  const newName = input.name !== undefined ? input.name.trim() : currentTeam.name;
+  const newStatus = input.status !== undefined ? input.status : currentTeam.status;
+
+  await pool.query(
+    `UPDATE teams
+        SET name = $1, relationship_manager_id = $2, status = $3, updated_at = NOW()
+      WHERE id = $4`,
+    [newName, newRmId, newStatus, teamId]
+  );
+
+  // If Relationship Manager changed, sync reporting_manager_id for active callers on this team
+  if (input.relationshipManagerId !== undefined && newRmId !== currentTeam.relationship_manager_id) {
+    await pool.query(
+      `UPDATE employees
+          SET reporting_manager_id = $1
+        WHERE id IN (
+          SELECT employee_id FROM assignments
+           WHERE team_id = $2 AND role = 'SC'
+             AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+             AND effective_from <= CURRENT_DATE
+        )`,
+      [newRmId, teamId]
+    );
+  }
+
+  await logSystemAudit(actorId, 'team.updated', 'team', teamId, {
+    old: { name: currentTeam.name, relationshipManagerId: currentTeam.relationship_manager_id, status: currentTeam.status },
+    new: { name: newName, relationshipManagerId: newRmId, status: newStatus },
+  });
+
+  const teams = await listTeams(currentTeam.vertical);
+  const updated = teams.find((t) => t.id === teamId);
+  if (!updated) {
+    throw new Error('INTERNAL: Failed to retrieve updated team.');
+  }
+  return updated;
+}
+
+export async function assignCallerToTeam(
+  teamId: string,
+  input: SaAssignCallerInput,
+  actorId: string
+): Promise<{ success: boolean; message: string; reassignedLeads: number }> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock team row
+    const { rows: teamRows } = await client.query<{
+      id: string;
+      name: string;
+      vertical: string;
+      status: string;
+      relationship_manager_id: string | null;
+    }>(
+      `SELECT id, name, vertical, status, relationship_manager_id
+         FROM teams
+        WHERE id = $1
+          FOR UPDATE`,
+      [teamId]
+    );
+
+    if (teamRows.length === 0) {
+      throw new Error('NOT_FOUND: Team not found.');
+    }
+    const team = teamRows[0];
+    if (team.status !== 'active') {
+      throw new Error('VALIDATION_FAILED: Cannot assign caller to an inactive team.');
+    }
+
+    // Check team capacity (max 10 callers)
+    const { rows: countRows } = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+         FROM assignments a
+         JOIN employees e ON e.id = a.employee_id
+        WHERE a.team_id = $1
+          AND a.role = 'SC'
+          AND e.status = 'active'
+          AND a.effective_from <= CURRENT_DATE
+          AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)`,
+      [teamId]
+    );
+    if (parseInt(countRows[0].count, 10) >= 10) {
+      throw new Error('VALIDATION_FAILED: Team has reached its maximum capacity of 10 Sales Callers.');
+    }
+
+    // 2. Lock caller employee
+    const { rows: empRows } = await client.query<{
+      id: string;
+      display_name: string;
+      status: string;
+      reporting_manager_id: string | null;
+    }>(
+      `SELECT id, display_name, status, reporting_manager_id
+         FROM employees
+        WHERE id = $1
+          FOR UPDATE`,
+      [input.callerEmployeeId]
+    );
+    if (empRows.length === 0 || empRows[0].status !== 'active') {
+      throw new Error('VALIDATION_FAILED: Caller is not an active employee.');
+    }
+    const caller = empRows[0];
+
+    // 3. Find current active assignment for this caller
+    const { rows: currAssignRows } = await client.query<{
+      id: string;
+      team_id: string;
+      vertical: string;
+      role: string;
+    }>(
+      `SELECT id, team_id, vertical, role
+         FROM assignments
+        WHERE employee_id = $1
+          AND role = 'SC'
+          AND effective_from <= CURRENT_DATE
+          AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+        ORDER BY effective_from DESC
+        LIMIT 1`,
+      [caller.id]
+    );
+
+    const currAssign = currAssignRows[0];
+    if (currAssign && currAssign.team_id === teamId) {
+      throw new Error('VALIDATION_FAILED: Caller is already actively assigned to this team.');
+    }
+
+    let reassignedCount = 0;
+    const isMoving = !!currAssign;
+
+    if (currAssign) {
+      // Caller is moving from a prior team!
+      // Close prior assignment today to preserve full assignment history
+      await client.query(
+        `UPDATE assignments
+            SET effective_to = CURRENT_DATE
+          WHERE id = $1`,
+        [currAssign.id]
+      );
+    }
+
+    // Insert new assignment on this team
+    const newAssignId = makeId('ASG');
+    await client.query(
+      `INSERT INTO assignments (id, employee_id, role, vertical, team_id, effective_from, effective_to)
+       VALUES ($1, $2, 'SC', $3, $4, CURRENT_DATE, NULL)`,
+      [newAssignId, caller.id, team.vertical, team.id]
+    );
+
+    // Update caller's reporting manager to the team's Relationship Manager
+    if (team.relationship_manager_id) {
+      await client.query(
+        `UPDATE employees SET reporting_manager_id = $1 WHERE id = $2`,
+        [team.relationship_manager_id, caller.id]
+      );
+    }
+
+    // If caller moved from a previous team, trigger existing lead redistribution rule
+    if (isMoving) {
+      const reason = input.reason || `Caller moved from team ${currAssign.team_id} to ${team.name}`;
+      const reassignResult = await redistributeFormerCallerLeads(
+        client,
+        caller.id,
+        actorId,
+        reason
+      );
+      reassignedCount = reassignResult.reassigned;
+    }
+
+    await client.query('COMMIT');
+
+    await logSystemAudit(actorId, 'team.caller_assigned', 'team', teamId, {
+      callerId: caller.id,
+      callerName: caller.display_name,
+      previousTeamId: currAssign?.team_id || null,
+      reassignedLeads: reassignedCount,
+      reason: input.reason || null,
+    });
+
+    return {
+      success: true,
+      message: isMoving
+        ? `Caller ${caller.display_name} successfully moved to ${team.name}. ${reassignedCount} lead(s) redistributed according to handoff rules.`
+        : `Caller ${caller.display_name} successfully assigned to ${team.name}.`,
+      reassignedLeads: reassignedCount,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listEligibleRelationshipManagers(
+  vertical: string
+): Promise<SaEligibleRelationshipManager[]> {
+  const normVertical = vertical.toLowerCase().replace('_', '-');
+  const { rows } = await pool.query<{
+    id: string;
+    name: string;
+    email: string;
+    vertical: string;
+    supervised_team_count: string;
+  }>(
+    `SELECT e.id, e.display_name AS name, e.email, a.vertical,
+            (SELECT COUNT(*) FROM teams t WHERE t.relationship_manager_id = e.id AND t.status = 'active')::text AS supervised_team_count
+       FROM employees e
+       JOIN assignments a ON a.employee_id = e.id
+      WHERE e.status = 'active'
+        AND a.role = 'REL'
+        AND (a.vertical = $1 OR REPLACE(a.vertical, '-', '_') = REPLACE($1, '-', '_'))
+        AND a.effective_from <= CURRENT_DATE
+        AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+      GROUP BY e.id, e.display_name, e.email, a.vertical
+      ORDER BY e.display_name`,
+    [normVertical]
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    vertical: r.vertical,
+    supervisedTeamCount: parseInt(r.supervised_team_count, 10),
+  }));
+}
+
+export async function listEligibleCallers(vertical: string): Promise<SaEligibleCaller[]> {
+  const normVertical = vertical.toLowerCase().replace('_', '-');
+  const { rows } = await pool.query<{
+    id: string;
+    name: string;
+    email: string;
+    vertical: string;
+    current_team_id: string | null;
+    current_team_name: string | null;
+  }>(
+    `SELECT e.id, e.display_name AS name, e.email, a.vertical,
+            t.id AS current_team_id, t.name AS current_team_name
+       FROM employees e
+       JOIN assignments a ON a.employee_id = e.id
+  LEFT JOIN teams t ON t.id = a.team_id
+      WHERE e.status = 'active'
+        AND a.role = 'SC'
+        AND (a.vertical = $1 OR REPLACE(a.vertical, '-', '_') = REPLACE($1, '-', '_'))
+        AND a.effective_from <= CURRENT_DATE
+        AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+      ORDER BY e.display_name`,
+    [normVertical]
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    vertical: r.vertical,
+    currentTeamId: r.current_team_id,
+    currentTeamName: r.current_team_name,
+  }));
 }
 

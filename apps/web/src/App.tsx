@@ -86,6 +86,7 @@ import {
   SuperadminConfigurationPage,
   SuperadminAuditPage,
   SuperadminHealthPage,
+  SuperadminTeamsPage,
 } from './pages/SuperadminPages';
 import {
   HrOverviewPage,
@@ -292,6 +293,7 @@ export function App() {
             <Route path="/superadmin/configuration" element={<SuperadminConfigurationPage />} />
             <Route path="/superadmin/audit" element={<SuperadminAuditPage />} />
             <Route path="/superadmin/health" element={<SuperadminHealthPage />} />
+            <Route path="/superadmin/teams" element={<SuperadminTeamsPage />} />
 
             {/* Human Resources Workspace (HR-01..HR-07) */}
             <Route path="/hr/overview" element={<HrOverviewPage />} />

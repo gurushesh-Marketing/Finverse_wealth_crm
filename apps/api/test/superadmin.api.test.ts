@@ -20,6 +20,7 @@ interface Session {
 }
 
 let alok: Session;  // SA (EMP-013)
+let pooja: Session; // HR (EMP-014)
 let rajiv: Session; // CEO (EMP-010)
 let asha: Session;  // SC (EMP-001)
 
@@ -70,6 +71,8 @@ async function cleanupTestData() {
   await db.query(`DELETE FROM local_delivery_outbox WHERE recipient_email LIKE $1`, [`%${RUN.toLowerCase()}%`]);
   await db.query(`DELETE FROM activation_invitations WHERE work_email LIKE $1`, [`%${RUN.toLowerCase()}%`]);
   await db.query(`DELETE FROM account_recovery_requests WHERE employee_id IN (SELECT id FROM employees WHERE email LIKE $1)`, [`%${RUN.toLowerCase()}%`]);
+  await db.query(`DELETE FROM hr_lifecycle_requests WHERE employee_id IN (SELECT id FROM employees WHERE email LIKE $1)`, [`%${RUN.toLowerCase()}%`]);
+  await db.query(`DELETE FROM sessions WHERE employee_id IN (SELECT id FROM employees WHERE email LIKE $1)`, [`%${RUN.toLowerCase()}%`]);
   await db.query(`DELETE FROM assignments WHERE employee_id IN (SELECT id FROM employees WHERE email LIKE $1)`, [`%${RUN.toLowerCase()}%`]);
   await db.query(`DELETE FROM employees WHERE email LIKE $1`, [`%${RUN.toLowerCase()}%`]);
   await db.query(`DELETE FROM business_configurations WHERE config_key LIKE $1`, [`%${RUN}%`]);
@@ -98,6 +101,7 @@ before(async () => {
   });
 
   alok = await login('alok@finverse.demo');
+  pooja = await login('pooja@finverse.demo');
   rajiv = await login('rajiv@finverse.demo');
   asha = await login('asha@finverse.demo');
 });
@@ -129,78 +133,58 @@ test('Security & Access: Non-SA roles (CEO, SC) receive 403 FORBIDDEN on Superad
   assert.ok(saRes.body.data.activeAssignments >= 1);
 });
 
-test('SA-01: Account creation, local outbox delivery, single-use activation, credential setup & login', async () => {
+test('SA-01: HR request, SA credential approval, first-login password change & login', async () => {
   const testEmail = `joiner-${RUN.toLowerCase()}@finverse.demo`;
-
-  // 1. Successful provision: raw token is kept out of normal response; delivery channel is local_adapter
-  const res = await call('POST', '/api/superadmin/accounts/provision', {
-    cookie: alok.cookie,
+  const username = `joiner.${RUN.toLowerCase()}`;
+  const temporaryPassword = 'TemporaryPassword123!';
+  const permanentPassword = 'NewSecurePassword123!';
+  const placement = await call('GET', '/api/hr/placement-options?vertical=wealth', { cookie: pooja.cookie });
+  assert.equal(placement.status, 200);
+  const team = placement.body.data.teams.find((item: any) => item.id.toLowerCase().includes('wealth-alpha'));
+  assert.ok(team?.relationshipManagerId, 'Wealth Alpha must have an active Relationship Manager');
+  const submit = await call('POST', '/api/hr/onboarding/submit', {
+    cookie: pooja.cookie,
     json: {
-      employeeName: `Test Joiner ${RUN}`,
-      workEmail: testEmail,
+      fullName: `Test Joiner ${RUN}`,
+      primaryMobile: '+919876543219',
+      email: testEmail,
       proposedRole: 'SC',
-      vertical: 'wealth',
-      teamId: 'TEAM-WEALTH-ALPHA',
-      employmentEpisode: 'Active',
-      invitationExpiryHours: 48,
+      proposedVertical: 'wealth',
+      proposedTeamId: team.id,
+      proposedSuperiorId: team.relationshipManagerId,
     },
   });
-
-  assert.equal(res.status, 201);
-  assert.ok(res.body.data.employeeId);
-  assert.ok(res.body.data.invitationId);
-  assert.equal(res.body.data.workEmail, testEmail);
-  assert.equal(res.body.data.deliveryChannel, 'local_adapter');
-  assert.equal(res.body.data.rawToken, undefined, 'Raw token must NOT be leaked in admin response');
-
-  // 2. Reject duplicate email (never reuse leaver accounts)
-  const dupRes = await call('POST', '/api/superadmin/accounts/provision', {
+  assert.equal(submit.status, 201, JSON.stringify(submit.body));
+  const employeeId = submit.body.data.employeeId;
+  const approve = await call('POST', `/api/superadmin/hr/requests/${submit.body.data.requestId}/approve-onboarding`, {
     cookie: alok.cookie,
     json: {
-      employeeName: `Duplicate Joiner`,
-      workEmail: testEmail,
-      proposedRole: 'SC',
+      role: 'SC',
       vertical: 'wealth',
-      teamId: 'TEAM-WEALTH-ALPHA',
+      teamId: team.id,
+      reportingManagerId: team.relationshipManagerId,
+      username,
+      temporaryPassword,
     },
   });
-  assert.equal(dupRes.status, 409, 'Duplicate work email must be blocked with 409 CONFLICT');
-  assert.equal(dupRes.body.error?.code, 'CONFLICT');
-
-  // 3. Retrieve token from Local Delivery Outbox adapter (demo mode)
-  const outboxRes = await call('GET', '/api/superadmin/local-delivery', { cookie: alok.cookie });
-  assert.equal(outboxRes.status, 200);
-  const delivered = outboxRes.body.data.find((item: any) => item.recipient_email === testEmail);
-  assert.ok(delivered, 'Expected message delivered to local delivery outbox');
-  assert.equal(delivered.channel_label, 'Local Delivery Adapter (Demo: No External Email Service)');
-  assert.ok(delivered.action_url.startsWith('/activate?token='));
-  const activationToken = delivered.raw_token;
-
-  // 4. Token validation: Reject invalid/tampered token
-  const badTokenRes = await call('POST', '/api/auth/activate', {
-    json: { token: 'tampered-invalid-token', password: 'NewSecurePassword123!' },
+  assert.equal(approve.status, 200, JSON.stringify(approve.body));
+  assert.equal(approve.body.data.username, username);
+  const stored = await db.query('SELECT username, password_hash, must_change_password FROM employees WHERE id = $1', [employeeId]);
+  assert.equal(stored.rows[0].username, username);
+  assert.notEqual(stored.rows[0].password_hash, temporaryPassword);
+  assert.equal(stored.rows[0].must_change_password, true);
+  const firstLogin = await login(username, temporaryPassword);
+  assert.ok(firstLogin.cookie);
+  assert.equal(firstLogin.body.session.mustChangePassword, true);
+  const changed = await call('POST', '/api/auth/change-password', {
+    cookie: firstLogin.cookie,
+    json: { currentPassword: temporaryPassword, newPassword: permanentPassword, confirmPassword: permanentPassword },
   });
-  assert.equal(badTokenRes.status, 422);
-  assert.ok(badTokenRes.body.error?.message.includes('INVALID_TOKEN'));
-
-  // 5. Successful user-facing activation & password setup
-  const actRes = await call('POST', '/api/auth/activate', {
-    json: { token: activationToken, password: 'NewSecurePassword123!' },
-  });
-  assert.equal(actRes.status, 200);
-  assert.equal(actRes.body.data.success, true);
-
-  // 6. Token single-use enforcement: Attempting to reuse consumed token must fail
-  const reuseRes = await call('POST', '/api/auth/activate', {
-    json: { token: activationToken, password: 'AnotherPassword123!' },
-  });
-  assert.equal(reuseRes.status, 422, 'Token reuse must be rejected with 422');
-  assert.ok(reuseRes.body.error?.message.includes('TOKEN_ALREADY_USED'));
-
-  // 7. Verify login succeeds with newly set credentials
-  const newLogin = await login(testEmail, 'NewSecurePassword123!');
-  assert.ok(newLogin.cookie, 'User must successfully receive session cookie');
-  assert.equal(newLogin.body.session.displayName, `Test Joiner ${RUN}`);
+  assert.equal(changed.status, 200, JSON.stringify(changed.body));
+  const oldLogin = await call('POST', '/api/auth/login', { json: { email: username, password: temporaryPassword } });
+  assert.equal(oldLogin.status, 401);
+  const newLogin = await login(username, permanentPassword);
+  assert.ok(newLogin.cookie);
   assert.equal(newLogin.body.session.role, 'SC');
 });
 

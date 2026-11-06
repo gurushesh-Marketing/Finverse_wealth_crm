@@ -1,4 +1,21 @@
 import { z } from 'zod';
+
+export interface PlacementOptions {
+  teams: Array<{
+    id: string;
+    name: string;
+    vertical: string;
+    relationshipManagerId: string | null;
+    relationshipManagerName: string | null;
+  }>;
+  superiors: Array<{
+    id: string;
+    name: string;
+    role: string;
+    vertical: string;
+    teamId: string | null;
+  }>;
+}
 import { ROLES, VERTICALS } from './index';
 
 // HR-01: Correct Employee Onboarding Capture (Full Name, Primary Mobile, WhatsApp, Email, Proposed Placement)

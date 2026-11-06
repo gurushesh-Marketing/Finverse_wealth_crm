@@ -52,8 +52,10 @@ sequenceDiagram
     participant DB as PostgreSQL 16
     participant UI as Workspace UI
 
-    HR->>API: POST /api/hr/onboarding/submit { fullName, primaryMobile, whatsappNumber, email }
-    Note over HR,API: HR does not enter password or employee ID
+    HR->>API: GET /api/hr/placement-options?vertical=wealth
+    API-->>HR: Active teams and eligible superiors from operational assignments
+    HR->>API: POST /api/hr/onboarding/submit { fullName, primaryMobile, whatsappNumber, email, proposedRole, proposedVertical, proposedTeamId, proposedSuperiorId }
+    Note over HR,API: HR proposes placement; employee ID is generated; HR does not set credentials
     API->>DB: Check unique email & primary mobile
     alt Duplicate Identity
         API-->>HR: 409 CONFLICT (Duplicate Identity)
@@ -69,14 +71,15 @@ sequenceDiagram
     SA->>API: GET /api/superadmin/onboarding/requests
     API-->>SA: List of pending candidates with full audit trail
 
-    SA->>API: POST /api/superadmin/onboarding/approve { requestId, role, vertical, teamId, reportingManagerId, username }
-    API->>DB: Validate team and manager belong to vertical; validate manager eligibility
-    API->>API: Generate secure one-time temporary password (e.g. Tmp#...!)
+    SA->>API: GET /api/superadmin/placement-options?vertical=wealth
+    API-->>SA: Current teams and eligible superiors
+    SA->>API: POST /api/superadmin/hr/requests/:id/approve-onboarding { role, vertical, teamId, reportingManagerId, username, temporaryPassword }
+    API->>DB: Validate active team and superior; SC superior must be team's REL
     API->>DB: UPDATE employees SET status='active', username=..., password_hash=scrypt(...)
     API->>DB: INSERT INTO assignments (role, vertical, team_id, effective_from=CURRENT_DATE, ...)
     API->>DB: UPDATE hr_lifecycle_requests SET status='activated_by_admin'
-    API-->>SA: 200 OK { username, temporaryPassword, ... }
-    Note over SA: One-time temporary password displayed once in secure dialog
+    API-->>SA: 200 OK { username, employeeId, mustChangePassword }
+    Note over SA: SA chooses a unique username and temporary password; username is permanently linked to generated EMP ID
 
     Emp->>API: POST /api/auth/login { email: username, password: temporaryPassword }
     API-->>Emp: 200 OK { session: { mustChangePassword: true } }

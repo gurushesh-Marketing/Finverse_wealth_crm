@@ -11,10 +11,18 @@ export default defineConfig({
     { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
   ],
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: 'pnpm --dir ../api dev',
+      url: 'http://localhost:4000/api/health',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
+      command: 'pnpm dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+  ],
 });

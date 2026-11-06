@@ -38,6 +38,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    const onSessionExpired = () => setSession(null);
+    window.addEventListener('finverse:session-expired', onSessionExpired);
+    return () => window.removeEventListener('finverse:session-expired', onSessionExpired);
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.login(email, password);
     setSession(res.session);

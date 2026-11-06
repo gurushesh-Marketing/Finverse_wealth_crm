@@ -24,7 +24,7 @@ HR Onboarding Proposal (Name, Mobile, optional WhatsApp, Email + Propose Role, V
   - HR enters candidate identity (Full Name, Primary Mobile, Optional WhatsApp Number, Work Email) and proposes initial organizational placement (Role, Vertical, Team, and Superior where applicable). HR never enters an employee ID or sees/sets passwords.
   - Server automatically generates the immutable sequential Employee ID (`EMP-xxx`).
   - SA reviews the proposal, may make an audited placement correction (adjusting role, vertical, team, or superior), and approves or rejects the request.
-  - The permanent, non-editable login username for authentication is the Employee ID (`EMP-xxx`). SA provisions a one-time temporary password.
+  - HR receives an immutable Employee ID (`EMP-xxx`). SA chooses a unique permanent login username linked to that ID and provisions a one-time temporary password. The employee changes the password on first login.
   - This flow applies to every operational role across all verticals and horizontals.
   - The temporary password must be changed on initial employee login (`must_change_password`).
   - Approved Sales Callers become eligible for round-robin routing strictly in their assigned vertical and team upon activation.
@@ -132,7 +132,7 @@ Act as the "Finverse Onboarding & Routing Fixer" role defined in docs/process/ro
 Read docs/process/roles/onboarding-routing-fixer.md, AGENTS.md, and docs/process/STATUS.md before starting.
 
 You own only two connected demo blockers:
-1. HR onboarding proposal (with proposed placement) → SA review & audited placement correction/approval → permanent employee-ID username (EMP-xxx) → temporary password → first-login change.
+1. HR onboarding proposal (with proposed placement) → SA review & audited placement correction/approval → SA-chosen permanent username linked to immutable `EMP-xxx` → temporary password → first-login change.
 2. Data Entry bulk import → persisted round robin → correct team/vertical caller inbox.
 
 Your first action must be to reproduce the reported failure in the running browser and compare that observation with the previous completion report in STATUS.md. Then implement the smallest fixes and verify the complete browser journeys.

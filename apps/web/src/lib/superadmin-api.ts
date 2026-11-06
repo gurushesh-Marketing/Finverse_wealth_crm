@@ -2,6 +2,7 @@ import type {
   SaApproveOnboardingInput,
   SaRejectOnboardingInput,
   SaApproveOnboardingResponse,
+  SaHrRequestItem,
   SaCreateAccountInput,
   SaGrantScopeInput,
   SaAdditionalScopeInput,
@@ -13,27 +14,48 @@ import type {
   SaIncidentActionInput,
   SaRetryJobInput,
   SaDecideDelegationInput,
+  SaCreateTeamInput,
+  SaUpdateTeamInput,
+  SaAssignCallerInput,
+  SaTeamItem,
+  SaEligibleRelationshipManager,
+  SaEligibleCaller,
+  PlacementOptions,
 } from '@finverse/contracts';
+import { request } from './api';
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api/superadmin${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-  });
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const errorMsg = body?.error?.message || body?.message || 'Request failed';
-    throw new Error(errorMsg);
-  }
-  return body.data ?? body;
+  const body = await request<{ data?: T } | T>(`/api/superadmin${path}`, options);
+  return ((body as { data?: T }).data ?? body) as T;
 }
 
 export const superadminApi = {
   getOverview: () => req<any>('/overview'),
+  getPlacementOptions: (vertical: string) => req<PlacementOptions>(`/placement-options?vertical=${encodeURIComponent(vertical)}`),
+
+  // HR Requests (Unified: New Employee, Role/Team/Vertical Change, Exit)
+  listHrRequests: (status?: 'pending' | 'approved' | 'rejected' | 'all', vertical?: string) => {
+    const params = new URLSearchParams();
+    if (status && status !== 'all') params.set('status', status);
+    if (vertical && vertical !== 'all') params.set('vertical', vertical);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return req<SaHrRequestItem[]>(`/hr/requests${qs}`);
+  },
+  approveLifecycleChange: (requestId: string, notes?: string) =>
+    req<any>(`/hr/requests/${requestId}/approve-lifecycle`, {
+      method: 'POST',
+      body: JSON.stringify({ requestId, decisionNotes: notes }),
+    }),
+  approveExit: (requestId: string, notes?: string, handoffSupervisedQueue: boolean = true) =>
+    req<any>(`/hr/requests/${requestId}/approve-exit`, {
+      method: 'POST',
+      body: JSON.stringify({ requestId, decisionNotes: notes, handoffSupervisedQueue }),
+    }),
+  rejectHrRequest: (requestId: string, rejectionReason: string) =>
+    req<any>(`/hr/requests/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ requestId, rejectionReason }),
+    }),
 
   // Onboarding Requests from HR
   listOnboardingRequests: () => req<any[]>('/onboarding/requests'),
@@ -101,4 +123,21 @@ export const superadminApi = {
 
   // Demo Adapter Local Delivery Outbox
   listLocalDeliveryOutbox: (limit = 20) => req<any[]>(`/local-delivery?limit=${limit}`),
+
+  // Teams & Relationship Manager Management
+  listTeams: (vertical?: string) =>
+    req<SaTeamItem[]>(`/teams${vertical && vertical !== 'all' ? `?vertical=${encodeURIComponent(vertical)}` : ''}`),
+  createTeam: (data: SaCreateTeamInput) =>
+    req<SaTeamItem>('/teams', { method: 'POST', body: JSON.stringify(data) }),
+  updateTeam: (teamId: string, data: SaUpdateTeamInput) =>
+    req<SaTeamItem>(`/teams/${teamId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  assignCaller: (teamId: string, data: SaAssignCallerInput) =>
+    req<{ success: boolean; message: string; reassignedLeads: number }>(`/teams/${teamId}/callers`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getEligibleManagers: (vertical: string) =>
+    req<SaEligibleRelationshipManager[]>(`/teams/eligible-managers?vertical=${encodeURIComponent(vertical)}`),
+  getEligibleCallers: (vertical: string) =>
+    req<SaEligibleCaller[]>(`/teams/eligible-callers?vertical=${encodeURIComponent(vertical)}`),
 };

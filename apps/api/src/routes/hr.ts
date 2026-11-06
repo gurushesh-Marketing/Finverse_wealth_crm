@@ -1,5 +1,5 @@
 import { Router as makeRouter, type Response, type Router } from 'express';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 import { requireSession, type AuthedRequest } from '../middleware/session';
 import * as hr from '../repo/hr';
 import {
@@ -14,6 +14,7 @@ import {
   hrCreateReportScheduleSchema,
   hrAttachApprovalSchema,
   hrUpdateRequestSchema,
+  VERTICALS,
 } from '@finverse/contracts';
 
 import path from 'path';
@@ -41,7 +42,8 @@ function sendError(res: Response, err: unknown) {
     msg.startsWith('MISSING_NOTES:') ||
     msg.startsWith('SELF_APPROVAL_FORBIDDEN:') ||
     msg.startsWith('REQUEST_ALREADY_ACTIVATED:') ||
-    msg.startsWith('REQUEST_REJECTED:')
+    msg.startsWith('REQUEST_REJECTED:') ||
+    msg.startsWith('INVALID_PLACEMENT:')
   ) {
     res.status(422).json({ error: { code: 'UNPROCESSABLE_ENTITY', message: msg } });
     return;
@@ -80,6 +82,14 @@ export function createHrRouter(): Router {
   });
 
   // Overview
+  router.get(
+    '/placement-options',
+    wrap(async (req, res) => {
+      const vertical = z.enum(VERTICALS).parse(req.query.vertical);
+      res.json({ data: await hr.getPlacementOptions(vertical) });
+    })
+  );
+
   router.get(
     '/overview',
     wrap(async (_req, res) => {

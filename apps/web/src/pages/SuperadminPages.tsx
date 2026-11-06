@@ -23,14 +23,60 @@ import {
   Play,
   RotateCcw,
   Copy,
+  Plus,
+  Edit2,
+  UserCheck,
+  ArrowRightLeft,
+  Eye,
+  EyeOff,
+  UserMinus,
+  ShieldAlert,
 } from 'lucide-react';
+import type {
+  SaTeamItem,
+  SaEligibleRelationshipManager,
+  SaEligibleCaller,
+  SaHrRequestItem,
+  PlacementOptions,
+} from '@finverse/contracts';
 import { superadminApi } from '../lib/superadmin-api';
+import { ApiError } from '../lib/api';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input, Textarea } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { EmptyState, SkeletonRows } from '../components/ui/states';
+import { useSession } from '../lib/session';
+
+export const CANONICAL_VERTICALS = ['wealth', 'banking', 'markets', 'real_estate'] as const;
+export type CanonicalVertical = (typeof CANONICAL_VERTICALS)[number];
+
+export const VERTICAL_LABELS: Record<string, string> = {
+  wealth: 'Wealth Management',
+  banking: 'Corporate Banking',
+  markets: 'Markets & Trading',
+  real_estate: 'Real Estate Advisory',
+  'real-estate': 'Real Estate Advisory',
+};
+
+export const VERTICAL_SHORT_LABELS: Record<string, string> = {
+  wealth: 'Wealth',
+  banking: 'Banking',
+  markets: 'Markets/Trading',
+  real_estate: 'Real Estate',
+  'real-estate': 'Real Estate',
+};
+
+export function getAvailableVerticals(grants?: readonly string[]): CanonicalVertical[] {
+  const list = (grants || CANONICAL_VERTICALS) as readonly string[];
+  return CANONICAL_VERTICALS.filter(
+    (v) =>
+      list.includes(v) ||
+      list.includes(v.replace('_', '-')) ||
+      (v === 'real_estate' && list.includes('real-estate'))
+  );
+}
 
 interface DeckFrameProps {
   actionCode: string;
@@ -185,20 +231,1815 @@ function DeckFrame({
 }
 
 // =============================================================================
+// Superadmin Dynamic Teams & Frontline Capacity Section
+// =============================================================================
+export function SuperadminTeamsSection({
+  standalone = false,
+  controlledVertical,
+}: {
+  standalone?: boolean;
+  controlledVertical?: string;
+}) {
+  const { session } = useSession();
+  const [internalVertical, setInternalVertical] = useState<string>('all');
+  const effectiveVertical = controlledVertical !== undefined ? controlledVertical : internalVertical;
+
+  const [teams, setTeams] = useState<SaTeamItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Modals state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createVertical, setCreateVertical] = useState<'wealth' | 'banking' | 'markets' | 'real-estate'>('wealth');
+  const [createRmId, setCreateRmId] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [eligibleRms, setEligibleRms] = useState<SaEligibleRelationshipManager[]>([]);
+
+  // Edit Team modal
+  const [editingTeam, setEditingTeam] = useState<SaTeamItem | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
+  const [editRmId, setEditRmId] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // View Callers modal/drawer
+  const [viewingCallersTeam, setViewingCallersTeam] = useState<SaTeamItem | null>(null);
+
+  // Add / Move Caller modal
+  const [assigningTeam, setAssigningTeam] = useState<SaTeamItem | null>(null);
+  const [eligibleCallers, setEligibleCallers] = useState<SaEligibleCaller[]>([]);
+  const [selectedCallerId, setSelectedCallerId] = useState('');
+  const [assignReason, setAssignReason] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const fetchTeams = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await superadminApi.listTeams(effectiveVertical);
+      setTeams(data);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load teams.');
+    } finally {
+      setLoading(false);
+    }
+  }, [effectiveVertical]);
+
+  useEffect(() => {
+    fetchTeams();
+  }, [fetchTeams]);
+
+  // Synchronize createVertical when effectiveVertical changes
+  useEffect(() => {
+    if (effectiveVertical && effectiveVertical !== 'all') {
+      const canonical = effectiveVertical === 'real_estate' ? 'real-estate' : effectiveVertical;
+      setCreateVertical(canonical as any);
+    }
+  }, [effectiveVertical]);
+
+  // Load eligible managers when create modal opens or vertical changes
+  useEffect(() => {
+    if (createModalOpen) {
+      superadminApi.getEligibleManagers(createVertical)
+        .then((list) => {
+          setEligibleRms(list);
+          if (list.length > 0 && !createRmId) {
+            setCreateRmId(list[0].id);
+          }
+        })
+        .catch(() => setEligibleRms([]));
+    }
+  }, [createModalOpen, createVertical]);
+
+  // Load eligible managers when edit modal opens
+  useEffect(() => {
+    if (editingTeam) {
+      setEditName(editingTeam.name);
+      setEditStatus(editingTeam.status);
+      setEditRmId(editingTeam.relationshipManagerId || '');
+      superadminApi.getEligibleManagers(editingTeam.vertical)
+        .then((list) => setEligibleRms(list))
+        .catch(() => setEligibleRms([]));
+    }
+  }, [editingTeam]);
+
+  // Load eligible callers when assigning modal opens
+  useEffect(() => {
+    if (assigningTeam) {
+      setSelectedCallerId('');
+      setAssignReason('');
+      setAssignError(null);
+      superadminApi.getEligibleCallers(assigningTeam.vertical)
+        .then((list) => {
+          setEligibleCallers(list);
+          const available = list.find((c) => c.currentTeamId !== assigningTeam.id);
+          if (available) {
+            setSelectedCallerId(available.id);
+          }
+        })
+        .catch(() => setEligibleCallers([]));
+    }
+  }, [assigningTeam]);
+
+  const handleCreateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createName.trim()) {
+      setCreateError('Team name is required.');
+      return;
+    }
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      const created = await superadminApi.createTeam({
+        name: createName.trim(),
+        vertical: createVertical,
+        relationshipManagerId: createRmId || undefined,
+      });
+      setNotice({
+        type: 'success',
+        message: `Team "${created.name}" created successfully in ${created.vertical} (Supervising RM: ${created.relationshipManagerName || 'None'}). Callers: 0/10 (Staffing in progress).`,
+      });
+      setCreateModalOpen(false);
+      setCreateName('');
+      setCreateRmId('');
+      await fetchTeams();
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create team.');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleUpdateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeam) return;
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const updated = await superadminApi.updateTeam(editingTeam.id, {
+        name: editName.trim() || undefined,
+        status: editStatus,
+        relationshipManagerId: editRmId || null,
+      });
+      setNotice({
+        type: 'success',
+        message: `Team "${updated.name}" updated successfully (Status: ${updated.status}, RM: ${updated.relationshipManagerName || 'None'}).`,
+      });
+      setEditingTeam(null);
+      await fetchTeams();
+    } catch (err: any) {
+      setEditError(err?.message || 'Failed to update team.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleAssignCaller = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningTeam) return;
+    if (!selectedCallerId) {
+      setAssignError('Please select an eligible Sales Caller.');
+      return;
+    }
+    setAssignLoading(true);
+    setAssignError(null);
+    try {
+      const res = await superadminApi.assignCaller(assigningTeam.id, {
+        callerEmployeeId: selectedCallerId,
+        reason: assignReason.trim() || undefined,
+      });
+      setNotice({
+        type: 'success',
+        message: res.message,
+      });
+      setAssigningTeam(null);
+      setSelectedCallerId('');
+      setAssignReason('');
+      await fetchTeams();
+    } catch (err: any) {
+      setAssignError(err?.message || 'Failed to assign caller.');
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const selectedCallerObj = eligibleCallers.find((c) => c.id === selectedCallerId);
+
+  return (
+    <div className={`space-y-4 ${standalone ? '' : 'mt-8'}`}>
+      {/* Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-bold tracking-tight text-slate-900">
+              Teams & Frontline Capacity
+            </h2>
+            <Badge className="bg-[#113F3D] text-white text-[10px] uppercase tracking-wider">
+              SA Supervised
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Vertical partitioned teams · Frontline Relationship Manager supervision · 5–10 Caller staffing
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={fetchTeams}
+            variant="outline"
+            className="h-8 text-xs border-slate-200 text-slate-600 hover:bg-slate-50"
+            title="Refresh Teams"
+          >
+            <RefreshCw className="size-3.5 mr-1" />
+            Refresh
+          </Button>
+          <Button
+            size="sm"
+            id="sa-create-team-btn"
+            onClick={() => {
+              setCreateName('');
+              setCreateRmId('');
+              setCreateError(null);
+              setCreateModalOpen(true);
+            }}
+            className="h-8 text-xs bg-[#113F3D] hover:bg-[#0c2e2c] text-white shadow-xs"
+          >
+            <Plus className="size-3.5 mr-1" />
+            Create Team
+          </Button>
+        </div>
+      </div>
+
+      {/* Notice Banner */}
+      {notice && (
+        <div className={`p-3 rounded-lg text-xs flex items-center justify-between gap-2 ${
+          notice.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {notice.type === 'success' ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="size-4 shrink-0 text-rose-600" />}
+            <span>{notice.message}</span>
+          </div>
+          <button type="button" onClick={() => setNotice(null)} className="text-slate-400 hover:text-slate-600">
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Vertical Filter Bar */}
+      {!controlledVertical && (
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 w-fit">
+          {[
+            { key: 'all', label: 'All Verticals' },
+            { key: 'wealth', label: 'Wealth' },
+            { key: 'banking', label: 'Banking' },
+            { key: 'markets', label: 'Markets' },
+            { key: 'real-estate', label: 'Real Estate' },
+          ].map((v) => {
+            const isActive =
+              effectiveVertical === v.key ||
+              (v.key === 'real-estate' && effectiveVertical === 'real_estate');
+            return (
+              <button
+                key={v.key}
+                type="button"
+                id={`sa-filter-${v.key}`}
+                onClick={() => setInternalVertical(v.key)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
+                  isActive
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Teams Grid / List */}
+      {loading ? (
+        <div className="p-4"><SkeletonRows rows={4} /></div>
+      ) : error ? (
+        <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+          {error}
+        </div>
+      ) : teams.length === 0 ? (
+        <div className="p-8 text-center border rounded-lg bg-slate-50/50">
+          <p className="text-xs text-slate-500">No teams found for the selected vertical.</p>
+          <Button
+            size="sm"
+            onClick={() => setCreateModalOpen(true)}
+            className="mt-3 text-xs bg-[#113F3D] text-white"
+          >
+            Create First Team
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="sa-teams-list">
+          {teams.map((t) => {
+            const callersCount = t.callerCount || 0;
+            const isFull = callersCount >= 10;
+            const isStaffed = callersCount >= 5;
+            const isEmpty = callersCount === 0;
+
+            const vertBadgeColor =
+              t.vertical === 'wealth'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : t.vertical === 'banking'
+                ? 'bg-blue-50 text-blue-800 border-blue-300'
+                : t.vertical === 'markets'
+                ? 'bg-purple-50 text-purple-800 border-purple-300'
+                : 'bg-amber-50 text-amber-800 border-amber-300';
+
+            return (
+              <Card
+                key={t.id}
+                id={`sa-team-card-${t.id}`}
+                className="p-4 border-slate-200 shadow-xs bg-white hover:border-slate-300 transition flex flex-col justify-between space-y-3"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                        {t.name}
+                      </h3>
+                      <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                        {t.id}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge className={`text-[10px] capitalize ${vertBadgeColor}`}>
+                        {t.vertical.replace('_', '-')}
+                      </Badge>
+                      <Badge
+                        className={`text-[10px] ${
+                          t.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-zinc-100 text-zinc-500 border-zinc-200'
+                        }`}
+                      >
+                        {t.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Relationship Manager Banner */}
+                  <div className="p-2 rounded-md bg-slate-50/80 border border-slate-200/60 text-xs">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Supervising Relationship Manager
+                    </div>
+                    {t.relationshipManagerName ? (
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <div className="font-semibold text-slate-800 truncate">
+                          {t.relationshipManagerName}
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                          {t.relationshipManagerId}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-amber-700 italic text-[11px] mt-0.5">
+                        No Relationship Manager assigned
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Staffing Capacity Banner */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-600">
+                        {isEmpty ? (
+                          <span className="text-amber-600 font-semibold">0 / 10 Callers (Staffing in progress)</span>
+                        ) : isStaffed ? (
+                          <span className="text-emerald-700 font-semibold">{callersCount} / 10 Callers (Staffed)</span>
+                        ) : (
+                          <span className="text-sky-700 font-semibold">{callersCount} / 10 Callers (Under-staffed: target 5–10)</span>
+                        )}
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {Math.min(100, Math.round((callersCount / 10) * 100))}%
+                      </span>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isEmpty
+                            ? 'w-0'
+                            : isStaffed
+                            ? 'bg-emerald-600'
+                            : 'bg-sky-500'
+                        }`}
+                        style={{ width: `${Math.min(100, (callersCount / 10) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Team Card Actions */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    id={`sa-view-callers-${t.id}`}
+                    onClick={() => setViewingCallersTeam(t)}
+                    className="h-7 text-xs border-slate-200 text-slate-700 hover:bg-slate-50"
+                  >
+                    <Users className="size-3 mr-1 text-slate-500" />
+                    Callers ({callersCount})
+                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      id={`sa-edit-team-${t.id}`}
+                      onClick={() => setEditingTeam(t)}
+                      className="h-7 text-xs border-slate-200 text-slate-600 hover:bg-slate-50"
+                      title="Edit team name, RM, or status"
+                    >
+                      <Edit2 className="size-3 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      id={`sa-assign-caller-${t.id}`}
+                      disabled={isFull || t.status !== 'active'}
+                      onClick={() => setAssigningTeam(t)}
+                      className="h-7 text-xs bg-[#113F3D] hover:bg-[#0c2e2c] text-white disabled:opacity-50"
+                      title={isFull ? 'Team is at maximum capacity (10)' : 'Add or move a caller to this team'}
+                    >
+                      <Plus className="size-3 mr-1" />
+                      Add Caller
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 1. Create Team Modal */}
+      {/* --------------------------------------------------------------------- */}
+      {createModalOpen && (
+        <div
+          id="sa-create-team-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+        >
+          <Card className="w-full max-w-md shadow-xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-5 py-3.5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Create New Team</h3>
+                <p className="text-xs text-slate-500">Configure vertical partition and assign supervising Relationship Manager.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateModalOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateTeam}>
+              <CardContent className="p-5 space-y-3.5">
+                {createError && (
+                  <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                    {createError}
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Team Name <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    id="sa-team-name-input"
+                    placeholder="e.g. Wealth Delta or Wealth Growth"
+                    value={createName}
+                    onChange={(e) => setCreateName(e.target.value)}
+                    required
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    A vertical can have any number of teams, including Alpha, Beta, Gamma, and newly named teams.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Vertical <span className="text-rose-500">*</span>
+                  </label>
+                  <Select
+                    id="sa-team-vertical-select"
+                    value={createVertical}
+                    onChange={(e) => {
+                      setCreateVertical(e.target.value as any);
+                      setCreateRmId('');
+                    }}
+                    className="w-full"
+                  >
+                    <option value="wealth">Wealth</option>
+                    <option value="banking">Banking</option>
+                    <option value="markets">Markets</option>
+                    <option value="real-estate">Real Estate</option>
+                  </Select>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Each team belongs to exactly one vertical.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Supervising Relationship Manager
+                  </label>
+                  <Select
+                    id="sa-team-rm-select"
+                    value={createRmId}
+                    onChange={(e) => setCreateRmId(e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="">-- No Relationship Manager Assigned --</option>
+                    {eligibleRms.map((rm) => (
+                      <option key={rm.id} value={rm.id}>
+                        {rm.name} ({rm.id}) — Supervises {rm.supervisedTeamCount} team{rm.supervisedTeamCount === 1 ? '' : 's'}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    One Relationship Manager may supervise multiple teams in this vertical.
+                  </p>
+                </div>
+              </CardContent>
+              <div className="flex items-center justify-end gap-2 border-t px-5 py-3 bg-slate-50/50">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCreateModalOpen(false)}
+                  disabled={createLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  id="sa-submit-create-team"
+                  disabled={createLoading}
+                  className="bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                >
+                  {createLoading ? 'Creating...' : 'Create Team'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 2. Edit Team / Change RM Modal */}
+      {/* --------------------------------------------------------------------- */}
+      {editingTeam && (
+        <div
+          id="sa-edit-team-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+        >
+          <Card className="w-full max-w-md shadow-xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-5 py-3.5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Edit Team Governance</h3>
+                <p className="text-xs text-slate-500">Update name, status, or supervising Relationship Manager.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTeam(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateTeam}>
+              <CardContent className="p-5 space-y-3.5">
+                {editError && (
+                  <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                    {editError}
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Team Name
+                  </label>
+                  <Input
+                    id="sa-edit-team-name-input"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Status
+                  </label>
+                  <Select
+                    id="sa-edit-team-status-select"
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="w-full"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Supervising Relationship Manager
+                  </label>
+                  <Select
+                    id="sa-edit-team-rm-select"
+                    value={editRmId}
+                    onChange={(e) => setEditRmId(e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="">-- No Relationship Manager Assigned --</option>
+                    {eligibleRms.map((rm) => (
+                      <option key={rm.id} value={rm.id}>
+                        {rm.name} ({rm.id}) — Supervises {rm.supervisedTeamCount} team{rm.supervisedTeamCount === 1 ? '' : 's'}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Changing the Relationship Manager synchronizes the reporting superior for all active callers on this team.
+                  </p>
+                </div>
+              </CardContent>
+              <div className="flex items-center justify-end gap-2 border-t px-5 py-3 bg-slate-50/50">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditingTeam(null)}
+                  disabled={editLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  id="sa-submit-edit-team"
+                  disabled={editLoading}
+                  className="bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                >
+                  {editLoading ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 3. View Callers Modal */}
+      {/* --------------------------------------------------------------------- */}
+      {viewingCallersTeam && (
+        <div
+          id="sa-callers-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+        >
+          <Card className="w-full max-w-2xl shadow-xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-5 py-3.5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {viewingCallersTeam.name} — Assigned Sales Callers
+                  </h3>
+                  <Badge className="bg-[#113F3D] text-white text-[10px]">
+                    {viewingCallersTeam.callerCount} / 10 Callers
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Vertical: {viewingCallersTeam.vertical} · Supervising RM: {viewingCallersTeam.relationshipManagerName || 'None'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingCallersTeam(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <CardContent className="p-0 max-h-96 overflow-y-auto">
+              {viewingCallersTeam.callers.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  This team currently has no assigned Sales Callers. Staffing is in progress (target: 5–10).
+                </div>
+              ) : (
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+                    <tr>
+                      <th className="py-2.5 px-4">Sales Caller</th>
+                      <th className="py-2.5 px-4">Employee ID</th>
+                      <th className="py-2.5 px-4">Email</th>
+                      <th className="py-2.5 px-4">Assigned Since</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {viewingCallersTeam.callers.map((c) => (
+                      <tr key={c.employeeId} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-4 font-semibold text-slate-800">
+                          {c.name}
+                        </td>
+                        <td className="py-2.5 px-4 font-mono text-slate-500">
+                          {c.employeeId}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-600">
+                          {c.email}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-400 font-mono text-[11px]">
+                          {c.assignedAt ? new Date(c.assignedAt).toLocaleDateString() : 'Active'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+            <div className="flex items-center justify-between border-t px-5 py-3 bg-slate-50/50">
+              <span className="text-[11px] text-slate-400">
+                Staffed target: 5–10 callers per active operational team.
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setViewingCallersTeam(null)}
+                >
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={viewingCallersTeam.callerCount >= 10 || viewingCallersTeam.status !== 'active'}
+                  onClick={() => {
+                    const target = viewingCallersTeam;
+                    setViewingCallersTeam(null);
+                    setAssigningTeam(target);
+                  }}
+                  className="bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                >
+                  <Plus className="size-3 mr-1" />
+                  Add / Move Caller
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 4. Add / Move Caller Modal */}
+      {/* --------------------------------------------------------------------- */}
+      {assigningTeam && (
+        <div
+          id="sa-assign-caller-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+        >
+          <Card className="w-full max-w-md shadow-xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-5 py-3.5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Add or Move Sales Caller
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Target Team: <span className="font-semibold text-slate-800">{assigningTeam.name}</span> ({assigningTeam.vertical})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssigningTeam(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAssignCaller}>
+              <CardContent className="p-5 space-y-3.5">
+                {assignError && (
+                  <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                    {assignError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Select Eligible Sales Caller <span className="text-rose-500">*</span>
+                  </label>
+                  <Select
+                    id="sa-caller-select"
+                    value={selectedCallerId}
+                    onChange={(e) => setSelectedCallerId(e.target.value)}
+                    className="w-full"
+                    required
+                  >
+                    <option value="">-- Choose Sales Caller --</option>
+                    {eligibleCallers.map((c) => {
+                      const isCurrent = c.currentTeamId === assigningTeam.id;
+                      return (
+                        <option key={c.id} value={c.id} disabled={isCurrent}>
+                          {c.name} ({c.id}) — {isCurrent ? '(Already on this team)' : c.currentTeamName ? `Currently on ${c.currentTeamName}` : 'Unassigned'}
+                        </option>
+                      );
+                    })}
+                  </Select>
+                </div>
+
+                {/* Institutional Handoff Notice if Moving */}
+                {selectedCallerObj?.currentTeamId && selectedCallerObj.currentTeamId !== assigningTeam.id && (
+                  <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+                      <AlertTriangle className="size-3.5 shrink-0 text-amber-600" />
+                      <span>Institutional Lead Handoff Rule</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-700">
+                      Caller <span className="font-semibold">{selectedCallerObj.name}</span> is currently on{' '}
+                      <span className="font-semibold">{selectedCallerObj.currentTeamName}</span>. Moving this caller will terminate their prior team assignment today and automatically redistribute unaccepted open leads to remaining same-team callers or place them in supervised holding.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Reason / Rationale (Optional)
+                  </label>
+                  <Input
+                    id="sa-assign-reason-input"
+                    placeholder="e.g. Q4 capacity expansion, rebalancing"
+                    value={assignReason}
+                    onChange={(e) => setAssignReason(e.target.value)}
+                  />
+                </div>
+              </CardContent>
+              <div className="flex items-center justify-end gap-2 border-t px-5 py-3 bg-slate-50/50">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAssigningTeam(null)}
+                  disabled={assignLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  id="sa-submit-assign-caller"
+                  disabled={assignLoading || !selectedCallerId}
+                  className="bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
+                >
+                  {assignLoading ? 'Assigning...' : 'Assign to Team'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// HR Requests & Employee Credential Provisioning Section
+// =============================================================================
+export function SuperadminHrRequestsSection({
+  standalone = false,
+  controlledVertical,
+}: {
+  standalone?: boolean;
+  controlledVertical?: string;
+}) {
+  const [statusTab, setStatusTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'new_account' | 'team_transfer' | 'exit'>('all');
+  const [requests, setRequests] = useState<SaHrRequestItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Review & Approve Modal
+  const [reviewingReq, setReviewingReq] = useState<SaHrRequestItem | null>(null);
+  const [confirmRole, setConfirmRole] = useState<'SC' | 'REL' | 'MG' | 'RM' | 'NM' | 'DE' | 'HR' | 'SA'>('SC');
+  const [confirmVertical, setConfirmVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
+  const [confirmTeamId, setConfirmTeamId] = useState('');
+  const [confirmSuperiorId, setConfirmSuperiorId] = useState('');
+  const [manualUsername, setManualUsername] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [decisionNotes, setDecisionNotes] = useState('');
+  const [handoffQueue, setHandoffQueue] = useState(true);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  // Reject Modal
+  const [rejectingReq, setRejectingReq] = useState<SaHrRequestItem | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+
+  // Reset open modals when controlledVertical changes so no stale modal data persists
+  useEffect(() => {
+    setReviewingReq(null);
+    setRejectingReq(null);
+  }, [controlledVertical]);
+
+  const loadRequests = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await superadminApi.listHrRequests(undefined, controlledVertical);
+      setRequests(data);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [controlledVertical]);
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
+
+  const isPendingStatus = (s: string) =>
+    s === 'submitted' || s === 'approved' || s === 'pending_approval' || s === 'approved_by_rm';
+
+  const pendingCount = requests.filter((r) => isPendingStatus(r.status as string)).length;
+  const approvedCount = requests.filter((r) => r.status === 'activated_by_admin').length;
+  const rejectedCount = requests.filter((r) => r.status === 'rejected' || r.status === 'returned').length;
+
+  const filteredRequests = requests.filter((r) => {
+    if (controlledVertical && controlledVertical !== 'all') {
+      const normControlled = controlledVertical === 'real-estate' ? 'real_estate' : controlledVertical;
+      const reqVert = r.targetVertical
+        ? (r.targetVertical === 'real-estate' ? 'real_estate' : r.targetVertical)
+        : (r.currentVertical === 'real-estate' ? 'real_estate' : r.currentVertical);
+      if (reqVert && reqVert !== normControlled) return false;
+    }
+
+    if (statusTab === 'pending') {
+      if (!isPendingStatus(r.status as string)) return false;
+    } else if (statusTab === 'approved') {
+      if (r.status !== 'activated_by_admin') return false;
+    } else if (statusTab === 'rejected') {
+      if (r.status !== 'rejected' && r.status !== 'returned') return false;
+    }
+
+    if (typeFilter !== 'all') {
+      if (typeFilter === 'team_transfer') {
+        if (r.requestType !== 'team_transfer' && (r as any).requestType !== 'promotion') return false;
+      } else if (r.requestType !== typeFilter) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const openReviewModal = (r: SaHrRequestItem) => {
+    setReviewingReq(r);
+    setReviewError(null);
+    setDecisionNotes('');
+    setManualUsername('');
+    setTempPassword('');
+    setShowPassword(false);
+    setHandoffQueue(true);
+
+    if (r.requestType === 'new_account') {
+      const vert = (r.targetVertical === 'real-estate' ? 'real_estate' : r.targetVertical || 'wealth') as any;
+      setConfirmVertical(vert);
+      setConfirmRole((r.targetRole as any) || 'SC');
+      const teams = TEAMS_BY_VERT[vert] || [];
+      setConfirmTeamId(r.targetTeamId || teams[0]?.id || '');
+      const mgrs = MANAGERS_BY_VERT[vert] || [];
+      setConfirmSuperiorId(r.supervisorEmployeeId || mgrs[0]?.id || '');
+    }
+  };
+
+  const handleVerticalChange = (vert: any) => {
+    setConfirmVertical(vert);
+    const teams = TEAMS_BY_VERT[vert] || [];
+    setConfirmTeamId(teams[0]?.id || '');
+    const mgrs = MANAGERS_BY_VERT[vert] || [];
+    setConfirmSuperiorId(mgrs[0]?.id || '');
+  };
+
+  const handleApproveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewingReq) return;
+    setReviewSubmitting(true);
+    setReviewError(null);
+
+    try {
+      if (reviewingReq.requestType === 'new_account') {
+        if (!manualUsername.trim() || manualUsername.trim().length < 3) {
+          setReviewError('Login username must be at least 3 characters.');
+          setReviewSubmitting(false);
+          return;
+        }
+        if (!tempPassword || tempPassword.length < 8) {
+          setReviewError('Temporary password must be at least 8 characters.');
+          setReviewSubmitting(false);
+          return;
+        }
+
+        const res = await superadminApi.approveOnboarding({
+          requestId: reviewingReq.id,
+          role: confirmRole,
+          vertical: confirmVertical,
+          teamId: confirmTeamId,
+          reportingManagerId: confirmSuperiorId || undefined,
+          username: manualUsername.trim(),
+          temporaryPassword: tempPassword,
+        });
+
+        setMessage({
+          type: 'success',
+          text: `Account activated for ${res.employeeId}. Username: ${res.username}. Temporary password provisioned.`,
+        });
+      } else if (reviewingReq.requestType === 'team_transfer' || (reviewingReq as any).requestType === 'promotion') {
+        await superadminApi.approveLifecycleChange(reviewingReq.id, decisionNotes.trim() || undefined);
+        setMessage({
+          type: 'success',
+          text: `Role/team change request ${reviewingReq.id} approved and effective assignment activated.`,
+        });
+      } else if (reviewingReq.requestType === 'exit') {
+        await superadminApi.approveExit(reviewingReq.id, decisionNotes.trim() || undefined, handoffQueue);
+        setMessage({
+          type: 'success',
+          text: `Exit request ${reviewingReq.id} approved. Employee disabled and access revoked.`,
+        });
+      }
+
+      setReviewingReq(null);
+      await loadRequests();
+    } catch (err: any) {
+      setReviewError(err?.message || 'Failed to approve request.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  const openRejectModal = (r: SaHrRequestItem) => {
+    setRejectingReq(r);
+    setRejectionReason('');
+    setRejectError(null);
+  };
+
+  const handleRejectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingReq) return;
+    if (!rejectionReason.trim() || rejectionReason.trim().length < 3) {
+      setRejectError('Rejection reason must be at least 3 characters.');
+      return;
+    }
+
+    setRejectSubmitting(true);
+    setRejectError(null);
+
+    try {
+      await superadminApi.rejectHrRequest(rejectingReq.id, rejectionReason.trim());
+      setMessage({
+        type: 'success',
+        text: `Request ${rejectingReq.id} (${rejectingReq.requestType}) rejected. Access denied.`,
+      });
+      setRejectingReq(null);
+      await loadRequests();
+    } catch (err: any) {
+      setRejectError(err?.message || 'Failed to reject request.');
+    } finally {
+      setRejectSubmitting(false);
+    }
+  };
+
+  return (
+    <section id="sa-hr-requests-section" className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-5 text-[#113F3D]" />
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">
+              HR Requests & Access Governance
+            </h2>
+            <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[11px] font-mono">
+              Action Deck P044..P312
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Review joiner, transfer, and offboarding requests submitted by HR. Manually choose unique login usernames and temporary passwords upon activation.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadRequests}
+            disabled={loading}
+            className="text-xs h-8 gap-1.5"
+          >
+            <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {message && (
+        <div
+          className={`p-3 rounded-lg text-xs flex items-center justify-between gap-2 ${
+            message.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border border-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {message.type === 'success' ? (
+              <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertTriangle className="size-4 text-rose-600 shrink-0" />
+            )}
+            <span>{message.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMessage(null)}
+            className="text-slate-400 hover:text-slate-600 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Tabs & Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        {/* Status Tabs */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+          <button
+            id="sa-hr-tab-pending"
+            type="button"
+            onClick={() => setStatusTab('pending')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${
+              statusTab === 'pending'
+                ? 'bg-[#113F3D] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="size-3.5" />
+            <span>Pending Requests</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                statusTab === 'pending'
+                  ? 'bg-emerald-500/20 text-emerald-100'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {pendingCount}
+            </span>
+          </button>
+
+          <button
+            id="sa-hr-tab-approved"
+            type="button"
+            onClick={() => setStatusTab('approved')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${
+              statusTab === 'approved'
+                ? 'bg-[#113F3D] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <CheckCircle2 className="size-3.5" />
+            <span>Approved Requests</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                statusTab === 'approved'
+                  ? 'bg-emerald-500/20 text-emerald-100'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {approvedCount}
+            </span>
+          </button>
+
+          <button
+            id="sa-hr-tab-rejected"
+            type="button"
+            onClick={() => setStatusTab('rejected')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${
+              statusTab === 'rejected'
+                ? 'bg-[#113F3D] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <X className="size-3.5" />
+            <span>Rejected Requests</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                statusTab === 'rejected'
+                  ? 'bg-rose-500/20 text-rose-100'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {rejectedCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Type Filter */}
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-slate-500 text-[11px] font-medium mr-1">Type:</span>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          >
+            <option value="all">All Request Types</option>
+            <option value="new_account">New Employee (Joiner)</option>
+            <option value="team_transfer">Role/Team/Vertical Change</option>
+            <option value="exit">Employee Exit (Leaver)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Requests List */}
+      <div id="sa-hr-requests-list" className="space-y-3">
+        {loading ? (
+          <div className="p-6">
+            <SkeletonRows rows={4} />
+          </div>
+        ) : filteredRequests.length === 0 ? (
+          <Card className="p-8 text-center border-dashed border-slate-200 bg-slate-50/50">
+            <div className="size-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
+              <FileText className="size-5" />
+            </div>
+            <div className="text-sm font-semibold text-slate-800">No {statusTab} HR requests found</div>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              {statusTab === 'pending'
+                ? 'When HR submits new employee joiners, role transfers, or employee exits, they will appear here for review and provisioning.'
+                : `There are currently no ${statusTab} HR requests under the selected filter.`}
+            </p>
+          </Card>
+        ) : (
+          filteredRequests.map((req) => {
+            const isJoiner = req.requestType === 'new_account';
+            const isMover = req.requestType === 'team_transfer' || (req as any).requestType === 'promotion';
+            const isLeaver = req.requestType === 'exit';
+
+            return (
+              <Card
+                key={req.id}
+                id={`sa-hr-request-card-${req.id}`}
+                className="p-4 border-slate-200 shadow-xs hover:border-slate-300 transition bg-white"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* Left Column: Metadata & Identity */}
+                  <div className="space-y-2 min-w-[280px]">
+                    <div className="flex items-center gap-2">
+                      {isJoiner && (
+                        <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] gap-1 font-semibold">
+                          <UserPlus className="size-3" /> New Employee
+                        </Badge>
+                      )}
+                      {isMover && (
+                        <Badge className="bg-indigo-50 text-indigo-800 border-indigo-300 text-[10px] gap-1 font-semibold">
+                          <ArrowRightLeft className="size-3" /> Role/Team Change
+                        </Badge>
+                      )}
+                      {isLeaver && (
+                        <Badge className="bg-rose-50 text-rose-800 border-rose-300 text-[10px] gap-1 font-semibold">
+                          <UserMinus className="size-3" /> Employee Exit
+                        </Badge>
+                      )}
+                      <span className="text-[11px] font-mono text-slate-400">{req.id}</span>
+                    </div>
+
+                    <div>
+                      <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span>{req.employeeName}</span>
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                          {req.employeeId}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 font-mono mt-0.5">
+                        {req.employeeEmail || 'No corporate email assigned yet'}
+                        {req.primaryMobile && ` · 📱 ${req.primaryMobile}`}
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400">
+                      Submitted: {new Date(req.createdAt).toLocaleDateString()} by{' '}
+                      <span className="font-medium text-slate-600">{req.createdByName || 'HR Manager'}</span>
+                    </div>
+                  </div>
+
+                  {/* Middle Column: Details Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 flex-1 bg-slate-50/70 p-3 rounded-lg border border-slate-100 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                        {isLeaver ? 'Last Working Date' : 'Target Role & Scope'}
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {isLeaver
+                          ? `${req.effectiveDate} (${req.effectiveTime || '18:00 IST'})`
+                          : `${req.targetRole} · ${req.targetVertical}`}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                        {isLeaver ? 'Exit Approvals' : 'Target Placement'}
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {isLeaver
+                          ? req.approvalsSummary
+                          : `${req.targetTeamName || req.targetTeamId || 'Unassigned'} ${
+                              req.supervisorName ? `(RM: ${req.supervisorName})` : ''
+                            }`}
+                      </span>
+                    </div>
+
+                    <div className="sm:col-span-2 md:col-span-1">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                        {isLeaver ? 'Handoff Plan' : 'HR Justification / Approvals'}
+                      </span>
+                      <span className="text-slate-600 truncate block max-w-xs" title={req.approvalsSummary || req.handoffPlan || '—'}>
+                        {isLeaver
+                          ? req.handoffPlan || 'Workload returned to supervised queue'
+                          : req.approvalsSummary || req.oldWorkloadTreatment || 'Submitted by HR'}
+                      </span>
+                    </div>
+
+                    {/* Status Banners inside card */}
+                    {req.status === 'activated_by_admin' && (
+                      <div className="sm:col-span-2 md:col-span-3 pt-1 border-t border-slate-200/60 flex items-center gap-2 text-emerald-800 font-medium">
+                        <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                        <span>
+                          Activated by Super Admin · Linked Login Username:{' '}
+                          <span className="font-mono font-bold">{req.currentUsername || req.employeeId}</span>
+                          {req.adminDecisionNotes && ` · Notes: ${req.adminDecisionNotes}`}
+                        </span>
+                      </div>
+                    )}
+
+                    {(req.status === 'rejected' || req.status === 'returned') && (
+                      <div className="sm:col-span-2 md:col-span-3 pt-1 border-t border-slate-200/60 flex items-center gap-2 text-rose-800 font-medium">
+                        <X className="size-3.5 text-rose-600 shrink-0" />
+                        <span>
+                          Rejected by Super Admin: {req.adminDecisionNotes || 'Proposal not approved.'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column: Actions */}
+                  {statusTab === 'pending' && (
+                    <div className="flex sm:flex-col items-center justify-end gap-2 shrink-0">
+                      <Button
+                        id={`sa-review-approve-btn-${req.id}`}
+                        size="sm"
+                        onClick={() => openReviewModal(req)}
+                        className="bg-[#113F3D] hover:bg-[#0c2e2c] text-white text-xs h-8 px-3 font-semibold w-full sm:w-auto"
+                      >
+                        Review & Approve
+                      </Button>
+                      <Button
+                        id={`sa-reject-btn-${req.id}`}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openRejectModal(req)}
+                        className="text-xs h-8 px-3 text-rose-600 border-rose-200 hover:bg-rose-50 w-full sm:w-auto"
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })
+        )}
+      </div>
+
+      {/* Review & Approve Modal */}
+      {reviewingReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <Card className="w-full max-w-lg shadow-2xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {reviewingReq.requestType === 'new_account'
+                    ? 'Review & Provision Employee Credentials'
+                    : reviewingReq.requestType === 'exit'
+                    ? 'Review & Finalize Employee Exit'
+                    : 'Review & Activate Role/Team Change'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {reviewingReq.requestType === 'new_account'
+                    ? 'Set unique login username and temporary password. Employee ID remains immutable.'
+                    : 'Verify proposal details and apply approved organizational transition.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewingReq(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleApproveSubmit}>
+              <CardContent className="p-6 space-y-4">
+                {/* Employee Info Header */}
+                <div className="rounded-md bg-slate-50 p-3 border border-slate-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 text-sm">{reviewingReq.employeeName}</span>
+                    <span className="font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs">
+                      {reviewingReq.employeeId} (Immutable ID)
+                    </span>
+                  </div>
+                  <div className="text-slate-500 font-mono text-[11px]">
+                    {reviewingReq.employeeEmail || 'No corporate email assigned yet'}
+                    {reviewingReq.primaryMobile && ` · 📱 ${reviewingReq.primaryMobile}`}
+                  </div>
+                </div>
+
+                {reviewError && (
+                  <div className="p-3 text-xs rounded border border-rose-200 bg-rose-50 text-rose-800 font-medium">
+                    {reviewError}
+                  </div>
+                )}
+
+                {/* Specific Fields: New Employee */}
+                {reviewingReq.requestType === 'new_account' && (
+                  <div className="space-y-3.5">
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1">Assigned Role</label>
+                        <Select
+                          value={confirmRole}
+                          onChange={(e) => setConfirmRole(e.target.value as any)}
+                          className="w-full"
+                        >
+                          <option value="SC">Sales Caller (SC)</option>
+                          <option value="REL">Relationship Manager (REL)</option>
+                          <option value="MG">Branch/Wealth Manager (MG)</option>
+                          <option value="RM">Regional Manager (RM)</option>
+                          <option value="NM">National Manager (NM)</option>
+                          <option value="DE">Data Entry (DE)</option>
+                          <option value="HR">Human Resources (HR)</option>
+                          <option value="SA">Super Admin (SA)</option>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1">Target Vertical</label>
+                        <Select
+                          value={confirmVertical}
+                          onChange={(e) => handleVerticalChange(e.target.value)}
+                          className="w-full"
+                        >
+                          <option value="wealth">Wealth Management</option>
+                          <option value="banking">Corporate Banking</option>
+                          <option value="markets">Trading & Markets</option>
+                          <option value="real_estate">Real Estate</option>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1">Team Placement</label>
+                        <Select
+                          value={confirmTeamId}
+                          onChange={(e) => setConfirmTeamId(e.target.value)}
+                          className="w-full"
+                        >
+                          {(TEAMS_BY_VERT[confirmVertical] || []).map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1">Reporting Superior</label>
+                        <Select
+                          value={confirmSuperiorId}
+                          onChange={(e) => setConfirmSuperiorId(e.target.value)}
+                          className="w-full"
+                        >
+                          <option value="">None / Not Applicable</option>
+                          {(MANAGERS_BY_VERT[confirmVertical] || []).map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Manual Unique Login Username */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label htmlFor="sa-approve-username" className="text-xs font-bold text-slate-900 block mb-1">
+                        Unique Login Username <span className="text-emerald-700 font-semibold">(Manually Chosen by SA)</span>
+                      </label>
+                      <Input
+                        id="sa-approve-username"
+                        value={manualUsername}
+                        onChange={(e) => setManualUsername(e.target.value)}
+                        placeholder="e.g. ananya.sharma"
+                        className="font-mono text-xs"
+                        required
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Permanently linked to {reviewingReq.employeeId}. Used by the employee to sign in.
+                      </p>
+                    </div>
+
+                    {/* Temporary Password */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label htmlFor="sa-approve-password" className="text-xs font-bold text-slate-900">
+                          One-Time Temporary Password
+                        </label>
+                        <button
+                          id="sa-toggle-temp-password"
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                        >
+                          {showPassword ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                          <span>{showPassword ? 'Hide' : 'Show'}</span>
+                        </button>
+                      </div>
+                      <Input
+                        id="sa-approve-password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={tempPassword}
+                        onChange={(e) => setTempPassword(e.target.value)}
+                        placeholder="Minimum 8 characters"
+                        className="font-mono text-xs"
+                        required
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Stored as a secure hash; never stored or logged in plaintext. Employee will be forced to change this at first login.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Specific Fields: Role/Team Change */}
+                {(reviewingReq.requestType === 'team_transfer' || (reviewingReq as any).requestType === 'promotion') && (
+                  <div className="space-y-3 text-xs">
+                    <div className="p-3 rounded bg-indigo-50/70 border border-indigo-200 text-indigo-900">
+                      <div className="font-semibold">Proposed Transition Details:</div>
+                      <div className="mt-1">
+                        New Role: <span className="font-bold">{reviewingReq.targetRole}</span> · Vertical:{' '}
+                        <span className="font-bold">{reviewingReq.targetVertical}</span> · Team:{' '}
+                        <span className="font-bold">{reviewingReq.targetTeamName || reviewingReq.targetTeamId}</span>
+                      </div>
+                      <div className="text-[11px] text-indigo-700 mt-1">
+                        Effective Date: {reviewingReq.effectiveDate} · Lead handoff: Leads automatically redistributed.
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="sa-approve-notes-input" className="font-semibold text-slate-700 block mb-1">
+                        Admin Approval & Authorization Notes
+                      </label>
+                      <Textarea
+                        id="sa-approve-notes-input"
+                        value={decisionNotes}
+                        onChange={(e) => setDecisionNotes(e.target.value)}
+                        placeholder="Enter decision rationale or audit reference..."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Specific Fields: Employee Exit */}
+                {reviewingReq.requestType === 'exit' && (
+                  <div className="space-y-3 text-xs">
+                    <div className="p-3 rounded bg-rose-50 border border-rose-200 text-rose-900">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <AlertTriangle className="size-4 text-rose-600" />
+                        Account Deactivation & Workload Return
+                      </div>
+                      <p className="mt-1 text-[11px] text-rose-800">
+                        Finalizing this exit disables employee login immediately, closes active assignments, revokes all active sessions, and safely preserves lead-handoff audit history.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="sa-handoff-queue-check"
+                        checked={handoffQueue}
+                        onChange={(e) => setHandoffQueue(e.target.checked)}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <label htmlFor="sa-handoff-queue-check" className="text-xs text-slate-700 font-medium">
+                        Move open leads and tasks into supervised holding queues
+                      </label>
+                    </div>
+
+                    <div>
+                      <label htmlFor="sa-exit-notes-input" className="font-semibold text-slate-700 block mb-1">
+                        Admin Decision Notes
+                      </label>
+                      <Textarea
+                        id="sa-exit-notes-input"
+                        value={decisionNotes}
+                        onChange={(e) => setDecisionNotes(e.target.value)}
+                        placeholder="e.g. Exit clearance completed, equipment returned, access revoked."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setReviewingReq(null)}
+                    disabled={reviewSubmitting}
+                    className="text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    id={
+                      reviewingReq.requestType === 'new_account'
+                        ? 'sa-confirm-approve-btn'
+                        : reviewingReq.requestType === 'exit'
+                        ? 'sa-confirm-exit-btn'
+                        : 'sa-confirm-lifecycle-btn'
+                    }
+                    type="submit"
+                    size="sm"
+                    disabled={reviewSubmitting}
+                    className={`text-xs ${
+                      reviewingReq.requestType === 'exit'
+                        ? 'bg-rose-700 hover:bg-rose-800 text-white'
+                        : 'bg-[#113F3D] hover:bg-[#0c2e2c] text-white'
+                    }`}
+                  >
+                    {reviewSubmitting
+                      ? 'Processing…'
+                      : reviewingReq.requestType === 'new_account'
+                      ? 'Approve & Activate Account'
+                      : reviewingReq.requestType === 'exit'
+                      ? 'Approve & Revoke Access'
+                      : 'Approve & Apply Transition'}
+                  </Button>
+                </div>
+              </CardContent>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {rejectingReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <Card className="w-full max-w-md shadow-2xl border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Reject HR Request</h3>
+                <p className="text-xs text-slate-500">Provide an auditable reason for rejecting this request.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectingReq(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectSubmit}>
+              <CardContent className="p-6 space-y-4">
+                <div className="rounded-md bg-slate-50 p-3 border border-slate-200 text-xs">
+                  <div className="font-semibold text-slate-800">
+                    {rejectingReq.employeeName} ({rejectingReq.employeeId})
+                  </div>
+                  <div className="text-slate-500 font-mono text-[11px] mt-0.5">
+                    Request ID: {rejectingReq.id} · Type: {rejectingReq.requestType}
+                  </div>
+                </div>
+
+                {rejectError && (
+                  <div className="p-3 text-xs rounded border border-rose-200 bg-rose-50 text-rose-800 font-medium">
+                    {rejectError}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="sa-reject-reason-input" className="text-xs font-semibold text-slate-700 block mb-1">
+                    Mandatory Rejection Reason
+                  </label>
+                  <Textarea
+                    id="sa-reject-reason-input"
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="e.g. Identity check inconclusive, mismatched placement, or cancelled by department head..."
+                    rows={3}
+                    required
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    This reason will be visible to HR and logged in the immutable audit trail.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRejectingReq(null)}
+                    disabled={rejectSubmitting}
+                    className="text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    id="sa-confirm-reject-btn"
+                    type="submit"
+                    size="sm"
+                    disabled={rejectSubmitting}
+                    className="bg-rose-700 hover:bg-rose-800 text-white text-xs"
+                  >
+                    {rejectSubmitting ? 'Rejecting…' : 'Confirm Rejection'}
+                  </Button>
+                </div>
+              </CardContent>
+            </form>
+          </Card>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function SuperadminTeamsPage() {
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div className="border-b border-slate-200 pb-4">
+        <div className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+          WORKSPACE / SUPER ADMIN
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-display mt-1">
+          Teams & Frontline Capacity Governance
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Supervise dynamic operational teams across Wealth, Banking, Markets, and Real Estate. Assign Relationship Managers and allocate Sales Callers with automated lead redistribution.
+        </p>
+      </div>
+      <SuperadminTeamsSection standalone={true} />
+    </div>
+  );
+}
+
+// =============================================================================
 // 1. Superadmin Overview Page
 // =============================================================================
 export function SuperadminOverviewPage() {
+  const { session } = useSession();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Derive available verticals dynamically from session.verticalGrants
+  const availableVerticals = getAvailableVerticals(session?.verticalGrants);
+
+  const [selectedVertical, setSelectedVertical] = useState<CanonicalVertical>(
+    availableVerticals[0] || 'wealth'
+  );
+
   useEffect(() => {
-    superadminApi.getOverview()
+    superadminApi
+      .getOverview()
       .then(setData)
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="p-8"><SkeletonRows rows={6} /></div>;
+  if (loading)
+    return (
+      <div className="p-8">
+        <SkeletonRows rows={6} />
+      </div>
+    );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
@@ -321,8 +2162,121 @@ export function SuperadminOverviewPage() {
             </div>
             <div className="text-xs text-slate-500">SA-10 Bounded Job Retries & DeadLetter Queues</div>
           </a>
+
+          <a
+            href="/superadmin/teams"
+            className="p-4 rounded-lg border border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm transition block space-y-1"
+          >
+            <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
+              <Users className="w-4 h-4 text-emerald-700" />
+              Teams & Frontline
+            </div>
+            <div className="text-xs text-slate-500">Dynamic Teams · Relationship Manager Supervision · Caller Staffing</div>
+          </a>
         </div>
       </div>
+
+      {/* ===================================================================== */}
+      {/* Canonical "Ready and review" / "Ready for review" Primary Work Area   */}
+      {/* ===================================================================== */}
+      <Card className="border-slate-200 shadow-sm bg-white overflow-hidden" id="sa-review-work-area">
+        {/* Card Status Header */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-100 bg-slate-50/50 text-xs">
+          <div className="flex items-center gap-2 font-medium text-slate-700">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-slate-900">Ready and review</span>
+            <span className="text-slate-400">·</span>
+            <span className="text-slate-600">Ready for review</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 font-mono text-[10px]">
+              Active Scope: {selectedVertical.toUpperCase()}
+            </Badge>
+            <span className="text-slate-400 text-[11px]">Updated 09:42 IST</span>
+          </div>
+        </div>
+
+        {/* Inner Card Content */}
+        <CardContent className="p-6 space-y-6">
+          {/* Header Row & Master Vertical Selector */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+            <div>
+              <div className="text-xs font-semibold tracking-wider text-slate-400 uppercase mb-1">
+                WORK AREA
+              </div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Frontline Teams, Relationship Managers & HR Governance Review
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Switch vertical to review designated teams, supervising Relationship Managers, Sales Callers, and pending HR lifecycle requests.
+              </p>
+            </div>
+
+            {/* Master Vertical Selector */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2" id="sa-work-area-vertical-selector">
+              <span className="text-xs font-semibold text-slate-600 shrink-0">Vertical:</span>
+
+              {/* Visual Pill Buttons for each vertical grant */}
+              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200/80">
+                {availableVerticals.map((v) => {
+                  const isActive = selectedVertical === v;
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      id={`sa-vertical-tab-${v}`}
+                      onClick={() => setSelectedVertical(v)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+                        isActive
+                          ? 'bg-[#113F3D] text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                      }`}
+                    >
+                      {VERTICAL_SHORT_LABELS[v]}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Native Select element with accessible id */}
+              <select
+                id="sa-work-area-vertical-select"
+                aria-label="Select Work Area Vertical"
+                value={selectedVertical}
+                onChange={(e) => setSelectedVertical(e.target.value as CanonicalVertical)}
+                className="text-xs font-semibold border border-slate-200 rounded-md px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+              >
+                {availableVerticals.map((v) => (
+                  <option key={v} value={v}>
+                    {VERTICAL_LABELS[v]} ({VERTICAL_SHORT_LABELS[v]})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Active Vertical Banner */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="size-4 text-[#113F3D] shrink-0" />
+              <div>
+                <span className="text-slate-500 font-medium">Currently Selected Work Area: </span>
+                <span className="font-bold text-slate-900">{VERTICAL_LABELS[selectedVertical]}</span>
+                <span className="text-slate-400 font-mono ml-1.5">({selectedVertical})</span>
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-500">
+              Zero cross-vertical leakage · Independent partition
+            </div>
+          </div>
+
+          {/* Keyed Child Container ensuring immediate unmount and zero stale data between vertical switches */}
+          <div key={selectedVertical} className="space-y-8" id={`sa-vertical-content-${selectedVertical}`}>
+            <SuperadminTeamsSection controlledVertical={selectedVertical} standalone={true} />
+            <SuperadminHrRequestsSection controlledVertical={selectedVertical} standalone={true} />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent System Audit Ledger */}
       <div className="space-y-3">
@@ -420,6 +2374,9 @@ const MANAGERS_BY_VERT: Record<string, { id: string; name: string; role: string;
 // 2. Employees & Users Page (HR Onboarding, SA-01 & SA-07)
 // =============================================================================
 export function SuperadminEmployeesPage() {
+  const { session } = useSession();
+  const availableVerticals = getAvailableVerticals(session?.verticalGrants);
+
   const [tab, setTab] = useState<'onboarding' | 'create' | 'recovery'>('onboarding');
   const [onboardings, setOnboardings] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
@@ -435,8 +2392,12 @@ export function SuperadminEmployeesPage() {
   const [approveTeamId, setApproveTeamId] = useState('TEAM-WEALTH-ALPHA');
   const [approveManagerId, setApproveManagerId] = useState('EMP-003');
   const [approveUsername, setApproveUsername] = useState('');
+  const [approveTempPassword, setApproveTempPassword] = useState('');
+  const [showApprovePassword, setShowApprovePassword] = useState(false);
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveFieldErrors, setApproveFieldErrors] = useState<Record<string, string[]>>({});
+  const [approvePlacementOptions, setApprovePlacementOptions] = useState<PlacementOptions | null>(null);
 
   // Active credentials display modal
   const [provisionedResult, setProvisionedResult] = useState<any | null>(null);
@@ -453,7 +2414,7 @@ export function SuperadminEmployeesPage() {
   const [email, setEmail] = useState('');
   const [episode, setEpisode] = useState('Active');
   const [proposedRole, setProposedRole] = useState<'SC' | 'TL' | 'MG' | 'RM' | 'NM'>('SC');
-  const [vertical, setVertical] = useState<'wealth' | 'banking'>('wealth');
+  const [vertical, setVertical] = useState<CanonicalVertical>('wealth');
   const [teamId, setTeamId] = useState('TEAM-WEALTH-ALPHA');
 
   // SA-07 Form State
@@ -481,6 +2442,28 @@ export function SuperadminEmployeesPage() {
     loadLists();
   }, [loadLists]);
 
+  useEffect(() => {
+    if (!approvingReq) return;
+    let active = true;
+    setApprovePlacementOptions(null);
+    superadminApi.getPlacementOptions(approveVertical).then((options) => {
+      if (!active) return;
+      setApprovePlacementOptions(options);
+      const proposedTeam = approvingReq.proposed_team_id || approvingReq.target_team_id;
+      const team = options.teams.find((item) => item.id === proposedTeam) ?? options.teams[0];
+      setApproveTeamId(team?.id ?? '');
+      if (approveRole === 'SC') {
+        setApproveManagerId(team?.relationshipManagerId ?? '');
+      } else {
+        const proposedSuperior = approvingReq.proposed_superior_id || approvingReq.supervisor_employee_id;
+        setApproveManagerId(options.superiors.some((item) => item.id === proposedSuperior) ? proposedSuperior : '');
+      }
+    }).catch(() => {
+      if (active) setApproveError('Could not load current teams and superiors. Refresh before approving.');
+    });
+    return () => { active = false; };
+  }, [approvingReq, approveVertical]);
+
   const openApproveModal = (r: any) => {
     setApprovingReq(r);
     const vert = r.proposed_vertical || r.target_vertical || 'wealth';
@@ -491,23 +2474,36 @@ export function SuperadminEmployeesPage() {
     setApproveTeamId(r.proposed_team_id || r.target_team_id || teams[0]?.id || '');
     const mgrs = MANAGERS_BY_VERT[canonicalVert] || [];
     setApproveManagerId(r.proposed_superior_id || r.supervisor_employee_id || mgrs[0]?.id || '');
-    // Permanent non-editable login username is the Employee ID (EMP-xxx)
-    setApproveUsername(r.employee_id);
+    setApproveUsername('');
+    setApproveTempPassword('');
+    setShowApprovePassword(false);
     setApproveError(null);
+    setApproveFieldErrors({});
   };
 
   const handleApproveVerticalChange = (v: any) => {
     setApproveVertical(v);
-    const teams = TEAMS_BY_VERT[v] || [];
-    setApproveTeamId(teams[0]?.id || '');
-    const mgrs = MANAGERS_BY_VERT[v] || [];
-    setApproveManagerId(mgrs[0]?.id || '');
+    setApproveTeamId('');
+    setApproveManagerId('');
   };
 
   const handleApproveSubmit = async () => {
     if (!approvingReq) return;
+    if (!approvePlacementOptions?.teams.some((team) => team.id === approveTeamId)) {
+      setApproveError('Choose a current active team before approving.');
+      return;
+    }
+    if (!approveUsername.trim() || approveUsername.trim().length < 3) {
+      setApproveError('Login username must be at least 3 characters.');
+      return;
+    }
+    if (!approveTempPassword || approveTempPassword.length < 8) {
+      setApproveError('Temporary password must be at least 8 characters.');
+      return;
+    }
     setApproveSubmitting(true);
     setApproveError(null);
+    setApproveFieldErrors({});
     try {
       const res = await superadminApi.approveOnboarding({
         requestId: approvingReq.request_id || approvingReq.id,
@@ -515,13 +2511,19 @@ export function SuperadminEmployeesPage() {
         vertical: approveVertical,
         teamId: approveTeamId,
         reportingManagerId: approveManagerId || undefined,
-        username: approvingReq.employee_id,
+        username: approveUsername.trim(),
+        temporaryPassword: approveTempPassword,
       });
       setApprovingReq(null);
       setProvisionedResult(res);
       loadLists();
     } catch (err: any) {
-      setApproveError(err?.message || 'Failed to approve onboarding.');
+      if (err instanceof ApiError && err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+        setApproveFieldErrors(err.fieldErrors);
+        setApproveError('Correct the fields marked below, then try again.');
+      } else {
+        setApproveError(err?.message || 'Failed to approve onboarding.');
+      }
     } finally {
       setApproveSubmitting(false);
     }
@@ -620,13 +2622,14 @@ export function SuperadminEmployeesPage() {
           Pending HR Onboardings ({onboardings.filter((o) => o.status === 'submitted' || o.status === 'pending_approval' || o.status === 'pending_admin' || o.employee_status === 'pending_approval').length})
         </Button>
         <Button
+          id="sa-tab-create-retired"
           variant={tab === 'create' ? 'default' : 'outline'}
           size="sm"
           onClick={() => { setTab('create'); setMessage(null); }}
-          className={tab === 'create' ? 'bg-[#113F3D] text-white' : ''}
+          className={tab === 'create' ? 'bg-slate-800 text-white' : 'text-slate-500'}
         >
-          <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-          SA-01 Direct Account Provisioning
+          <ShieldAlert className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+          SA-01 Direct Provisioning (Retired)
         </Button>
         <Button
           variant={tab === 'recovery' ? 'default' : 'outline'}
@@ -790,92 +2793,71 @@ export function SuperadminEmployeesPage() {
         <DeckFrame
           actionCode="SA-01"
           moduleLabel="EMPLOYEES & USERS"
-          title="Create an account and activation invitation"
+          title="Direct Account Provisioning (Retired Entry Point)"
           steps={[
-            'Open an approved joiner request and verify identity linkage.',
-            'Create the account and approved initial assignment.',
-            'Send an expiring activation invitation; inspect activation status.',
+            'HR submits verified joiner request with proposed placement via /hr/joiners.',
+            'Server generates sequential, immutable employee ID (EMP-xxx) and records audit trail.',
+            'Super Admin reviews placement and provisions one-time temporary password in Pending HR Onboardings.',
           ]}
-          whenCheckFails="Duplicate identity or absent placement blocks activation rather than creating broad default access."
-          permissionEvidence="Never reuse a leavers account for a new person. No shared password or self-chosen role at sign-in."
-          onSubmit={handleCreateAccount}
-          submitting={submitting}
-          submitLabel="Continue →"
+          whenCheckFails="Direct account creation outside the HR joiner request pipeline is disabled per two-person segregation of duties."
+          permissionEvidence="Dual control: HR proposes placement; Super Admin authorizes credentials. Direct self-activation invitation links and obsolete TL roles are retired."
+          submitDisabled={true}
+          submitLabel="Action Retired"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Employee</label>
-              <Input
-                placeholder="Verified identity (e.g. Meera Raman)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1"
-              />
+          <div className="p-6 rounded-xl border border-amber-200/80 bg-amber-50/50 space-y-4" id="sa-retired-provisioning-card">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                <ShieldAlert className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Direct Provisioning (SA-01) Retired
+                  </h3>
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">
+                    Policy Alignment
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  In accordance with the approved Finverse Identity & Governance Policy, direct unvetted account creation and standalone self-activation invitation links have been retired. All new employee accounts must be initiated via the HR Joiner Request pipeline and authorized by Super Admin with placement verification and temporary password provisioning.
+                </p>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Work email</label>
-              <Input
-                placeholder="Unique login (e.g. meera.raman@finverse.demo)"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
-              />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60 text-xs">
+              <div className="p-3 rounded-lg bg-white border border-amber-200/60 shadow-xs space-y-1">
+                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="size-3.5 text-emerald-600" />
+                  Approved Provisioning Standard
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  1. HR registers candidate and proposes initial role, vertical, team, and superior at <span className="font-mono text-emerald-700">/hr/joiners</span>.<br />
+                  2. Super Admin verifies placement, assigns unique username and temporary password in the <span className="font-semibold text-slate-700">Pending HR Onboardings</span> queue.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-white border border-amber-200/60 shadow-xs space-y-1">
+                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <AlertTriangle className="size-3.5 text-rose-600" />
+                  Retired Incompatibilities
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  • Standalone invitation tokens (unvetted self-registration) retired.<br />
+                  • Obsolete Team Leader (<span className="font-mono text-rose-700">TL</span>) role retired in favor of frontline Relationship Managers (<span className="font-mono text-emerald-700">REL</span>).
+                </p>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Employment episode</label>
-              <Select
-                value={episode}
-                onChange={(e) => setEpisode(e.target.value)}
-                className="mt-1 w-full"
+
+            <div className="pt-2 flex items-center justify-end">
+              <Button
+                id="sa-switch-to-onboarding-btn"
+                type="button"
+                onClick={() => { setTab('onboarding'); setMessage(null); }}
+                className="bg-[#113F3D] hover:bg-[#0c2e2c] text-white text-xs gap-1.5 shadow-xs"
               >
-                <option value="Active">Active episode</option>
-                <option value="Scheduled">Scheduled episode</option>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Proposed role</label>
-              <Select
-                value={proposedRole}
-                onChange={(e) => setProposedRole(e.target.value as any)}
-                className="mt-1 w-full"
-              >
-                <option value="SC">Sales Associate (SC)</option>
-                <option value="TL">Team Leader (TL)</option>
-                <option value="MG">Wealth Manager (MG)</option>
-                <option value="RM">Regional Manager (RM)</option>
-                <option value="NM">National Manager (NM)</option>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Vertical</label>
-              <Select
-                value={vertical}
-                onChange={(e) => setVertical(e.target.value as any)}
-                className="mt-1 w-full"
-              >
-                <option value="wealth">Wealth Management</option>
-                <option value="banking">Corporate Banking</option>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Assigned team</label>
-              <Select
-                value={teamId}
-                onChange={(e) => setTeamId(e.target.value)}
-                className="mt-1 w-full"
-              >
-                <option value="TEAM-WEALTH-ALPHA">Wealth Alpha</option>
-                <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
-                <option value="TEAM-BANKING-ALPHA">Banking Alpha</option>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-700">Invitation delivery</label>
-              <Input
-                disabled
-                value="Expiring activation token (48-hour valid link; user sets own password)"
-                className="mt-1 bg-slate-50 text-slate-500"
-              />
+                <Users className="size-3.5" />
+                Go to Pending HR Onboardings Queue
+              </Button>
             </div>
           </div>
         </DeckFrame>
@@ -1062,11 +3044,11 @@ export function SuperadminEmployeesPage() {
 
       {/* Onboarding Approval & Placement Modal */}
       {approvingReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="sa-approve-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
           <Card className="w-full max-w-lg shadow-xl border-slate-200 bg-white">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Approve & Activate Employee</h3>
+                <h3 id="sa-approve-title" className="text-base font-bold text-slate-900">Approve & Activate Employee</h3>
                 <p className="text-xs text-slate-500">Configure role placement, team scope, and initial login username.</p>
               </div>
               <button
@@ -1084,6 +3066,11 @@ export function SuperadminEmployeesPage() {
                 </div>
                 <div className="text-slate-500 font-mono text-[11px]">{approvingReq.email || approvingReq.work_email}</div>
                 <div className="text-[11px] text-slate-500">📱 {approvingReq.primary_mobile || '—'}</div>
+                <div className="text-[11px] text-slate-600">
+                  HR proposed: {VERTICAL_LABELS[approvingReq.proposed_vertical || approvingReq.target_vertical] || approvingReq.proposed_vertical || approvingReq.target_vertical || 'No vertical'}
+                  {' · '}{approvingReq.proposed_team_name || approvingReq.proposed_team_id || 'No team'}
+                  {' · '}{approvingReq.proposed_superior_name || approvingReq.proposed_superior_id || 'No superior'}
+                </div>
               </div>
 
               {approveError && (
@@ -1094,10 +3081,16 @@ export function SuperadminEmployeesPage() {
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="font-semibold text-slate-700">Role</label>
+                  <label htmlFor="sa-approve-role" className="font-semibold text-slate-700">Role</label>
                   <Select
+                    id="sa-approve-role"
                     value={approveRole}
-                    onChange={(e) => setApproveRole(e.target.value as any)}
+                    onChange={(e) => {
+                      setApproveRole(e.target.value as any);
+                      if (e.target.value === 'SC') {
+                        setApproveManagerId(approvePlacementOptions?.teams.find((team) => team.id === approveTeamId)?.relationshipManagerId ?? '');
+                      }
+                    }}
                     className="mt-1 w-full"
                   >
                     <option value="SC">Sales Caller (SC)</option>
@@ -1112,8 +3105,9 @@ export function SuperadminEmployeesPage() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700">Vertical</label>
+                  <label htmlFor="sa-approve-vertical" className="font-semibold text-slate-700">Vertical</label>
                   <Select
+                    id="sa-approve-vertical"
                     value={approveVertical}
                     onChange={(e) => handleApproveVerticalChange(e.target.value)}
                     className="mt-1 w-full"
@@ -1126,13 +3120,19 @@ export function SuperadminEmployeesPage() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700">Assigned Team</label>
+                  <label htmlFor="sa-approve-team" className="font-semibold text-slate-700">Assigned Team</label>
                   <Select
+                    id="sa-approve-team"
                     value={approveTeamId}
-                    onChange={(e) => setApproveTeamId(e.target.value)}
+                    onChange={(e) => {
+                      setApproveTeamId(e.target.value);
+                      if (approveRole === 'SC') {
+                        setApproveManagerId(approvePlacementOptions?.teams.find((team) => team.id === e.target.value)?.relationshipManagerId ?? '');
+                      }
+                    }}
                     className="mt-1 w-full"
                   >
-                    {(TEAMS_BY_VERT[approveVertical] || []).map((t) => (
+                    {(approvePlacementOptions?.teams || []).map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>
@@ -1141,33 +3141,70 @@ export function SuperadminEmployeesPage() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700">Reporting Relationship Manager</label>
+                  <label htmlFor="sa-approve-superior" className="font-semibold text-slate-700">Reporting Superior</label>
                   <Select
+                    id="sa-approve-superior"
                     value={approveManagerId}
                     onChange={(e) => setApproveManagerId(e.target.value)}
                     className="mt-1 w-full"
                   >
                     <option value="">None / Not Applicable</option>
-                    {(MANAGERS_BY_VERT[approveVertical] || []).map((m) => (
+                    {(approvePlacementOptions?.superiors.filter((m) => approveRole !== 'SC' || m.id === approvePlacementOptions.teams.find((team) => team.id === approveTeamId)?.relationshipManagerId) || []).map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.name}
+                        {m.name} ({m.role})
                       </option>
                     ))}
                   </Select>
                 </div>
 
                 <div className="col-span-2">
-                  <label className="font-semibold text-slate-700">
-                    Permanent Login Username (Employee ID) <span className="text-emerald-700">✓ Immutable</span>
+                  <label htmlFor="sa-approve-username" className="font-semibold text-slate-700 block mb-1">
+                    Unique Login Username <span className="text-emerald-700">(Manually chosen by SA)</span>
                   </label>
                   <Input
-                    value={approvingReq.employee_id}
-                    disabled
-                    readOnly
-                    className="mt-1 font-mono text-xs bg-slate-100 text-slate-800 font-bold border-slate-300 cursor-not-allowed select-all"
+                    id="sa-approve-username"
+                    value={approveUsername}
+                    onChange={(e) => setApproveUsername(e.target.value)}
+                    placeholder="e.g. ananya.sharma"
+                    className="font-mono text-xs"
+                    aria-invalid={Boolean(approveFieldErrors.username)}
+                    required
                   />
+                  {approveFieldErrors.username?.map((message) => (
+                    <p key={message} role="alert" className="mt-1 text-xs text-rose-700">{message}</p>
+                  ))}
                   <p className="text-[11px] text-slate-500 mt-1">
-                    System-enforced immutable login username is the Employee ID (<span className="font-mono font-medium">{approvingReq.employee_id}</span>). SA provisions a one-time temporary password below.
+                    Use at least 3 characters: letters, numbers, dots, underscores, or hyphens. No spaces. Linked to employee ID <span className="font-mono font-bold text-slate-700">{approvingReq.employee_id}</span>.
+                  </p>
+                </div>
+
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="sa-approve-password" className="font-semibold text-slate-700">One-Time Temporary Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowApprovePassword(!showApprovePassword)}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                    >
+                      {showApprovePassword ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                      <span>{showApprovePassword ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                  <Input
+                    id="sa-approve-password"
+                    type={showApprovePassword ? 'text' : 'password'}
+                    value={approveTempPassword}
+                    onChange={(e) => setApproveTempPassword(e.target.value)}
+                    placeholder="Minimum 8 characters"
+                    className="font-mono text-xs"
+                    aria-invalid={Boolean(approveFieldErrors.temporaryPassword)}
+                    required
+                  />
+                  {approveFieldErrors.temporaryPassword?.map((message) => (
+                    <p key={message} role="alert" className="mt-1 text-xs text-rose-700">{message}</p>
+                  ))}
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Stored as secure hash; employee must change this password at first login.
                   </p>
                 </div>
               </div>
@@ -1188,7 +3225,7 @@ export function SuperadminEmployeesPage() {
                   disabled={approveSubmitting}
                   className="text-xs bg-[#113F3D] hover:bg-[#0c2e2c] text-white"
                 >
-                  {approveSubmitting ? 'Activating…' : 'Activate & Generate Temporary Password'}
+                  {approveSubmitting ? 'Activating…' : 'Approve & Activate Account'}
                 </Button>
               </div>
             </CardContent>
@@ -1336,6 +3373,9 @@ export function SuperadminEmployeesPage() {
 // 3. Roles & Scopes Page (SA-02, SA-03, SA-11)
 // =============================================================================
 export function SuperadminScopesPage() {
+  const { session } = useSession();
+  const availableVerticals = getAvailableVerticals(session?.verticalGrants);
+
   const [tab, setTab] = useState<'sa02' | 'sa03' | 'sa11'>('sa02');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [delegations, setDelegations] = useState<any[]>([]);
@@ -1343,13 +3383,13 @@ export function SuperadminScopesPage() {
   // SA-02
   const [empId, setEmpId] = useState('EMP-001');
   const [role, setRole] = useState<'TL' | 'MG' | 'RM' | 'SC'>('TL');
-  const [vertical, setVertical] = useState<'wealth' | 'banking'>('wealth');
+  const [vertical, setVertical] = useState<CanonicalVertical>('wealth');
   const [allowedTeams, setAllowedTeams] = useState<string[]>(['TEAM-WEALTH-ALPHA', 'TEAM-WEALTH-BETA']);
   const [ref, setRef] = useState('REQ-AUTH-2026-088');
 
   // SA-03
   const [addEmpId, setAddEmpId] = useState('EMP-005'); // Meera
-  const [addVertical, setAddVertical] = useState<'wealth' | 'banking'>('banking');
+  const [addVertical, setAddVertical] = useState<CanonicalVertical>('banking');
   const [addTeam, setAddTeam] = useState('TEAM-BANKING-ALPHA');
 
   useEffect(() => {
@@ -1560,16 +3600,31 @@ export function SuperadminScopesPage() {
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-700">Additional Vertical</label>
-              <Select value={addVertical} onChange={(e) => setAddVertical(e.target.value as any)} className="mt-1 w-full">
-                <option value="banking">Corporate Banking</option>
-                <option value="wealth">Wealth Management</option>
+              <Select
+                value={addVertical}
+                onChange={(e) => {
+                  const nextV = e.target.value as CanonicalVertical;
+                  setAddVertical(nextV);
+                  const teams = TEAMS_BY_VERT[nextV] || [];
+                  if (teams.length > 0) setAddTeam(teams[0].id);
+                }}
+                className="mt-1 w-full"
+              >
+                {availableVerticals.map((v) => (
+                  <option key={v} value={v}>
+                    {VERTICAL_LABELS[v]}
+                  </option>
+                ))}
               </Select>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-700">Additional Team</label>
               <Select value={addTeam} onChange={(e) => setAddTeam(e.target.value)} className="mt-1 w-full">
-                <option value="TEAM-BANKING-ALPHA">Banking Alpha</option>
-                <option value="TEAM-WEALTH-BETA">Wealth Beta</option>
+                {(TEAMS_BY_VERT[addVertical] || []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
               </Select>
             </div>
             <div className="md:col-span-3 p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-800">
@@ -1646,6 +3701,10 @@ export function SuperadminScopesPage() {
 // 4. Organisation Hierarchy Page (SA-04)
 // =============================================================================
 export function SuperadminOrganisationPage() {
+  const { session } = useSession();
+  const availableVerticals = getAvailableVerticals(session?.verticalGrants);
+
+  const [vertical, setVertical] = useState<CanonicalVertical>('wealth');
   const [nodes, setNodes] = useState<any[]>([]);
   const [unitName, setUnitName] = useState('');
   const [unitLevel, setUnitLevel] = useState('Manager');
@@ -1653,8 +3712,8 @@ export function SuperadminOrganisationPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadHierarchy = useCallback(() => {
-    superadminApi.getHierarchy('wealth').then(setNodes).catch(console.error);
-  }, []);
+    superadminApi.getHierarchy(vertical).then(setNodes).catch(console.error);
+  }, [vertical]);
 
   useEffect(() => {
     loadHierarchy();
@@ -1669,12 +3728,12 @@ export function SuperadminOrganisationPage() {
     try {
       await superadminApi.restructureHierarchy({
         unitName,
-        vertical: 'wealth',
+        vertical,
         unitLevel,
         parentNodeId: parentNodeId || null,
         effectiveDate: new Date().toISOString().split('T')[0],
       });
-      setMessage({ type: 'success', text: `Hierarchy unit '${unitName}' published cleanly without cycles.` });
+      setMessage({ type: 'success', text: `Hierarchy unit '${unitName}' published cleanly without cycles in ${vertical}.` });
       setUnitName('');
       loadHierarchy();
     } catch (err: any) {
@@ -1708,10 +3767,30 @@ export function SuperadminOrganisationPage() {
         submitLabel="Publish Dated Structure →"
       >
         <div className="space-y-6">
+          {/* Vertical Selector */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <span className="text-xs font-semibold text-slate-700">Hierarchy Vertical Scope:</span>
+            <div className="flex items-center gap-1.5">
+              {availableVerticals.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  id={`sa-org-vertical-${v}`}
+                  onClick={() => setVertical(v)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
+                    vertical === v ? 'bg-[#113F3D] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-slate-100'
+                  }`}
+                >
+                  {VERTICAL_SHORT_LABELS[v]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Effective Reporting Path Visual Cards matching Action Deck P297 */}
           <div>
             <div className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-3">
-              EFFECTIVE REPORTING PATH
+              EFFECTIVE REPORTING PATH ({VERTICAL_SHORT_LABELS[vertical]})
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div className="p-3 rounded-lg border border-slate-200 bg-white space-y-1">

@@ -921,6 +921,15 @@ const ALL_MODULES: Module[] = [
     href: '/superadmin/health',
   },
   {
+    key: 'superadmin.teams',
+    label: 'Teams & Frontline',
+    description: 'Dynamic team management, Relationship Manager supervision, and Sales Caller staffing',
+    icon: Users,
+    requiredVerticals: [],
+    requiredActions: ['superadmin.overview:read'],
+    href: '/superadmin/teams',
+  },
+  {
     key: 'hr.overview',
     label: 'People overview',
     description: 'Workforce operational picture, start-date risks and episode tracking',

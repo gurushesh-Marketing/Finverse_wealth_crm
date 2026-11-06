@@ -90,8 +90,11 @@ before(async () => {
 });
 
 after(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  await db.end();
+  if (server) {
+    (server as any).closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  if (db) await db.end();
 });
 
 test('1. HR creates pending employee record with 4 required fields and server generates sequential ID', async () => {
@@ -185,6 +188,7 @@ test('4. Super Admin approval validates cross-vertical manager eligibility', asy
       teamId: 'TEAM-WEALTH-ALPHA',
       reportingManagerId: 'EMP-018', // Anil Verma (Banking Alpha MG)
       username: `${RUN}_cross_mgr`,
+      temporaryPassword: 'TempPassword123!',
     },
   });
   assert.equal(badApproveRes.status, 422, 'Cross-vertical manager selection must be rejected with 422');
@@ -206,6 +210,8 @@ test('5. Super Admin approves candidate, provisions one-time temp password, and 
   assert.equal(createRes.status, 201);
   const { requestId, employeeId } = createRes.body.data;
 
+  const tempPassword = 'OneTimeTempPass123!';
+
   // Super Admin approves with Wealth Alpha team and Wealth Alpha manager (EMP-003 Sameer Sen)
   const approveRes = await call('POST', '/api/superadmin/onboarding/approve', {
     cookie: alok.cookie,
@@ -216,21 +222,20 @@ test('5. Super Admin approves candidate, provisions one-time temp password, and 
       teamId: 'TEAM-WEALTH-ALPHA',
       reportingManagerId: 'EMP-003',
       username,
+      temporaryPassword: tempPassword,
     },
   });
 
   assert.equal(approveRes.status, 200, `Expected 200, got ${approveRes.status}: ${JSON.stringify(approveRes.body)}`);
   assert.equal(approveRes.body.data.employeeId, employeeId);
-  assert.equal(approveRes.body.data.username, employeeId, 'Permanent non-editable login username must be Employee ID (EMP-xxx)');
-  assert.ok(approveRes.body.data.temporaryPassword, 'One-time temporary password must be returned');
-
-  const tempPassword = approveRes.body.data.temporaryPassword;
+  assert.equal(approveRes.body.data.username, username, 'Manual login username must equal SA chosen username');
 
   // Verify in DB that employee is now active, must_change_password is true, and reporting_manager_id is EMP-003
   const empRes = await db.query('SELECT * FROM employees WHERE id = $1', [employeeId]);
   assert.equal(empRes.rows[0].status, 'active');
   assert.equal(empRes.rows[0].must_change_password, true);
   assert.equal(empRes.rows[0].reporting_manager_id, 'EMP-003');
+  assert.equal(empRes.rows[0].username, username);
 
   // Verify assignment created atomically
   const assignRes = await db.query('SELECT * FROM assignments WHERE employee_id = $1', [employeeId]);
@@ -239,9 +244,9 @@ test('5. Super Admin approves candidate, provisions one-time temp password, and 
   assert.equal(assignRes.rows[0].vertical, 'wealth');
   assert.equal(assignRes.rows[0].team_id, 'TEAM-WEALTH-ALPHA');
 
-  // 6. Test login with temporary password -> must_change_password is required
+  // 6. Test login with SA-created username and temporary password -> must_change_password is required
   const loginRes = await call('POST', '/api/auth/login', {
-    json: { email: employeeId, password: tempPassword },
+    json: { email: username, password: tempPassword },
   });
   assert.equal(loginRes.status, 200);
   assert.equal(loginRes.body.session.mustChangePassword, true);
@@ -261,13 +266,13 @@ test('5. Super Admin approves candidate, provisions one-time temp password, and 
 
   // 9. Verify old temp password no longer works
   const oldLoginRes = await call('POST', '/api/auth/login', {
-    json: { email: employeeId, password: tempPassword },
+    json: { email: username, password: tempPassword },
   });
   assert.equal(oldLoginRes.status, 401);
 
   // 10. Verify new permanent password works
   const newLoginRes = await call('POST', '/api/auth/login', {
-    json: { email: employeeId, password: 'PermanentPass1234!' },
+    json: { email: username, password: 'PermanentPass1234!' },
   });
   assert.equal(newLoginRes.status, 200);
 
@@ -311,7 +316,10 @@ test('6. Super Admin rejection sets request and employee to rejected', async () 
       email,
     },
   });
-  assert.equal(createRes.status, 201);
+  if (createRes.status !== 201) {
+    console.error('CREATE_RES_FAIL:', JSON.stringify(createRes.body));
+  }
+  assert.equal(createRes.status, 201, JSON.stringify(createRes.body));
   const { requestId, employeeId } = createRes.body.data;
 
   const rejectRes = await call('POST', '/api/superadmin/onboarding/reject', {
@@ -384,6 +392,7 @@ test('8. Unauthorized HR credential access is blocked with 403', async () => {
       vertical: 'wealth',
       teamId: 'TEAM-WEALTH-ALPHA',
       username: 'hacker',
+      temporaryPassword: 'TempPassword123!',
     },
   });
   assert.equal(res.status, 403);
@@ -404,7 +413,7 @@ test('9. Concurrent employee-ID creation generates atomic, gapless sequence', as
   const results = await Promise.all(promises);
   const ids: string[] = [];
   for (const r of results) {
-    assert.equal(r.status, 201);
+    assert.equal(r.status, 201, `Concurrent onboarding failed: ${JSON.stringify(r.body)}`);
     ids.push(r.body.data.employeeId);
   }
 
@@ -455,11 +464,11 @@ test('11. Password reset token consumption updates password, revokes sessions, a
   assert.equal(reqRes.status, 200);
 
   // Retrieve raw token from local delivery outbox
-  const outboxRes = await call('GET', '/api/auth/local-delivery?limit=5');
+  const outboxRes = await call('GET', '/api/auth/local-delivery?limit=50');
   assert.equal(outboxRes.status, 200);
-  const latest = outboxRes.body.data.find(
-    (item: any) => item.recipient_email === callerEmail && item.delivery_type === 'account_recovery' && !item.consumed_at
-  );
+  const latest = (outboxRes.body.data || [])
+    .filter((item: any) => item.recipient_email === callerEmail && item.delivery_type === 'account_recovery' && !item.consumed_at)
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
   assert.ok(latest, 'Outbox item with raw reset token must exist');
   const rawToken = latest.raw_token;
 

@@ -11,8 +11,12 @@
     "lint": "pnpm -r lint",
     "test": "pnpm --filter @finverse/api test && pnpm --filter @finverse/web test:e2e",
     "db:up": "docker compose up -d postgres",
+    "db:local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-postgres.ps1 start",
+    "db:local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-postgres.ps1 stop",
+    "db:local:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-postgres.ps1 status",
     "db:down": "docker compose down",
     "db:migrate": "tsx database/migrate.ts",
+    "db:supabase:verify": "tsx scripts/verify-supabase-migration.ts",
     "db:seed": "tsx database/seed.ts"
   },
   "devDependencies": {

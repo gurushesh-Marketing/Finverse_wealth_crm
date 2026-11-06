@@ -11,6 +11,7 @@ import type {
   HrCreateReportScheduleInput,
   HrAttachApprovalInput,
   HrUpdateRequestInput,
+  PlacementOptions,
 } from '@finverse/contracts';
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -32,6 +33,7 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const hrApi = {
   getOverview: () => req<any>('/overview'),
+  getPlacementOptions: (vertical: string) => req<PlacementOptions>(`/placement-options?vertical=${encodeURIComponent(vertical)}`),
 
   // Onboarding (HR enters 4 fields, auto-generates employee ID & pending approval)
   submitOnboarding: (data: HrSubmitOnboardingInput) =>

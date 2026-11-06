@@ -37,6 +37,10 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   }
   if (!res.ok) {
     const err: ErrorResponse | null = parsed;
+    if (res.status === 401 && err?.error?.code === 'UNAUTHENTICATED' && !path.startsWith('/api/auth/')) {
+      sessionStorage.setItem('finverse-session-expired', '1');
+      window.dispatchEvent(new Event('finverse:session-expired'));
+    }
     throw new ApiError(
       res.status,
       err?.error?.code ?? 'INTERNAL',

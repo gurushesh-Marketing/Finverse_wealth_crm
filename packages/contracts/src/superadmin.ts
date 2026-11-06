@@ -8,7 +8,15 @@ export const saApproveOnboardingSchema = z.object({
   vertical: z.enum(VERTICALS, { errorMap: () => ({ message: 'Select an authorized vertical.' }) }),
   teamId: z.string().trim().min(1, 'Assigned team is required.'),
   reportingManagerId: z.string().trim().nullable().optional(),
-  username: z.string().trim().optional(),
+  username: z
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters.')
+    .regex(/^[a-zA-Z0-9._-]+$/, 'Username can only contain alphanumeric characters, dots, underscores, and hyphens.'),
+  temporaryPassword: z
+    .string()
+    .trim()
+    .min(8, 'Temporary password must be at least 8 characters.'),
 });
 export type SaApproveOnboardingInput = z.infer<typeof saApproveOnboardingSchema>;
 
@@ -18,6 +26,26 @@ export const saRejectOnboardingSchema = z.object({
 });
 export type SaRejectOnboardingInput = z.infer<typeof saRejectOnboardingSchema>;
 
+// Unified HR Request Schemas
+export const saApproveLifecycleChangeSchema = z.object({
+  requestId: z.string().trim().min(1, 'Request ID is required.'),
+  decisionNotes: z.string().trim().optional(),
+});
+export type SaApproveLifecycleChangeInput = z.infer<typeof saApproveLifecycleChangeSchema>;
+
+export const saApproveExitSchema = z.object({
+  requestId: z.string().trim().min(1, 'Request ID is required.'),
+  decisionNotes: z.string().trim().optional(),
+  handoffSupervisedQueue: z.boolean().default(true),
+});
+export type SaApproveExitInput = z.infer<typeof saApproveExitSchema>;
+
+export const saRejectHrRequestSchema = z.object({
+  requestId: z.string().trim().min(1, 'Request ID is required.'),
+  rejectionReason: z.string().trim().min(3, 'Rejection reason must be provided.'),
+});
+export type SaRejectHrRequestInput = z.infer<typeof saRejectHrRequestSchema>;
+
 export interface SaApproveOnboardingResponse {
   success: boolean;
   employeeId: string;
@@ -25,9 +53,39 @@ export interface SaApproveOnboardingResponse {
   role: string;
   vertical: string;
   teamId: string;
-  temporaryPassword: string;
   mustChangePassword: true;
   message: string;
+}
+
+export interface SaHrRequestItem {
+  id: string;
+  requestType: 'new_account' | 'team_transfer' | 'promotion' | 'exit';
+  status: 'submitted' | 'approved' | 'approved_by_rm' | 'pending_approval' | 'activated_by_admin' | 'rejected' | 'returned';
+  employeeId: string;
+  employeeName: string;
+  employeeEmail: string | null;
+  primaryMobile?: string | null;
+  whatsappNumber?: string | null;
+  currentUsername?: string | null;
+  currentRole?: string | null;
+  currentVertical?: string | null;
+  currentTeamName?: string | null;
+  targetRole: string;
+  targetVertical: string;
+  targetTeamId: string | null;
+  targetTeamName?: string | null;
+  supervisorEmployeeId?: string | null;
+  supervisorName?: string | null;
+  effectiveDate: string;
+  effectiveTime?: string | null;
+  approvalsSummary: string;
+  handoffPlan?: string | null;
+  oldWorkloadTreatment?: string | null;
+  replacementPlan?: string | null;
+  adminDecisionNotes?: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // SA-01: Legacy Account Creation & Expiring Activation Invitation
@@ -145,3 +203,63 @@ export const saDecideDelegationSchema = z.object({
   decisionReason: z.string().trim().min(3, 'Decision rationale is required.'),
 });
 export type SaDecideDelegationInput = z.infer<typeof saDecideDelegationSchema>;
+
+// SA: Dynamic Team Management & Relationship Manager Assignment
+export const saCreateTeamSchema = z.object({
+  id: z.string().trim().min(3).optional(),
+  name: z.string().trim().min(2, 'Team name must be at least 2 characters.'),
+  vertical: z.enum(VERTICALS, { errorMap: () => ({ message: 'Select an authorized vertical.' }) }),
+  relationshipManagerId: z.string().trim().nullable().optional(),
+});
+export type SaCreateTeamInput = z.infer<typeof saCreateTeamSchema>;
+
+export const saUpdateTeamSchema = z.object({
+  name: z.string().trim().min(2, 'Team name must be at least 2 characters.').optional(),
+  relationshipManagerId: z.string().trim().nullable().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+});
+export type SaUpdateTeamInput = z.infer<typeof saUpdateTeamSchema>;
+
+export const saAssignCallerSchema = z.object({
+  callerEmployeeId: z.string().trim().min(1, 'Caller Employee ID is required.'),
+  reason: z.string().trim().optional(),
+});
+export type SaAssignCallerInput = z.infer<typeof saAssignCallerSchema>;
+
+export interface SaTeamCaller {
+  employeeId: string;
+  name: string;
+  email: string;
+  username: string | null;
+  assignedAt: string;
+}
+
+export interface SaTeamItem {
+  id: string;
+  name: string;
+  vertical: string;
+  status: 'active' | 'inactive';
+  relationshipManagerId: string | null;
+  relationshipManagerName: string | null;
+  callerCount: number;
+  callers: SaTeamCaller[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaEligibleRelationshipManager {
+  id: string;
+  name: string;
+  email: string;
+  vertical: string;
+  supervisedTeamCount: number;
+}
+
+export interface SaEligibleCaller {
+  id: string;
+  name: string;
+  email: string;
+  vertical: string;
+  currentTeamId: string | null;
+  currentTeamName: string | null;
+}

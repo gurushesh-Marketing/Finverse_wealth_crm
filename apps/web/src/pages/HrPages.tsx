@@ -44,6 +44,7 @@ import type {
   CalendarHolidayRecord,
   AttendanceRecord,
   AttendanceRegularizationRecord,
+  PlacementOptions,
 } from '@finverse/contracts';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -408,54 +409,6 @@ export function HrOverviewPage() {
 // ============================================================================
 // 2. HR-01: Onboard New Employee (4-Field Submission & Generated ID) (/hr/joiners)
 // ============================================================================
-// Teams and Managers for HR Candidate Placement Proposals
-// ============================================================================
-const HR_TEAMS_BY_VERT: Record<string, { id: string; name: string }[]> = {
-  wealth: [
-    { id: 'TEAM-WEALTH-ALPHA', name: 'Wealth Alpha' },
-    { id: 'TEAM-WEALTH-BETA', name: 'Wealth Beta' },
-    { id: 'TEAM-WEALTH-GAMMA', name: 'Wealth Gamma' },
-  ],
-  banking: [
-    { id: 'TEAM-BANKING-ALPHA', name: 'Banking Alpha' },
-    { id: 'TEAM-BANKING-BETA', name: 'Banking Beta' },
-  ],
-  markets: [
-    { id: 'TEAM-MARKETS-ALPHA', name: 'Markets Alpha' },
-    { id: 'TEAM-MARKETS-BETA', name: 'Markets Beta' },
-  ],
-  real_estate: [
-    { id: 'TEAM-REALESTATE-ALPHA', name: 'Real Estate Alpha (Luxury Residential)' },
-    { id: 'TEAM-REALESTATE-BETA', name: 'Real Estate Beta (Commercial Mandates)' },
-  ],
-};
-
-const HR_MANAGERS_BY_VERT: Record<string, { id: string; name: string; role: string; teamId?: string }[]> = {
-  wealth: [
-    { id: 'EMP-003', name: 'Tara Iyer (REL · Wealth Alpha/Beta)', role: 'REL', teamId: 'TEAM-WEALTH-ALPHA' },
-    { id: 'EMP-007', name: 'Neel Verma (MG · Wealth Manager)', role: 'MG', teamId: 'TEAM-WEALTH-ALPHA' },
-    { id: 'EMP-008', name: 'Kavita Rao (RM · Wealth)', role: 'RM' },
-  ],
-  banking: [
-    { id: 'EMP-016', name: 'Rohan Sen (REL · Banking Alpha)', role: 'REL', teamId: 'TEAM-BANKING-ALPHA' },
-    { id: 'EMP-017', name: 'Kunal Shah (MG · Branch Manager, Banking Alpha)', role: 'MG', teamId: 'TEAM-BANKING-ALPHA' },
-    { id: 'EMP-018', name: 'Priya Sen (REL · Banking Beta)', role: 'REL', teamId: 'TEAM-BANKING-BETA' },
-    { id: 'EMP-019', name: 'Arjun Mehta (RM · Banking)', role: 'RM' },
-  ],
-  markets: [
-    { id: 'EMP-005', name: 'Meera Nair (REL · Markets Alpha)', role: 'REL', teamId: 'TEAM-MARKETS-ALPHA' },
-    { id: 'EMP-022', name: 'Manish Vyas (MG · Trading Manager, Markets Alpha)', role: 'MG', teamId: 'TEAM-MARKETS-ALPHA' },
-    { id: 'EMP-023', name: 'Tarun Sen (REL · Markets Beta)', role: 'REL', teamId: 'TEAM-MARKETS-BETA' },
-    { id: 'EMP-024', name: 'Rajesh Bansal (RM · Markets)', role: 'RM' },
-  ],
-  real_estate: [
-    { id: 'EMP-027', name: 'Neha Gupta (REL · Real Estate Alpha)', role: 'REL', teamId: 'TEAM-REALESTATE-ALPHA' },
-    { id: 'EMP-028', name: 'Vikramaditya Singhania (MG · Advisory Manager, Real Estate Alpha)', role: 'MG', teamId: 'TEAM-REALESTATE-ALPHA' },
-    { id: 'EMP-032', name: 'Pooja Reddy (REL · Real Estate Beta)', role: 'REL', teamId: 'TEAM-REALESTATE-BETA' },
-    { id: 'EMP-029', name: 'Siddharth Malhotra (RM · Real Estate)', role: 'RM' },
-  ],
-};
-
 export function HrJoinersPage() {
   const [fullName, setFullName] = useState('');
   const [primaryMobile, setPrimaryMobile] = useState('');
@@ -464,10 +417,12 @@ export function HrJoinersPage() {
   const [email, setEmail] = useState('');
 
   // Proposed Placement State (HR proposes role, vertical, team, superior)
-  const [proposedRole, setProposedRole] = useState<'SC' | 'REL' | 'TL' | 'MG' | 'RM' | 'NM' | 'DE' | 'HR' | 'SA'>('SC');
+  const [proposedRole, setProposedRole] = useState<'SC' | 'REL' | 'MG' | 'RM' | 'NM' | 'DE' | 'HR' | 'SA'>('SC');
   const [proposedVertical, setProposedVertical] = useState<'wealth' | 'banking' | 'markets' | 'real_estate'>('wealth');
-  const [proposedTeamId, setProposedTeamId] = useState('TEAM-WEALTH-ALPHA');
-  const [proposedSuperiorId, setProposedSuperiorId] = useState('EMP-007');
+  const [proposedTeamId, setProposedTeamId] = useState('');
+  const [proposedSuperiorId, setProposedSuperiorId] = useState('');
+  const [placementOptions, setPlacementOptions] = useState<PlacementOptions | null>(null);
+  const [placementError, setPlacementError] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submittedEmployee, setSubmittedEmployee] = useState<{
@@ -497,6 +452,22 @@ export function HrJoinersPage() {
     void loadRequests();
   }, [loadRequests]);
 
+  useEffect(() => {
+    let active = true;
+    setPlacementOptions(null);
+    setPlacementError(null);
+    hrApi.getPlacementOptions(proposedVertical).then((options) => {
+      if (!active) return;
+      setPlacementOptions(options);
+      const team = options.teams[0];
+      setProposedTeamId(team?.id ?? '');
+      setProposedSuperiorId(team?.relationshipManagerId ?? '');
+    }).catch(() => {
+      if (active) setPlacementError('Could not load current teams and superiors. Refresh before submitting.');
+    });
+    return () => { active = false; };
+  }, [proposedVertical]);
+
   const handleMobileChange = (val: string) => {
     setPrimaryMobile(val);
     if (sameAsMobile) {
@@ -513,13 +484,15 @@ export function HrJoinersPage() {
 
   const handleVerticalChange = (vert: 'wealth' | 'banking' | 'markets' | 'real_estate') => {
     setProposedVertical(vert);
-    const teams = HR_TEAMS_BY_VERT[vert] || [];
-    setProposedTeamId(teams[0]?.id || '');
-    const mgrs = HR_MANAGERS_BY_VERT[vert] || [];
-    setProposedSuperiorId(mgrs[0]?.id || '');
+    setProposedTeamId('');
+    setProposedSuperiorId('');
   };
 
   const handleSubmit = async () => {
+    if (!placementOptions || !placementOptions.teams.some((team) => team.id === proposedTeamId)) {
+      setMessage({ type: 'error', text: 'Choose a current active team before submitting.' });
+      return;
+    }
     if (!fullName.trim() || !primaryMobile.trim() || !email.trim()) {
       setMessage({ type: 'error', text: 'Full name, primary mobile, and corporate email address are required.' });
       return;
@@ -583,7 +556,7 @@ export function HrJoinersPage() {
         'Super Admin reviews proposal, makes audited placement adjustments where required, and provisions initial credentials.',
       ]}
       whenCheckFails="Duplicate email address or primary mobile number returns 409 Conflict; missing fields return 422."
-      permissionEvidence="HR never types an employee ID, sees passwords, or activates accounts. The permanent login username is the server-generated Employee ID."
+      permissionEvidence="HR never types an employee ID, sees passwords, or activates accounts. Super Admin manually assigns the unique login username during approval, linked permanently to the immutable employee ID."
       onSubmit={handleSubmit}
       submitting={submitting}
       submitLabel="Submit for Super Admin Approval"
@@ -649,7 +622,7 @@ export function HrJoinersPage() {
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground pt-1 border-t border-emerald-200 dark:border-emerald-800/60">
-              Notice: The permanent, non-editable login username for this employee will be <strong className="font-mono text-foreground">{submittedEmployee.employeeId}</strong>. Super Admin will review the proposed placement and provision a one-time temporary password.
+              Notice: The employee ID is automatically generated and immutable (<strong className="font-mono text-foreground">{submittedEmployee.employeeId}</strong>). Super Admin will review the proposed placement, manually assign a unique login username, and provision a one-time temporary password.
             </p>
           </div>
         )}
@@ -730,17 +703,22 @@ export function HrJoinersPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="hr-proposed-role" className="text-xs font-medium text-foreground">
               Proposed Role <span className="text-rose-500">*</span>
             </label>
             <select
+              id="hr-proposed-role"
               value={proposedRole}
-              onChange={(e) => setProposedRole(e.target.value as any)}
+              onChange={(e) => {
+                setProposedRole(e.target.value as any);
+                if (e.target.value === 'SC') {
+                  setProposedSuperiorId(placementOptions?.teams.find((team) => team.id === proposedTeamId)?.relationshipManagerId ?? '');
+                }
+              }}
               className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="SC">Sales Caller (SC)</option>
               <option value="REL">Relationship Manager (REL)</option>
-              <option value="TL">Team Leader (TL)</option>
               <option value="MG">Branch/Wealth Manager (MG)</option>
               <option value="RM">Regional Manager (RM)</option>
               <option value="NM">National Manager (NM)</option>
@@ -751,10 +729,11 @@ export function HrJoinersPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="hr-proposed-vertical" className="text-xs font-medium text-foreground">
               Target Vertical <span className="text-rose-500">*</span>
             </label>
             <select
+              id="hr-proposed-vertical"
               value={proposedVertical}
               onChange={(e) => handleVerticalChange(e.target.value as any)}
               className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -767,15 +746,21 @@ export function HrJoinersPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="hr-proposed-team" className="text-xs font-medium text-foreground">
               Proposed Team Placement <span className="text-rose-500">*</span>
             </label>
             <select
+              id="hr-proposed-team"
               value={proposedTeamId}
-              onChange={(e) => setProposedTeamId(e.target.value)}
+              onChange={(e) => {
+                setProposedTeamId(e.target.value);
+                if (proposedRole === 'SC') {
+                  setProposedSuperiorId(placementOptions?.teams.find((team) => team.id === e.target.value)?.relationshipManagerId ?? '');
+                }
+              }}
               className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              {(HR_TEAMS_BY_VERT[proposedVertical] || []).map((t) => (
+              {(placementOptions?.teams || []).map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
@@ -784,21 +769,23 @@ export function HrJoinersPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="hr-proposed-superior" className="text-xs font-medium text-foreground">
               Proposed Superior / Reporting Manager
             </label>
             <select
+              id="hr-proposed-superior"
               value={proposedSuperiorId}
               onChange={(e) => setProposedSuperiorId(e.target.value)}
               className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="">None / Direct Placement</option>
-              {(HR_MANAGERS_BY_VERT[proposedVertical] || []).map((m) => (
+              {(placementOptions?.superiors.filter((m) => proposedRole !== 'SC' || m.id === placementOptions.teams.find((team) => team.id === proposedTeamId)?.relationshipManagerId) || []).map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}
+                  {m.name} ({m.role})
                 </option>
               ))}
             </select>
+            {placementError && <p role="alert" className="mt-1 text-xs text-rose-700">{placementError}</p>}
           </div>
         </div>
 

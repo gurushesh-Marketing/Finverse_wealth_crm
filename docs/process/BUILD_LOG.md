@@ -2947,7 +2947,7 @@ ode --import tsx --test apps/api/test/real_estate.api.test.ts: **5/5 test suites
      - Updated BulkProspectImportTab.tsx: auto-detects priority column, allows dropdown column mapping, per-row priority toggle buttons in spreadsheet preview, passes isPriority in row payloads, and includes Priority column in CSV download.
      - Persists priority to canonical leads.is_priority and appends immutable audit records in lead_events (kind = 'priority-marked') and lead_audit (ield = 'is_priority', before_value = 'false', after_value = 'true').
   3. **Persisted Concurrency-Safe Round-Robin Cursor**:
-     - Created 
+     - Created
 ound_robin_cursors table ((vertical, team_id) PRIMARY KEY, last_assigned_employee_id TEXT, updated_at TIMESTAMPTZ).
      - Implemented SELECT ... FOR UPDATE row locking in processImportJobChunk to prevent race conditions during concurrent chunk execution.
      - Eligible callers are active Sales Callers in the vertical and authorized team who are not away or on approved leave. WFH alone does **not** disqualify a caller.
@@ -3123,11 +3123,11 @@ iskProfile), and investment horizon (investmentHorizon).
 - **Completed Objectives**:
   1. **Real Estate Domain Criteria & Qualification**:
      - Sales Caller captures property budget commitment (udget), property type (propertyType), preferred location (preferredLocation), purchase timeline (purchaseTimeline), purchase purpose (purchasePurpose), site visit preference (siteVisitPreference), funding source (undingSource), possession preference (possessionPreference), and developer preference (developerPreference).
-     - Pipeline lifecycle: Caller qualification advances lead from 
+     - Pipeline lifecycle: Caller qualification advances lead from
 ew/contacted/
 equirement to 'site-visit'; Relationship Manager review gate advances accepted handoff to 'booking'; return to caller reverts stage to 'contacted'.
   2. **Additive Migration 0048 (database/migrations/0048_real_estate_relationship_manager.sql)**:
-     - Added 
+     - Added
 eal_estate_requirement jsonb NOT NULL DEFAULT '{}'::jsonb to lead_handoffs.
      - Added property_budget numeric to leads.
      - Updated leads_stage_check with canonical Real Estate stages ('requirement', 'site-visit', 'booking', 'registration').
@@ -3140,7 +3140,7 @@ eal_estate_requirement jsonb NOT NULL DEFAULT '{}'::jsonb to lead_handoffs.
      - Banking credit bureau check fields and credit score strictly suppressed (creditBureauCheck: null, ureauStatus: null).
   5. **Combined Independent Acceptance Across All 4 Verticals (All 7 Criteria Verified)**:
      - Lead Ordering: Priority leads appear above normal leads; newest assignments appear first.
-     - Vertical Round-Robin Isolation: Cursors persist in 
+     - Vertical Round-Robin Isolation: Cursors persist in
 ound_robin_cursors with WFH eligibility.
      - Caller Privacy: Number masking strictly prevents raw number leakage; priority alert notifications sent once.
      - Secure Calling: Synthetic calling works and is explicitly labelled synthetic; real Bonvoice pending credentials.
@@ -3158,7 +3158,7 @@ ode --test-concurrency=1 --import tsx --test test/priority_lead_ordering.api.tes
        * pnpm -r lint: **0 errors** across all packages.
        * pnpm -r build: **0 errors** (all bundles compiled cleanly in 1.53s).
 
-### Step 098 � Data Entry to Sales Caller Visibility & Priority Intake Workflow Reconciliation
+### Step 098 � Data Entry to Sales Caller Visibility & Priority Intake Workflow Reconciliation
 
 - **Intake Workflow Reconciliation**:
   - Reconciled all three intake mechanisms: manual single entry (createManualRecord, publishManualRecord), legacy CSV batch upload/publish (uploadBatch, publishBatch), and high-volume chunked bulk import (createBulkImportJob, processImportJobChunk).
@@ -3267,3 +3267,28 @@ Step 101 final verification: focused caller-routing API suite 6/6 passed, includ
   * Real Estate: EMP-050 Aditya Roy (acceptance_realestate_new_caller_EMP050.png)
 - Quality gates: pnpm -r typecheck passed (0 errors across contracts, api, web). All operational data preserved; zero db resets; zero git commits, pushes, or deployments.
 
+
+## Step 105 — Super Admin approval retry diagnosis (2026-10-29)
+- Reproduced the live Super Admin journey with the current Alok account. Operational DB confirms EMP-035 remains pending with HR proposal Wealth / Wealth Alpha / Neel Verma; a pending employee cannot log in.
+- Fixed stale-session handling for protected Super Admin requests and exposed field-specific approval validation. No employee was approved and no credential or operational record was changed.
+- Verification executed: Playwright 2/2 desktop and 2/2 mobile; onboarding/auth API 11/11; typecheck, web lint, and web build passed. Scoped web diff check passed. Full diff check remains blocked by prior unrelated whitespace in the API repo and contracts files.
+- SA acceptance remains open pending a human approval decision and subsequent first-login verification; full roster and four-vertical reconciliation also remains open.
+## Release planning — 2026-10-29
+- Audited the existing CRM and official Supabase self-hosting path. Preserved Express, custom auth, and PostgreSQL; documented isolated Supabase staging as a database-host option instead of a live stack rewrite.
+- Added `RELEASE_2026-10-31.md`, `RELEASE_ISSUES.md`, and two manual Antigravity role briefs. Updated AGENTS/roles README pointers. No application changes, database operations, installation, commit, push, or deployment in this planning slice.
+- Documentation diff check passed. Requirements graph refresh reported cache valid (2039 nodes, 4140 edges); no graph-content change was claimed. Release remains NOT READY with five open P0 issue rows.
+## WhatsApp CRM planning — 2026-10-29
+- Reviewed ArnasDon/wacrm as a candidate reference/sidecar (Next.js + Supabase + official Meta Cloud API) against Finverse's existing simulated SC-09 route and message repository. Recorded a deferred cross-vertical WhatsApp integration plan after SA/HR acceptance; no service installation, provider configuration, live send, database change, commit, push, or deployment.
+- Added the plan as a canonical Graphify source; rebuilt requirements graph (2045 nodes, 4147 edges) and queried the new document node. The rebuild flagged seven prior role evidence fingerprints as stale; added release issue P0-05. These historical PASS claims require fresh release evidence.
+
+## Step 106 — HR and Super Admin placement/provisioning correction (2026-10-29)
+- Confirmed and retired the live legacy SA `/accounts/provision` mutation (HTTP 410). The supported new-account journey is HR onboarding request, SA approval/rejection, SA-chosen unique username and temporary password, and mandatory first-login password change.
+- HR and SA placement forms now consume live operational teams and eligible superiors. Server validates an active same-vertical team, and both HR submission and SA activation require Sales Callers to report to that team's Relationship Manager. SA approval locks the pending request and employee record.
+- Executed API checks: `superadmin.api.test.ts` 12/12 after updating its retired-route setup; `hr.api.test.ts` 8/8; `onboarding_and_auth.api.test.ts` 11/11 on repeat (first attempt had one transient HTTP 500 on its opening test); `superadmin_hr_credentials.api.test.ts` 9/9; `superadmin_teams.api.test.ts` 9/9; `superadmin_verticals.api.test.ts` 4/4. Focused browser checks `superadmin-session-expiry.spec.ts` 8/8 across desktop/mobile, including operational API-to-UI reconciliation of all four vertical team and caller rosters. `pnpm -r typecheck`, `pnpm -r lint --quiet`, and `pnpm build` passed. The build emitted a non-failing large-chunk warning.
+- Corrected current workflow/role/release docs to distinguish immutable employee ID from SA-chosen permanent username. P0-02 roster reconciliation closed. Operational EMP-035 stays pending for the user's approval decision, so P0-01 stays open. No reset/reseed, commit, push, deploy, or WhatsApp feature work.
+- Stress verification reproduced the intermittent HTTP 500 as a primary-key collision from the four-digit random HR request ID generator. Replaced HR lifecycle IDs with UUID-backed IDs; the five-way concurrent onboarding check passed three consecutive runs and the full onboarding suite passed. Deduplicated live superior options by employee and added API/browser regression assertions for duplicate keys.
+- Corrected Playwright's server lifecycle to start and await both API and Vite, removing its hidden dependency on an already-running API. WSL then repeatedly failed with `Wsl/Service/E_UNEXPECTED`; preserved both databases through custom-format dumps and restored them into an ignored project-local native PostgreSQL 18 cluster on port 15432. EMP-035 remained pending after restore. Added `pnpm db:local:start|status|stop`. No operational employee was approved and no database was reset or reseeded.
+
+## Supabase on Hostinger preparation (2026-11-06)
+- Confirmed official self-hosted Supabase includes PostgreSQL. The target architecture replaces the standalone PostgreSQL deployment while keeping the CRM's existing 53 forward SQL migrations, Express authorization, and `pg` repository behavior. Added `SUPABASE_HOSTINGER_MIGRATION.md`, a staging target variable in `.env.example`, and `pnpm db:supabase:verify` for read-only schema migration and row-count comparison.
+- Local Docker CLI is installed but the Linux engine is unavailable; no Supabase target or Hostinger VPS was accessed. The verification command correctly refuses to run without a staging target URL. Monorepo typecheck and `git diff --check` passed. Source data, standalone database, and pending EMP-035 decision were preserved. Cutover and release acceptance remain open.
