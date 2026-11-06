@@ -1,6 +1,14 @@
 # Finverse CRM v2: self-hosted Supabase on Hostinger
 
-Status: preparation only. No Supabase target has been created or verified. The existing operational database remains the source of truth until a tested cutover.
+Status: local Supabase cutover verified on 2026-11-06. Hostinger production installation and cutover remain pending. The old source database and backups are retained for rollback.
+
+## Executed local rehearsal
+
+- Official `self-hosted/v0.8.4` Docker release, commit `189adda99d1b56da55fc5a6ee3f849354aaea92a`, checked out under ignored `.data/supabase-source/`. Secrets were generated with its official scripts into ignored `.env`; no default secret was used. All 11 services became healthy.
+- The source `public` schema/data was backed up and restored into Supabase's `postgres` database without replacing Supabase's internal schemas. Before applying the newest migration, the verifier confirmed 52 applied migration versions and matching row counts for all 125 CRM tables. Migration 0053 was then applied to the Supabase target; EMP-035 remained pending.
+- A separate `finverse_test` database was restored inside the same Supabase PostgreSQL service. Focused API tests passed 59/59. A dedicated `finverse_app` role with CRM table/sequence rights was created; 26/26 focused API tests and live caller/SA login smoke checks passed through that role. The old standalone PostgreSQL server was stopped; the app still authenticated successfully through Supabase.
+- Local-only Supabase Docker files, keys, restored data, and original backups remain under ignored `.data/`. The local `.env` now points the API at the private direct Supabase port `127.0.0.1:5434`; it is not a VPS or production configuration. Keep the official Supabase Docker checkout and its volumes backed up locally until the VPS migration is complete.
+- Fresh empty-database `pnpm db:migrate` hit a pre-existing fixture dependency at migration 0013 (`sales_finance_handoffs` refers to a lead not present on an empty install). The verified migration path for this existing CRM is restore of the owned public schema/data, followed by unapplied forward migrations. A clean-install migration refactor remains required before claiming greenfield installation support.
 
 ## Architecture decision
 

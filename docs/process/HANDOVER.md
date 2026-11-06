@@ -1,5 +1,7 @@
 # Finverse CRM v2 — Final Release-Candidate Handover
 
+> Current database setup (2026-11-06): use `docs/process/SUPABASE_HOSTINGER_MIGRATION.md` and `docs/process/STATUS.md`. Historical standalone PostgreSQL 16/port 5433 instructions below are superseded. The local CRM now connects to the PostgreSQL service inside self-hosted Supabase; Hostinger deployment remains pending.
+
 **Date:** 2026-10-17<br>
 **Repository:** `https://github.com/gurushesh-Marketing/Finverse_wealth_crm.git`<br>
 **Branch:** `feature/superadmin` (tracking `rebuild/react-vite-postgres`)<br>

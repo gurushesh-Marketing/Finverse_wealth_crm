@@ -1,5 +1,7 @@
 # Production Deployment & Operations Handover — Finverse CRM v2
 
+> Database update (2026-11-06): the standalone PostgreSQL 16 commands below are historical. Follow `docs/process/SUPABASE_HOSTINGER_MIGRATION.md` for the self-hosted Supabase target. No Hostinger deployment or production acceptance has occurred.
+
 **Intended Recipient:** DevOps & Engineering Teams (Project Handover)<br>
 **Document Status:** Production Release Preparation Specification  
 **Application:** Finverse CRM v2 (Institutional Multi-Vertical CRM)  

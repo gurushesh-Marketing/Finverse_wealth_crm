@@ -35,7 +35,7 @@ Resume Checkpoint → Retrieve Relevant Knowledge → Inspect Requirements & Imp
 - **Retrieve:** Query `graphify-requirements/graph.json` (`& ".\.venv-graphify\Scripts\graphify.exe" query "<q>" --graph graphify-requirements/graph.json`) to locate action nodes and deck pages.
 - **Inspect:** Ground every design and function in the canonical Action Deck (`docs/reference/NEW-Finverse_Wealth_CRM_Premium_UIUX_Action_Deck.pdf` P001..P320) and brand system (`docs/design/design-system.md`). Inspect actual PDF pages and extracted screens (`evidence/`), never shortened text summaries. Inspect existing shared components before writing code.
 - **Change:** Implement the smallest appropriate, type-safe change with Zod contracts and pragmatic SOLID boundaries.
-- **Verify:** Run live PostgreSQL 16 tests, verify monorepo typecheck/lint/build, and capture live browser screens across Desktop (`1536x800`) and Mobile (`390x844`) after data loads.
+- **Verify:** Run tests against the self-hosted Supabase PostgreSQL service, verify monorepo typecheck/lint/build, and capture live browser screens across Desktop (`1536x800`) and Mobile (`390x844`) after data loads.
 - **Update:** Update `STATUS.md`, `BUILD_LOG.md`, and `COVERAGE_MATRIX.md`; refresh both knowledge graphs deterministically.
 
 ### 2. Post-Deployment Corrections Protocol
@@ -135,5 +135,5 @@ Query rules:
 - **Single Main Builder Session:** In Antigravity IDE, the main Builder conversation owns all implementation, editing, and integration (sole implementation writer).
 - **No Autonomous Delegation:** Antigravity does **not** support native worker delegation or custom agent registration. Written role briefs in `docs/process/roles/` are manual reference guidelines for human-initiated specialist conversations, not registered subagents.
 - **Model Selection:** Recommend **Gemini Flash Medium** (`Gemini 3.8 Flash (Medium)`) by default. Command Code model pins in `.commandcode/agents/` do not configure Antigravity.
-- **Stack & Execution:** pnpm workspace — `apps/web` (React 18 + Vite + Tailwind v4 + shadcn Base UI), `apps/api` (Express + TS), `packages/contracts` (Zod), `database/migrations` (PostgreSQL 16 Alpine on `:5433`).
+- **Stack & Execution:** pnpm workspace — `apps/web` (React 18 + Vite + Tailwind v4 + shadcn Base UI), `apps/api` (Express + TS), `packages/contracts` (Zod), `database/migrations` (CRM schema inside self-hosted Supabase PostgreSQL).
 - **Data Policy:** Demo data is synthetic only — never seed real customer or employee data. Never claim completion without executed evidence. Unresolved business rules stay labelled `[Deck P320]`.

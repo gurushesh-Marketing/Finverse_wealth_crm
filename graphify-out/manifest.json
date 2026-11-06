@@ -396,10 +396,10 @@
     "semantic_hash": "603d93d31d88c76a76641943c99b6b9d"
   },
   "package.json": {
-    "mtime": 1793355224.8041568,
-    "seen": 1793355315.513809,
-    "ast_hash": "9aac2be7225241b8bd52f33fc693fd6f",
-    "semantic_hash": "9aac2be7225241b8bd52f33fc693fd6f"
+    "mtime": 1793947665.5544817,
+    "seen": 1793947916.180219,
+    "ast_hash": "b0d2bea9ba96bbf48dfe60ba3342fd4e",
+    "semantic_hash": "b0d2bea9ba96bbf48dfe60ba3342fd4e"
   },
   "packages/contracts/eslint.config.mjs": {
     "mtime": 1790963631.2515895,
@@ -779,23 +779,11 @@
     "ast_hash": "86718761bed51f3d7781deead7cbc322",
     "semantic_hash": "86718761bed51f3d7781deead7cbc322"
   },
-  "scripts/pg-proxy.js": {
-    "mtime": 1793354358.4331553,
-    "seen": 1793355315.5389743,
-    "ast_hash": "a30a5f768a6105a7dd73607592ccacfe",
-    "semantic_hash": "a30a5f768a6105a7dd73607592ccacfe"
-  },
   "scripts/record_regional_test_execution.py": {
     "mtime": 1792317201.028025,
     "seen": 1792318811.37798,
     "ast_hash": "f764301133b0ced937ec7f54e122adee",
     "semantic_hash": "f764301133b0ced937ec7f54e122adee"
-  },
-  "scripts/setup_wsl_postgres.sh": {
-    "mtime": 1792317201.030788,
-    "seen": 1792318811.3780963,
-    "ast_hash": "912e1e2b6cdae89efb19454f90973f47",
-    "semantic_hash": "912e1e2b6cdae89efb19454f90973f47"
   },
   "database/bootstrap-fixtures.ts": {
     "mtime": 1792317199.0066118,
@@ -2165,10 +2153,10 @@
     "ast_hash": "250f37fae96ae60ad68e04a6c1fbd918",
     "semantic_hash": "250f37fae96ae60ad68e04a6c1fbd918"
   },
-  "scripts/local-postgres.ps1": {
-    "mtime": 1793355224.802216,
-    "seen": 1793355315.5378282,
-    "ast_hash": "874cdb5db16baf1d596703bf8589ff0e",
-    "semantic_hash": "874cdb5db16baf1d596703bf8589ff0e"
+  "scripts/verify-supabase-migration.ts": {
+    "mtime": 1793945845.0533671,
+    "seen": 1793947916.2100072,
+    "ast_hash": "be35065d56916acc4fa3b94e91442ca3",
+    "semantic_hash": "be35065d56916acc4fa3b94e91442ca3"
   }
 }

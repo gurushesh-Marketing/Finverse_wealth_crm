@@ -1,5 +1,11 @@
 # Project status — CHECKPOINT (step 106 - HR/Super Admin placement and provisioning correction)
 
+## Local database cutover to self-hosted Supabase (2026-11-06)
+- Pushed the pre-migration source checkpoint `938a4aa` to `origin/finverse-all-role-branch` before starting. Installed official self-hosted Supabase release `self-hosted/v0.8.4` at pinned commit `189adda99d1b56da55fc5a6ee3f849354aaea92a` in ignored `.data/supabase-source/`; local secrets are ignored. All 11 services report healthy.
+- Backed up the operational source and test databases. Restored the CRM-owned public schema/data into Supabase PostgreSQL 17.6. Before forward migration, 52 migration versions and 125 CRM table row counts matched. Applied pending migration 0053 to the Supabase CRM and test databases only. Operational EMP-035 remained pending. The standalone local PostgreSQL service is stopped; Express now connects to Supabase on the private local direct port through a dedicated CRM role. Caller and SA login/scope smoke checks passed after the stop.
+- Focused API tests against the isolated Supabase test database passed 59/59 using the admin connection, then 26/26 using the dedicated CRM role. CFO tests passed 34/34 with that role, including the advisory-lock path. Typecheck, lint, and production build passed. Removed obsolete standalone Docker/WSL startup configuration. The source data directory and backups remain ignored and intact for rollback.
+- Hostinger VPS deployment remains unperformed: the user operates that server manually. Production secrets, TLS, off-server backup/restore, and staging/release gates remain open. The official local stack is a rehearsal, not evidence of a deployed production service.
+
 ## Supabase/Hostinger migration preparation (2026-11-06)
 - Management selected self-hosted Supabase on Hostinger. Supabase embeds PostgreSQL, so the replacement target is the standalone database service, while CRM SQL migrations, `pg` repositories, and Express authorization remain. The existing source database is retained until a verified cutover.
 - Added `docs/process/SUPABASE_HOSTINGER_MIGRATION.md` and a read-only source/target schema and count verifier (`pnpm db:supabase:verify`). No target was created or tested: the local Docker Linux engine is unavailable and no VPS was accessed. Production readiness and HR/SA operational acceptance are unchanged.
