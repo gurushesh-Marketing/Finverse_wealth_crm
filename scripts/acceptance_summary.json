@@ -1,0 +1,570 @@
+{
+  "timestamp": "2026-10-28T06:02:22.194Z",
+  "twentyCallers": [
+    {
+      "id": "EMP-004",
+      "display_name": "Dev Kapoor",
+      "username": "dev",
+      "email": "dev@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-016",
+      "manager_name": "Rohan Sen",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "banking",
+      "team_id": "TEAM-BANKING-ALPHA",
+      "effective_from": "2026-10-07T18:30:00.000Z",
+      "current_lead_count": "27"
+    },
+    {
+      "id": "EMP-041",
+      "display_name": "Priya Sharma",
+      "username": "EMP-041",
+      "email": "priya.sharma.banking@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-016",
+      "manager_name": "Rohan Sen",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "banking",
+      "team_id": "TEAM-BANKING-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-042",
+      "display_name": "Amit Patel",
+      "username": "EMP-042",
+      "email": "amit.patel@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-016",
+      "manager_name": "Rohan Sen",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "banking",
+      "team_id": "TEAM-BANKING-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-043",
+      "display_name": "Sneha Kulkarni",
+      "username": "EMP-043",
+      "email": "sneha.kulkarni@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-016",
+      "manager_name": "Rohan Sen",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "banking",
+      "team_id": "TEAM-BANKING-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-044",
+      "display_name": "Rajesh Verma",
+      "username": "EMP-044",
+      "email": "rajesh.verma@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-016",
+      "manager_name": "Rohan Sen",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "banking",
+      "team_id": "TEAM-BANKING-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-021",
+      "display_name": "Kabir Joshi",
+      "username": "kabir",
+      "email": "kabir@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-005",
+      "manager_name": "Meera Nair",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "markets",
+      "team_id": "TEAM-MARKETS-ALPHA",
+      "effective_from": "2026-10-15T18:30:00.000Z",
+      "current_lead_count": "18"
+    },
+    {
+      "id": "EMP-045",
+      "display_name": "Vikram Singhal",
+      "username": "EMP-045",
+      "email": "vikram.singhal@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-005",
+      "manager_name": "Meera Nair",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "markets",
+      "team_id": "TEAM-MARKETS-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-046",
+      "display_name": "Ananya Iyer",
+      "username": "EMP-046",
+      "email": "ananya.iyer@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-005",
+      "manager_name": "Meera Nair",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "markets",
+      "team_id": "TEAM-MARKETS-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-047",
+      "display_name": "Karan Malhotra",
+      "username": "EMP-047",
+      "email": "karan.malhotra@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-005",
+      "manager_name": "Meera Nair",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "markets",
+      "team_id": "TEAM-MARKETS-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-048",
+      "display_name": "Ritu Saxena",
+      "username": "EMP-048",
+      "email": "ritu.saxena@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-005",
+      "manager_name": "Meera Nair",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "markets",
+      "team_id": "TEAM-MARKETS-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "6"
+    },
+    {
+      "id": "EMP-026",
+      "display_name": "Sameer Kulkarni",
+      "username": "sameer",
+      "email": "sameer@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-027",
+      "manager_name": "Neha Gupta",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "real_estate",
+      "team_id": "TEAM-REALESTATE-ALPHA",
+      "effective_from": "2026-10-16T18:30:00.000Z",
+      "current_lead_count": "11"
+    },
+    {
+      "id": "EMP-050",
+      "display_name": "Aditya Roy",
+      "username": "EMP-050",
+      "email": "aditya.roy@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-027",
+      "manager_name": "Neha Gupta",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "real_estate",
+      "team_id": "TEAM-REALESTATE-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "4"
+    },
+    {
+      "id": "EMP-051",
+      "display_name": "Pooja Hegde",
+      "username": "EMP-051",
+      "email": "pooja.hegde@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-027",
+      "manager_name": "Neha Gupta",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "real_estate",
+      "team_id": "TEAM-REALESTATE-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "4"
+    },
+    {
+      "id": "EMP-052",
+      "display_name": "Varun Kapoor",
+      "username": "EMP-052",
+      "email": "varun.kapoor@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-027",
+      "manager_name": "Neha Gupta",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "real_estate",
+      "team_id": "TEAM-REALESTATE-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "4"
+    },
+    {
+      "id": "EMP-053",
+      "display_name": "Divya Menon",
+      "username": "EMP-053",
+      "email": "divya.menon@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-027",
+      "manager_name": "Neha Gupta",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "real_estate",
+      "team_id": "TEAM-REALESTATE-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "4"
+    },
+    {
+      "id": "EMP-001",
+      "display_name": "Asha Rao",
+      "username": "asha",
+      "email": "asha@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-003",
+      "manager_name": "Tara Iyer",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "wealth",
+      "team_id": "TEAM-WEALTH-ALPHA",
+      "effective_from": "2026-10-07T18:30:00.000Z",
+      "current_lead_count": "30"
+    },
+    {
+      "id": "EMP-037",
+      "display_name": "Aarav Sen",
+      "username": "EMP-037",
+      "email": "candidate.aarav.7570@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-003",
+      "manager_name": "Tara Iyer",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "wealth",
+      "team_id": "TEAM-WEALTH-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "12"
+    },
+    {
+      "id": "EMP-038",
+      "display_name": "Rohan Joshi",
+      "username": "EMP-038",
+      "email": "rohan.joshi@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-003",
+      "manager_name": "Tara Iyer",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "wealth",
+      "team_id": "TEAM-WEALTH-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "12"
+    },
+    {
+      "id": "EMP-039",
+      "display_name": "Megha Desai",
+      "username": "EMP-039",
+      "email": "megha.desai@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-003",
+      "manager_name": "Tara Iyer",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "wealth",
+      "team_id": "TEAM-WEALTH-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "12"
+    },
+    {
+      "id": "EMP-040",
+      "display_name": "Arjun Nair",
+      "username": "EMP-040",
+      "email": "arjun.nair@finverse.demo",
+      "status": "active",
+      "reporting_manager_id": "EMP-003",
+      "manager_name": "Tara Iyer",
+      "manager_role": "REL",
+      "role": "SC",
+      "vertical": "wealth",
+      "team_id": "TEAM-WEALTH-ALPHA",
+      "effective_from": "2026-10-26T18:30:00.000Z",
+      "current_lead_count": "12"
+    }
+  ],
+  "bulkUpload11Rows": {
+    "wealth": {
+      "batchId": "B-mvrphj0d-1-821437",
+      "distribution": [
+        {
+          "callerId": "EMP-001",
+          "name": "Asha Rao",
+          "count": 3,
+          "leadIds": [
+            "FV-mvrphj3l-2-609074",
+            "FV-mvrphj5x-22-596488",
+            "FV-mvrphj7h-42-995289"
+          ]
+        },
+        {
+          "callerId": "EMP-037",
+          "name": "Aarav Sen",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphj4f-6-697830",
+            "FV-mvrphj69-26-361549"
+          ]
+        },
+        {
+          "callerId": "EMP-038",
+          "name": "Rohan Joshi",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphj4q-10-234171",
+            "FV-mvrphj6j-30-520566"
+          ]
+        },
+        {
+          "callerId": "EMP-039",
+          "name": "Megha Desai",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphj57-14-471132",
+            "FV-mvrphj6w-34-319303"
+          ]
+        },
+        {
+          "callerId": "EMP-040",
+          "name": "Arjun Nair",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphj5k-18-157316",
+            "FV-mvrphj77-38-121519"
+          ]
+        }
+      ],
+      "sortedCounts": [
+        3,
+        2,
+        2,
+        2,
+        2
+      ],
+      "verified": true
+    },
+    "banking": {
+      "batchId": "B-mvrphj84-46-195490",
+      "distribution": [
+        {
+          "callerId": "EMP-004",
+          "name": "Dev Kapoor",
+          "count": 3,
+          "leadIds": [
+            "FV-mvrphj97-47-837554",
+            "FV-mvrphjai-67-950629",
+            "FV-mvrphjbr-87-420365"
+          ]
+        },
+        {
+          "callerId": "EMP-041",
+          "name": "Priya Sharma",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphj9j-51-645991",
+            "FV-mvrphjaq-71-770513"
+          ]
+        },
+        {
+          "callerId": "EMP-042",
+          "name": "Amit Patel",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphj9r-55-311354",
+            "FV-mvrphjb1-75-175355"
+          ]
+        },
+        {
+          "callerId": "EMP-043",
+          "name": "Sneha Kulkarni",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphja0-59-226291",
+            "FV-mvrphjb9-79-800957"
+          ]
+        },
+        {
+          "callerId": "EMP-044",
+          "name": "Rajesh Verma",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphja8-63-304567",
+            "FV-mvrphjbj-83-193899"
+          ]
+        }
+      ],
+      "sortedCounts": [
+        3,
+        2,
+        2,
+        2,
+        2
+      ],
+      "verified": true
+    },
+    "markets": {
+      "batchId": "B-mvrphjce-91-494981",
+      "distribution": [
+        {
+          "callerId": "EMP-021",
+          "name": "Kabir Joshi",
+          "count": 3,
+          "leadIds": [
+            "FV-mvrphjd8-92-111352",
+            "FV-mvrphjed-112-924219",
+            "FV-mvrphjfk-132-867299"
+          ]
+        },
+        {
+          "callerId": "EMP-045",
+          "name": "Vikram Singhal",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphjdi-96-717103",
+            "FV-mvrphjem-116-993075"
+          ]
+        },
+        {
+          "callerId": "EMP-046",
+          "name": "Ananya Iyer",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphjdq-100-629462",
+            "FV-mvrphjeu-120-319832"
+          ]
+        },
+        {
+          "callerId": "EMP-047",
+          "name": "Karan Malhotra",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphjdx-104-920891",
+            "FV-mvrphjf3-124-203444"
+          ]
+        },
+        {
+          "callerId": "EMP-048",
+          "name": "Ritu Saxena",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphje5-108-985135",
+            "FV-mvrphjfa-128-915047"
+          ]
+        }
+      ],
+      "sortedCounts": [
+        3,
+        2,
+        2,
+        2,
+        2
+      ],
+      "verified": true
+    },
+    "real_estate": {
+      "batchId": "B-mvrphjg3-136-722224",
+      "distribution": [
+        {
+          "callerId": "EMP-026",
+          "name": "Sameer Kulkarni",
+          "count": 3,
+          "leadIds": [
+            "FV-mvrphjh5-137-395429",
+            "FV-mvrphjix-157-279283",
+            "FV-mvrphjk6-177-894550"
+          ]
+        },
+        {
+          "callerId": "EMP-050",
+          "name": "Aditya Roy",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphjhh-141-253214",
+            "FV-mvrphjj7-161-139400"
+          ]
+        },
+        {
+          "callerId": "EMP-051",
+          "name": "Pooja Hegde",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphjhr-145-377842",
+            "FV-mvrphjjg-165-900157"
+          ]
+        },
+        {
+          "callerId": "EMP-052",
+          "name": "Varun Kapoor",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphji9-149-599519",
+            "FV-mvrphjjo-169-571967"
+          ]
+        },
+        {
+          "callerId": "EMP-053",
+          "name": "Divya Menon",
+          "count": 2,
+          "leadIds": [
+            "FV-mvrphjim-153-547002",
+            "FV-mvrphjjx-173-310735"
+          ]
+        }
+      ],
+      "sortedCounts": [
+        3,
+        2,
+        2,
+        2,
+        2
+      ],
+      "verified": true
+    }
+  },
+  "browserProofs": [
+    {
+      "vertical": "wealth",
+      "callerId": "EMP-037",
+      "callerName": "Aarav Sen",
+      "screenshot": "acceptance_wealth_new_caller_EMP037.png"
+    },
+    {
+      "vertical": "banking",
+      "callerId": "EMP-041",
+      "callerName": "Priya Sharma",
+      "screenshot": "acceptance_banking_new_caller_EMP041.png"
+    },
+    {
+      "vertical": "markets",
+      "callerId": "EMP-045",
+      "callerName": "Vikram Singhal",
+      "screenshot": "acceptance_markets_new_caller_EMP045.png"
+    },
+    {
+      "vertical": "real_estate",
+      "callerId": "EMP-050",
+      "callerName": "Aditya Roy",
+      "screenshot": "acceptance_realestate_new_caller_EMP050.png"
+    }
+  ],
+  "status": "ALL_ACCEPTANCE_CHECKS_PASSED"
+}

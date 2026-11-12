@@ -1,0 +1,28 @@
+{
+  "name": "@finverse/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "node --import tsx --test test/journey.api.test.ts && node --import tsx --test test/wealth.api.test.ts && node --import tsx --test test/tl.api.test.ts && node --import tsx --test test/manager.api.test.ts && node --import tsx --test test/regional.api.test.ts && node --import tsx --test test/national.api.test.ts && node --import tsx --test test/ceo.api.test.ts && node --import tsx --test test/vertical_lifecycle.api.test.ts && node --import tsx --test test/cfo.api.test.ts && node --import tsx --test test/banking.api.test.ts && node --import tsx --test test/markets.api.test.ts && node --import tsx --test test/real_estate.api.test.ts && node --import tsx --test test/data-entry.api.test.ts && node --import tsx --test test/hr.api.test.ts && node --import tsx --test test/superadmin.api.test.ts && node --import tsx --test test/leave.api.test.ts && node --import tsx --test test/attendance.api.test.ts && node --import tsx --test test/payroll.api.test.ts && node --import tsx --test test/priority_lead_ordering.api.test.ts && node --import tsx --test test/bulk_import.api.test.ts"
+  },
+  "dependencies": {
+    "@finverse/contracts": "workspace:*",
+    "cookie": "^0.6.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.13.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/cookie": "^0.6.0",
+    "@types/express": "^4.17.21",
+    "@types/pdfkit": "^0.13.0"
+  }
+}

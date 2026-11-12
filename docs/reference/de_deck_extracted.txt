@@ -1,0 +1,463 @@
+=== DE-01: Capture a source-backed enquiry ===
+Role: DE | Module: New entry | Kind: form
+Fields: [
+  [
+    "Prospect",
+    "New enquiry"
+  ],
+  [
+    "Contact",
+    "Validated phone/email"
+  ],
+  [
+    "Product",
+    "Granted vertical"
+  ],
+  [
+    "Source",
+    "Named source"
+  ],
+  [
+    "Permission evidence",
+    "Reference and date"
+  ]
+]
+Steps: [
+  "Open New entry and complete the approved fields.",
+  "Review source and contact-permission evidence.",
+  "Submit to validation and inspect the intake reference."
+]
+Validation: Data Entry cannot choose another vertical outside grants or mark a sales outcome. Required fields depend on product.
+System: Store immutable raw intake and validate before creating or linking an opportunity.
+Report: Count accepted, invalid and duplicate intake separately.
+Exception: Missing permission can retain a quarantined record for correction but cannot authorise outreach.
+
+============================================================
+
+=== DE-02: Upload and map a data file ===
+Role: DE | Module: Upload batches | Kind: form
+Fields: [
+  [
+    "File",
+    "Approved CSV/XLSX template"
+  ],
+  [
+    "Vertical",
+    "V1"
+  ],
+  [
+    "Source",
+    "Vendor batch reference"
+  ],
+  [
+    "Mapping",
+    "Name, phone, product, evidence"
+  ],
+  [
+    "Preview",
+    "First validated rows"
+  ]
+]
+Steps: [
+  "Upload a permitted file and select the source and vertical.",
+  "Map columns and review a preview with validation errors.",
+  "Submit the import job and monitor progress."
+]
+Validation: Enforce size/row limits, safe parsing and required mappings. Formula-like values must not execute in exports.
+System: Store file hash, batch ID and row lineage; parse asynchronously with repeat-safe processing.
+Report: Quality report reconciles submitted rows to accepted, duplicate, invalid and pending rows.
+Exception: Retry the same batch without duplicating opportunities. A mapping change creates a new reviewed version.
+
+============================================================
+
+=== DE-03: Correct rejected intake rows ===
+Role: DE | Module: Validation | Kind: list
+Fields: [
+  [
+    "Batch",
+    "B-104"
+  ],
+  [
+    "Status",
+    "Invalid"
+  ],
+  [
+    "Error",
+    "Missing product"
+  ],
+  [
+    "Correction",
+    "Approved V1 product"
+  ],
+  [
+    "Reason",
+    "Source confirmation"
+  ]
+]
+Steps: [
+  "Filter errors by reason and open the affected row.",
+  "Correct permitted fields with evidence.",
+  "Revalidate selected rows and inspect the updated disposition."
+]
+Validation: Do not alter original source history. Accepted sales outcomes cannot be edited through intake correction.
+System: Store corrected version and validation result linked to the original row.
+Report: Measure error rate and correction turnaround without treating retries as new submissions.
+Exception: Ambiguous source information stays pending and routes back to the source owner.
+
+============================================================
+
+=== DE-04: Review a possible duplicate ===
+Role: DE | Module: Duplicate review | Kind: approval
+Fields: [
+  [
+    "Incoming row",
+    "B-104 / 18"
+  ],
+  [
+    "Match",
+    "Restricted candidate summary"
+  ],
+  [
+    "Reason",
+    "Same contact and enquiry"
+  ],
+  [
+    "Decision",
+    "Link / New enquiry / Escalate"
+  ]
+]
+Steps: [
+  "Inspect only permitted match fields and enquiry context.",
+  "Link a genuine repeat intake or preserve a distinct enquiry.",
+  "Escalate cross-scope identity decisions to the authorised data steward."
+]
+Validation: Same phone does not automatically mean duplicate opportunity. No cross-vertical record disclosure.
+System: Store reviewed match decision, surviving identifiers and full provenance.
+Report: Duplicate intake is excluded from fresh-opportunity counts but remains visible in source quality.
+Exception: Data Entry cannot merge restricted customer identities without a specific steward grant.
+
+============================================================
+
+=== DE-05: Publish valid rows to allocation ===
+Role: DE | Module: Upload batches | Kind: approval
+Fields: [
+  [
+    "Batch",
+    "B-104"
+  ],
+  [
+    "Eligible rows",
+    "430"
+  ],
+  [
+    "Held rows",
+    "70"
+  ],
+  [
+    "Destination",
+    "V1 allocation queue"
+  ],
+  [
+    "Review",
+    "Source evidence complete"
+  ]
+]
+Steps: [
+  "Inspect validation summary and destination.",
+  "Submit or publish the eligible rows within authority.",
+  "Receive the canonical IDs and unresolved-row receipt."
+]
+Validation: Publish only validated, permitted records. Allocation follows eligibility rules, not arbitrary Data Entry ownership.
+System: Create/link canonical opportunities and enqueue routing once per intake key.
+Report: Published count reconciles to linked opportunity IDs and excludes held rows.
+Exception: Partial failures stay visible and retry independently. No duplicate creation on repeated publish.
+
+============================================================
+
+=== DE-06: Maintain source evidence and contact provenance ===
+Role: DE | Module: Source register | Kind: record
+Fields: [
+  [
+    "Source",
+    "Campaign / vendor register"
+  ],
+  [
+    "Evidence",
+    "Approved collection basis"
+  ],
+  [
+    "Effective dates",
+    "Recorded"
+  ],
+  [
+    "Products",
+    "Permitted scope"
+  ]
+]
+Steps: [
+  "Open a source record and inspect evidence completeness.",
+  "Submit a correction or renewed source document.",
+  "Flag invalid source evidence for the accountable owner."
+]
+Validation: Source approval is a distinct permission. Data Entry cannot invent customer permission or override suppression.
+System: Version provenance and notify the policy/source owner about missing evidence.
+Report: Report source completeness and held batches by cause.
+Exception: Source suspension holds dependent new outreach until an approved resolution.
+
+============================================================
+
+=== DE-07: Export an intake quality report ===
+Role: DE | Module: Quality reports | Kind: report
+Fields: [
+  [
+    "Period",
+    "Six supported periods"
+  ],
+  [
+    "Scope",
+    "Granted batches"
+  ],
+  [
+    "Measures",
+    "Quality and turnaround"
+  ],
+  [
+    "Audience",
+    "Authorised supervisor"
+  ]
+]
+Steps: [
+  "Select period and source filters.",
+  "Inspect batch-to-row reconciliation.",
+  "Generate a scoped PDF and correction worklist."
+]
+Validation: Report exposes only permitted intake data and minimal customer identifiers.
+System: Generate versioned export with cutoff, evidence status and download audit.
+Report: Data-entry performance is data quality and timeliness, not the associates sales outcomes.
+Exception: A batch still processing is labelled incomplete and not counted as fully accepted.
+
+============================================================
+
+
+
+######################################################################
+### DIRECT ACTION DECK PDF EXTRACTION (P263..P276)
+######################################################################
+
+
+--- PDF Page 263 (0-indexed 262) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+263
+
+
+--- PDF Page 264 (0-indexed 263) ---
+DE / NEW ENTRY
+DE-01 Capture a source-backed enquiry
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+264
+USER ACTION
+01
+Open New entry and complete the approved fields.
+02
+Review source and contact-permission evidence.
+03
+Submit to validation and inspect the intake reference.
+BEFORE IT CAN PROCEED
+Data Entry cannot choose another vertical outside grants or mark a sales outcome. Required
+fields depend on product.
+SYSTEM COMMIT
+Store immutable raw intake and validate before creating or linking an opportunity.
+REPORTING CONSEQUENCE
+Count accepted, invalid and duplicate intake separately.
+IF IT CANNOT COMPLETE
+Missing permission can retain a quarantined record for correction but cannot authorise outreach.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 265 (0-indexed 264) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+265
+
+
+--- PDF Page 266 (0-indexed 265) ---
+DE / UPLOAD BATCHES
+DE-02 Upload and map a data file
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+266
+USER ACTION
+01
+Upload a permitted file and select the source and vertical.
+02
+Map columns and review a preview with validation errors.
+03
+Submit the import job and monitor progress.
+BEFORE IT CAN PROCEED
+Enforce size/row limits, safe parsing and required mappings. Formula-like values must not
+execute in exports.
+SYSTEM COMMIT
+Store file hash, batch ID and row lineage; parse asynchronously with repeat-safe processing.
+REPORTING CONSEQUENCE
+Quality report reconciles submitted rows to accepted, duplicate, invalid and pending rows.
+IF IT CANNOT COMPLETE
+Retry the same batch without duplicating opportunities. A mapping change creates a new
+reviewed version.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 267 (0-indexed 266) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+267
+
+
+--- PDF Page 268 (0-indexed 267) ---
+DE / VALIDATION
+DE-03 Correct rejected intake rows
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+268
+USER ACTION
+01
+Filter errors by reason and open the affected row.
+02
+Correct permitted fields with evidence.
+03
+Revalidate selected rows and inspect the updated
+disposition.
+BEFORE IT CAN PROCEED
+Do not alter original source history. Accepted sales outcomes cannot be edited through intake
+correction.
+SYSTEM COMMIT
+Store corrected version and validation result linked to the original row.
+REPORTING CONSEQUENCE
+Measure error rate and correction turnaround without treating retries as new submissions.
+IF IT CANNOT COMPLETE
+Ambiguous source information stays pending and routes back to the source owner.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 269 (0-indexed 268) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+269
+
+
+--- PDF Page 270 (0-indexed 269) ---
+DE / DUPLICATE REVIEW
+DE-04 Review a possible duplicate
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+270
+USER ACTION
+01
+Inspect only permitted match fields and enquiry context.
+02
+Link a genuine repeat intake or preserve a distinct enquiry.
+03
+Escalate cross-scope identity decisions to the authorised
+data steward.
+BEFORE IT CAN PROCEED
+Same phone does not automatically mean duplicate opportunity. No cross-vertical record
+disclosure.
+SYSTEM COMMIT
+Store reviewed match decision, surviving identifiers and full provenance.
+REPORTING CONSEQUENCE
+Duplicate intake is excluded from fresh-opportunity counts but remains visible in source quality.
+IF IT CANNOT COMPLETE
+Data Entry cannot merge restricted customer identities without a specific steward grant.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 271 (0-indexed 270) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+271
+
+
+--- PDF Page 272 (0-indexed 271) ---
+DE / UPLOAD BATCHES
+DE-05 Publish valid rows to allocation
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+272
+USER ACTION
+01
+Inspect validation summary and destination.
+02
+Submit or publish the eligible rows within authority.
+03
+Receive the canonical IDs and unresolved-row receipt.
+BEFORE IT CAN PROCEED
+Publish only validated, permitted records. Allocation follows eligibility rules, not arbitrary Data
+Entry ownership.
+SYSTEM COMMIT
+Create/link canonical opportunities and enqueue routing once per intake key.
+REPORTING CONSEQUENCE
+Published count reconciles to linked opportunity IDs and excludes held rows.
+IF IT CANNOT COMPLETE
+Partial failures stay visible and retry independently. No duplicate creation on repeated publish.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 273 (0-indexed 272) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+273
+
+
+--- PDF Page 274 (0-indexed 273) ---
+DE / SOURCE REGISTER
+DE-06 Maintain source evidence and contact provenance
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+274
+USER ACTION
+01
+Open a source record and inspect evidence completeness.
+02
+Submit a correction or renewed source document.
+03
+Flag invalid source evidence for the accountable owner.
+BEFORE IT CAN PROCEED
+Source approval is a distinct permission. Data Entry cannot invent customer permission or
+override suppression.
+SYSTEM COMMIT
+Version provenance and notify the policy/source owner about missing evidence.
+REPORTING CONSEQUENCE
+Report source completeness and held batches by cause.
+IF IT CANNOT COMPLETE
+Source suspension holds dependent new outreach until an approved resolution.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 275 (0-indexed 274) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+275
+
+
+--- PDF Page 276 (0-indexed 275) ---
+DE / QUALITY REPORTS
+DE-07 Export an intake quality report
+Data Entry / Granted intake / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+276
+USER ACTION
+01
+Select period and source filters.
+02
+Inspect batch-to-row reconciliation.
+03
+Generate a scoped PDF and correction worklist.
+BEFORE IT CAN PROCEED
+Report exposes only permitted intake data and minimal customer identifiers.
+SYSTEM COMMIT
+Generate versioned export with cutoff, evidence status and download audit.
+REPORTING CONSEQUENCE
+Data-entry performance is data quality and timeliness, not the associates sales outcomes.
+IF IT CANNOT COMPLETE
+A batch still processing is labelled incomplete and not counted as fully accepted.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+--- PDF Page 277 (0-indexed 276) ---
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+277
+

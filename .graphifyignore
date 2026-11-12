@@ -1,0 +1,10 @@
+# Bounded index: exclude skill libraries, commandcode, documentation, and logs
+.agents/
+.commandcode/
+docs/
+*.log
+logs/
+graphify-requirements/
+.venv-graphify/
+.maintenance/
+

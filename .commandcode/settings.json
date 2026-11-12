@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "powershell",
+      "Shell(pnpm:*)",
+      "Shell(docker:*)",
+      "agent_output"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

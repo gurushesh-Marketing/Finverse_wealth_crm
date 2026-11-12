@@ -1,0 +1,21 @@
+{
+  "suite_id": "ceo_api",
+  "command": "node --import tsx --test apps/api/test/ceo.api.test.ts",
+  "exit_code": 0,
+  "timestamp": "2026-10-18T13:54:47.726682+00:00",
+  "test_runner_results": {
+    "total": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0,
+    "duration_ms": 12096.4887
+  },
+  "fingerprints": {
+    "api_src": "3fdb221561cf8d44b1874f7122dda6bceb429fb21e3937667e46c66b21006e88",
+    "web_src": "10d3a397cc80a45bbbeb75baefc9814c3cccbd91c3d87d202dd5de9f9c518053",
+    "migrations": "9f41acf663f02253dadb1998f17056bec4ecee03d292b794d1396a0931ed96a7",
+    "contracts": "6c25c4e8efbbf3055b4dc8ace7417c8476db10fe039b088d2c40d210f1ae793c",
+    "test_file": "ef970d743be63995f25959cebb27e3520e6d406bfc22b692afcf20579843ea1b"
+  },
+  "overall_status": "PASS"
+}

@@ -1,0 +1,21 @@
+{
+  "suite_id": "cfo_api",
+  "command": "node --import tsx --test apps/api/test/cfo.api.test.ts",
+  "exit_code": 0,
+  "timestamp": "2026-10-11T09:27:04.307548+00:00",
+  "test_runner_results": {
+    "total": 30,
+    "pass": 30,
+    "fail": 0,
+    "skipped": 0,
+    "duration_ms": 14461.7642
+  },
+  "fingerprints": {
+    "api_src": "2030eff29ca6b8b58f383093bfca1f769f32316da7e9d83133e3cf3472ae7b98",
+    "web_src": "06e4bb1d715215809e17c5a67228c9b1f4220983ebc2bf06897050ef1429d47e",
+    "migrations": "4e4910a63e3bcc249521f5c6247450df1c6287a6f69d436c53b401adf76ee6f9",
+    "contracts": "a8b62252ee779bae82480c3cc4870bde7c3d623b3b5973383908f976290d0d39",
+    "test_file": "c1a055b82dfb0e0898d8b3cc6e1c9a1631959b0674ad2d157c8f14af5a50d685"
+  },
+  "overall_status": "PASS"
+}

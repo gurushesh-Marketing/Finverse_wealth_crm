@@ -1,0 +1,350 @@
+=== PAGE 291 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+291
+
+
+=== PAGE 292 ===
+SA / EMPLOYEES & USERS
+SA-01 Create an account and activation invitation
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+292
+USER ACTION
+01
+Open an approved joiner request and verify identity linkage.
+02
+Create the account and approved initial assignment.
+03
+Send an expiring activation invitation; inspect activation
+status.
+BEFORE IT CAN PROCEED
+Never reuse a leavers account for a new person. No shared password or self-chosen role at
+sign-in.
+SYSTEM COMMIT
+Create user, employee link, grant and audit. User sets credentials through the approved activation
+flow.
+REPORTING CONSEQUENCE
+Admin metrics track provisioning turnaround and unresolved access requests.
+IF IT CANNOT COMPLETE
+Duplicate identity or absent placement blocks activation rather than creating broad default
+access.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 293 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+293
+
+
+=== PAGE 294 ===
+SA / ROLES & SCOPES
+SA-02 Grant a role with precise organisation scope
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+294
+USER ACTION
+01
+Choose the approved role and exact organisation nodes.
+02
+Preview menus, record scope, approvals and export
+permissions.
+03
+Commit the effective-dated grant and notify the employee.
+BEFORE IT CAN PROCEED
+Role and scope are separate. Additional teams need explicit grants; permission preview must
+expose unintended unions.
+SYSTEM COMMIT
+Version grant, invalidate policy caches and revoke obsolete sessions where required.
+REPORTING CONSEQUENCE
+Audit identifies who requested, approved and executed the grant.
+IF IT CANNOT COMPLETE
+Conflicting grants or a reporting cycle block publication. Administrative authority is not a routine
+sales override.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 295 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+295
+
+
+=== PAGE 296 ===
+SA / ROLES & SCOPES
+SA-03 Grant a second team or vertical in the same role
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+296
+USER ACTION
+01
+Inspect the approved additional scope and duration.
+02
+Preview union and per-team filters with duplicated
+membership checks.
+03
+Activate only the requested team/vertical scope.
+BEFORE IT CAN PROCEED
+No other role menu appears. Cross-vertical TL summaries label each vertical and deduplicate
+overlapping facts.
+SYSTEM COMMIT
+Add a separate scope grant and refresh allowed filters, notifications and exports.
+REPORTING CONSEQUENCE
+Team reports remain partitioned; combined views use unique fact IDs.
+IF IT CANNOT COMPLETE
+Revoking the added grant removes its data and queued exports immediately while preserving
+permitted historical reports.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 297 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+297
+
+
+=== PAGE 298 ===
+SA / ORGANISATION
+SA-04 Create or restructure the reporting hierarchy
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+298
+USER ACTION
+01
+Create an approved unit or draft a parent/reporting change.
+02
+Preview descendants, supervisor paths and permission
+impact.
+03
+Publish the dated structure after required approval.
+BEFORE IT CAN PROCEED
+Block cycles, invalid cross-vertical parents and ambiguous primary performance paths. Executive
+finance reporting is a separate relationship.
+SYSTEM COMMIT
+Version organisation edges and refresh scope indexes without rewriting old attribution snapshots.
+REPORTING CONSEQUENCE
+Historical reports retain event-time paths. New facts use the newly effective hierarchy.
+IF IT CANNOT COMPLETE
+Unresolved orphan teams or missing accountable owners block activation.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 299 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+299
+
+
+=== PAGE 300 ===
+SA / LIFECYCLE CHANGES
+SA-05 Activate a transfer or promotion
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+300
+USER ACTION
+01
+Review business approvals and the access/workload impact
+preview.
+02
+Confirm the dated role and handoff plan.
+03
+Activate; verify the employee now lands in the new role
+interface.
+BEFORE IT CAN PROCEED
+No automatic carryover of old live access. Historical personal summaries remain inside
+current-role reports.
+SYSTEM COMMIT
+Close/open assignment intervals, revoke sessions, clear caches and trigger confirmed handoffs.
+REPORTING CONSEQUENCE
+New facts use the new assignment. Prior facts and PDFs retain their historical identity.
+IF IT CANNOT COMPLETE
+Failed activation transaction leaves the prior valid state intact and raises an Admin incident.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 301 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+301
+
+
+=== PAGE 302 ===
+SA / LIFECYCLE CHANGES
+SA-06 Disable access and complete offboarding
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+302
+USER ACTION
+01
+Review the exit or urgent suspension authority.
+02
+Disable sign-in and revoke active sessions and integration
+grants.
+03
+Verify report schedules, approvals and work queues have
+accountable owners.
+BEFORE IT CAN PROCEED
+Account disable is immediate at the effective time. Preserve evidence and history under the
+approved retention policy.
+SYSTEM COMMIT
+Revoke tokens, cancel inaccessible jobs, stop new routing and execute approved handoff tasks.
+REPORTING CONSEQUENCE
+Audit disable time, completion and residual-access checks.
+IF IT CANNOT COMPLETE
+If reassignment cannot finish immediately, access still ends and work enters a supervised holding
+queue.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 303 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+303
+
+
+=== PAGE 304 ===
+SA / EMPLOYEES & USERS
+SA-07 Reset account access safely
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+304
+USER ACTION
+01
+Verify the employees identity through the approved recovery
+process.
+02
+Issue a time-limited recovery action and revoke
+compromised sessions.
+03
+Review completion without viewing or setting a shared
+employee password.
+BEFORE IT CAN PROCEED
+Recovery never changes role scope or bypasses inactive employment. Privileged recovery
+requires stronger verification.
+SYSTEM COMMIT
+Log recovery initiator, evidence reference, expiry and session revocation.
+REPORTING CONSEQUENCE
+Track failed recovery and repeated lockout incidents separately from sales performance.
+IF IT CANNOT COMPLETE
+Unverified requests remain blocked and route to the security owner.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 305 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+305
+
+
+=== PAGE 306 ===
+SA / BUSINESS CONFIGURATION
+SA-08 Publish an approved rule version
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+306
+USER ACTION
+01
+Load an approved change and validate the schema.
+02
+Preview affected screens, tasks, targets and reports.
+03
+Publish on schedule with a rollback plan for future
+configuration.
+BEFORE IT CAN PROCEED
+Admin executes approved rules; they do not invent accounting policy or approve their own
+financial benefit.
+SYSTEM COMMIT
+Version configuration, store approval and activate workers with policy-version checks.
+REPORTING CONSEQUENCE
+Events retain the rule version used. Report definitions remain traceable across changes.
+IF IT CANNOT COMPLETE
+Incompatible or untested changes stay in draft. Migration of active opportunities requires
+separate approval.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 307 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+307
+
+
+=== PAGE 308 ===
+SA / AUDIT & INCIDENTS
+SA-09 Investigate an access or data-change incident
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+308
+USER ACTION
+01
+Filter immutable audit records within incident authority.
+02
+Trace account, request, policy version and before/after
+changes.
+03
+Create an incident action or revoke access when authorised.
+BEFORE IT CAN PROCEED
+Audit access is restricted and itself logged. Logs must not expose passwords, tokens or
+unnecessary sensitive content.
+SYSTEM COMMIT
+Record investigation and link evidence without altering original audit events.
+REPORTING CONSEQUENCE
+Report access anomalies, resolution time and repeated policy failures.
+IF IT CANNOT COMPLETE
+Exceptional data inspection requires a named, time-limited grant. No silent impersonation of
+employee dashboards.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 309 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+309
+
+
+=== PAGE 310 ===
+SA / SYSTEM HEALTH
+SA-10 Recover a failed integration or report job
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+310
+USER ACTION
+01
+Inspect permitted job metadata and failure cause.
+02
+Retry a safe failed job or route it to the service owner.
+03
+Verify success and reconcile duplicate-safe results.
+BEFORE IT CAN PROCEED
+Admin job access does not reveal customer payloads without a separate grant. Recheck user
+scope before replaying exports.
+SYSTEM COMMIT
+Use bounded retries, dead-letter handling and unique event keys; log operator action.
+REPORTING CONSEQUENCE
+Show failed job age and last successful source watermark.
+IF IT CANNOT COMPLETE
+Expired permission or offboarded job owner blocks execution and requires an authorised
+replacement.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
+
+
+=== PAGE 311 ===
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+311
+
+
+=== PAGE 312 ===
+SA / ROLES & SCOPES
+SA-11 Review expiring access and temporary delegation
+Super Admin / Identity and access / illustrated in the preceding screen
+FINVERSE WEALTH / CRM INTERFACE PROPOSAL / 26 SEP 2026
+312
+USER ACTION
+01
+Open upcoming expiries and inspect actual business need.
+02
+Request renewal approval or allow scheduled expiry.
+03
+Verify removal from menus, records, reports and
+background jobs.
+BEFORE IT CAN PROCEED
+Delegation is role/action/scope/time limited. It cannot exceed the delegators authority or bypass
+independent approval.
+SYSTEM COMMIT
+Expire or renew the explicit grant and invalidate sessions/caches as required.
+REPORTING CONSEQUENCE
+Report overdue access reviews and temporary-grant duration.
+IF IT CANNOT COMPLETE
+No response means expiry, never indefinite renewal or automatic transfer of authority.
+Implementation contract proposal. Approval limits, product evidence and commercial definitions need Finverse confirmation.
