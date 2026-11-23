@@ -17,7 +17,7 @@ import {
 import { loadAuthContextByEmail } from '../repo/users';
 import { createSessionRow, deleteSessionRow, findSessionEmployeeId } from '../repo/sessions';
 import { loadAuthContextByEmployeeId } from '../repo/users';
-import type { AuthedRequest } from '../middleware/session';
+import { requireSession, type AuthedRequest } from '../middleware/session';
 
 const failures = new Map<string, { count: number; resetAt: number }>();
 const MAX_FAILURES = 10;
@@ -61,12 +61,8 @@ export function authRouter(secureCookies: boolean): Router {
         return;
       }
 
-      // Demo-account access is disabled in production unless DEMO_ACCESS_ENABLED=true is set explicitly.
-      const demoBlocked =
-        process.env.NODE_ENV === 'production' &&
-        process.env.DEMO_ACCESS_ENABLED !== 'true' &&
-        email.toLowerCase().endsWith('@finverse.demo');
-      const auth = demoBlocked ? null : await loadAuthContextByEmail(email);
+      // Demo accounts are refused in production inside loadAuthContextByEmail (see isDemoAccessBlocked).
+      const auth = await loadAuthContextByEmail(email);
       if (!auth || !verifyPassword(password, auth.passwordHash)) {
         recordFailure(key);
         res.status(401).json(errorBody('INVALID_CREDENTIALS', "We couldn't sign you in. Check your email and password."));
@@ -271,9 +267,14 @@ export function authRouter(secureCookies: boolean): Router {
     }
   });
 
-  // Demo Delivery Adapter Outbox Inspector (Local delivery, no external email service)
-  router.get('/local-delivery', async (req, res, next) => {
+  // Demo Delivery Adapter Outbox Inspector (Local delivery, no external email service).
+  // The outbox holds activation and password-reset links, so only a signed-in Super Admin may read it.
+  router.get('/local-delivery', requireSession, async (req: AuthedRequest, res, next) => {
     try {
+      if (req.auth?.session.role !== 'SA') {
+        res.status(403).json(errorBody('FORBIDDEN', 'Super Admin role required.'));
+        return;
+      }
       const limit = Number(req.query.limit) || 20;
       const { listLocalDeliveryOutbox } = await import('../repo/superadmin');
       const data = await listLocalDeliveryOutbox(limit);

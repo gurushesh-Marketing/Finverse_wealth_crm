@@ -26,6 +26,52 @@ export interface ManualProspectRecord extends ManualProspectInput {
   assignedCallerName?: string | null;
   assignedTeamId?: string | null;
   routingExceptionReason?: string | null;
+  /** Intake source label, e.g. 'Website Direct Inbound' or 'Manual Intake'. */
+  source?: string | null;
+  /** What the prospect asked about (product / topic). */
+  product?: string | null;
+  /** Free-text context: message, page, slot, consent. */
+  needSummary?: string | null;
+  /** 'grievance' rows are complaints and must never be published to a sales caller. */
+  enquiryKind?: WebsiteEnquiryKind | 'manual';
+  /** Existing lead with the same phone, if any. */
+  duplicateOfLeadId?: string | null;
+}
+
+// ====================================================================
+// Public website enquiry intake (no session). Website integration is an open
+// client decision [Deck P320]; rows land in Data Entry as staged drafts.
+// ====================================================================
+export const WEBSITE_ENQUIRY_KINDS = ['enquiry', 'visit_request', 'callback', 'grievance'] as const;
+export type WebsiteEnquiryKind = (typeof WEBSITE_ENQUIRY_KINDS)[number];
+
+export const websiteEnquirySchema = z.object({
+  kind: z.enum(WEBSITE_ENQUIRY_KINDS).default('enquiry'),
+  name: z.string().trim().min(2, 'Please enter your name.').max(120),
+  mobile: z.string().trim().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number.'),
+  email: z.string().trim().email('Enter a valid email address.').max(254).optional().or(z.literal('')),
+  city: z.string().trim().max(80).optional(),
+  /** Website page path the visitor was on; the server derives the CRM vertical from it. */
+  path: z.string().trim().max(300).regex(/^\//, 'Path must start with /.'),
+  topic: z.string().trim().min(2).max(120),
+  subject: z.string().trim().max(200).optional(),
+  message: z.string().trim().max(1000).optional(),
+  details: z.record(z.string().max(60), z.union([z.string().max(200), z.number()])).optional(),
+  consentCall: z.boolean(),
+  consentWhatsapp: z.boolean(),
+  mobileVerified: z.boolean().default(false),
+  idempotencyKey: z.string().trim().min(8).max(80),
+  /** Honeypot: real visitors never fill this. */
+  website: z.string().max(200).optional(),
+}).refine((v) => v.consentCall || v.consentWhatsapp, {
+  message: 'Choose at least one way for us to contact you.',
+  path: ['consentCall'],
+});
+export type WebsiteEnquiryInput = z.infer<typeof websiteEnquirySchema>;
+
+export interface WebsiteEnquiryReceipt {
+  reference: string;
+  department: 'wealth' | 'banking' | 'markets' | 'real-estate';
 }
 
 // ====================================================================

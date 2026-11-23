@@ -5,9 +5,15 @@ import { runDueSchedules } from './repo/tl';
 import { reconcileFormerCallerLeads } from './repo/caller-reassignment';
 
 const app = createApp();
-app.listen(env.API_PORT, () => {
-  console.log(`[api] listening on http://localhost:${env.API_PORT} (${env.NODE_ENV})`);
-});
+// In production Nginx is the only public entry point, so bind to loopback unless
+// API_HOST says otherwise. Development keeps Node's default (all interfaces, IPv4 and IPv6),
+// so the Vite proxy to localhost:4000 works whether localhost resolves to ::1 or 127.0.0.1.
+const host = process.env.API_HOST ?? (env.NODE_ENV === 'production' ? '127.0.0.1' : undefined);
+const onListen = () => {
+  console.log(`[api] listening on ${host ?? 'all interfaces'}:${env.API_PORT} (${env.NODE_ENV})`);
+};
+if (host) app.listen(env.API_PORT, host, onListen);
+else app.listen(env.API_PORT, onListen);
 
 // SC-11 reminder execution: mark due reminders sent and append timeline events.
 const reminderTimer = setInterval(() => {

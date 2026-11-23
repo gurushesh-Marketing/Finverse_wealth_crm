@@ -398,7 +398,7 @@ export function ManualDataEntryPage() {
             </div>
           )}
 
-          {verified.status === 'staged' && (
+          {verified.status === 'staged' && verified.enquiryKind !== 'grievance' && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md bg-amber-500/15 border border-amber-300 text-amber-950 dark:text-amber-200">
               <div className="flex items-start gap-2 text-xs">
                 <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
@@ -765,6 +765,34 @@ export function ManualDataEntryPage() {
                             <MapPin className="size-3" /> {record.location}
                           </span>
                         )}
+                        {record.enquiryKind && record.enquiryKind !== 'manual' && (
+                          <div className="mt-1 space-y-0.5 max-w-[280px]">
+                            <Badge
+                              variant="outline"
+                              className={
+                                record.enquiryKind === 'grievance'
+                                  ? 'text-[9px] uppercase border-rose-300 text-rose-700'
+                                  : 'text-[9px] uppercase'
+                              }
+                            >
+                              {record.enquiryKind === 'grievance' ? 'Complaint / support · website' : 'Website'}
+                            </Badge>
+                            {record.product && (
+                              <span className="block text-[11px] text-foreground">{record.product}</span>
+                            )}
+                            {record.duplicateOfLeadId && (
+                              <span className="block text-[10px] text-amber-700 dark:text-amber-300">
+                                Same phone as existing lead {record.duplicateOfLeadId}
+                              </span>
+                            )}
+                            {record.needSummary && (
+                              <details className="text-[11px] text-muted-foreground">
+                                <summary className="cursor-pointer select-none">Enquiry details</summary>
+                                <p className="mt-1 whitespace-pre-wrap">{record.needSummary}</p>
+                              </details>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant="outline" className="font-mono text-[10px] uppercase">
@@ -819,7 +847,7 @@ export function ManualDataEntryPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {record.status === 'staged' && (
+                          {record.status === 'staged' && record.enquiryKind !== 'grievance' && (
                             <Button
                               type="button"
                               size="sm"

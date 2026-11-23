@@ -364,9 +364,14 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Sales to Finance Handoffs (CFO-02)
 INSERT INTO sales_finance_handoffs (id, handoff_code, lead_id, vertical, sales_rep_employee_id, converted_amount, earning_milestone, supporting_evidence_url, review_status)
-VALUES
+-- Demo fixture: insert only when the referenced demo lead exists, so an empty
+-- database can run every migration (RELEASE_ISSUES P1-06). On a fresh demo
+-- install, database/fresh-demo-install.sh seeds the leads before this runs.
+SELECT v.* FROM (VALUES
   ('SFH-001', 'SFH-2026-001', 'FV-1001', 'wealth', 'EMP-001', 500000.00, 'mandate_signed', 'https://vault.internal.finverse/mandates/singhania-mandate.pdf', 'pending_verification'),
   ('SFH-002', 'SFH-2026-002', 'FV-1004', 'banking', 'EMP-002', 1250000.00, 'kyc_cleared', 'https://vault.internal.finverse/mandates/tata-escrow.pdf', 'pending_verification')
+) AS v(id, handoff_code, lead_id, vertical, sales_rep_employee_id, converted_amount, earning_milestone, supporting_evidence_url, review_status)
+WHERE EXISTS (SELECT 1 FROM leads l WHERE l.id = v.lead_id)
 ON CONFLICT (id) DO NOTHING;
 
 -- Incentive Disputes (CFO-13)
