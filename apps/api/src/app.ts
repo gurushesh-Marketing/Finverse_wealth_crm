@@ -28,6 +28,9 @@ import { relRouter } from './routes/rel';
 export function createApp(): Express {
   const app = express();
   app.disable('x-powered-by');
+  // Production runs behind a local Nginx reverse proxy: trust only loopback so
+  // req.ip is the real client (login rate limiting keys on it).
+  app.set('trust proxy', 'loopback');
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');

@@ -306,14 +306,27 @@ async function buildContext(rows: EmployeeRow[]): Promise<AuthContext> {
   };
 }
 
+/**
+ * Demo accounts (@finverse.demo) are refused in production unless DEMO_ACCESS_ENABLED=true.
+ * Checked on the resolved account, so it covers every login identifier (email, username,
+ * employee ID) and invalidates demo sessions that already exist.
+ */
+export function isDemoAccessBlocked(email: string): boolean {
+  return (
+    process.env.NODE_ENV === 'production' &&
+    process.env.DEMO_ACCESS_ENABLED !== 'true' &&
+    email.toLowerCase().endsWith('@finverse.demo')
+  );
+}
+
 export async function loadAuthContextByEmail(email: string): Promise<AuthContext | null> {
   const { rows } = await pool.query<EmployeeRow>(SELECT_BY_EMAIL, [email]);
-  if (rows.length === 0) return null;
+  if (rows.length === 0 || isDemoAccessBlocked(rows[0]!.email)) return null;
   return buildContext(rows);
 }
 
 export async function loadAuthContextByEmployeeId(employeeId: string): Promise<AuthContext | null> {
   const { rows } = await pool.query<EmployeeRow>(SELECT_BY_ID, [employeeId]);
-  if (rows.length === 0) return null;
+  if (rows.length === 0 || isDemoAccessBlocked(rows[0]!.email)) return null;
   return buildContext(rows);
 }
