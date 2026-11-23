@@ -24,6 +24,9 @@ import type {
   RowCorrectionInput,
   SourceEvidenceInput,
   Vertical,
+  WebsiteEnquiryInput,
+  WebsiteEnquiryKind,
+  WebsiteEnquiryReceipt,
 } from '@finverse/contracts';
 import type { PoolClient } from 'pg';
 import { pool } from './db';
@@ -1932,6 +1935,15 @@ export async function publishManualRecord(
       };
     }
 
+    if (row.raw_payload?.kind === 'grievance') {
+      await client.query('ROLLBACK');
+      throw new HttpError(
+        422,
+        'VALIDATION_FAILED',
+        'This record is a customer complaint from the website. Handle it through grievance redressal; it cannot be published to a sales caller.'
+      );
+    }
+    const isWebsite = row.parsed_source === WEBSITE_SOURCE_NAME;
     const isPriority = Boolean(row.is_priority);
     const alloc = await createCanonicalLeadAndAssign(client, scope, {
       vertical: canonicalVertical,
@@ -1943,7 +1955,8 @@ export async function publishManualRecord(
       isPriority,
       preferredTeamId: input?.preferredTeamId,
       intakeRowId: row.id,
-      source: 'Manual Data Entry',
+      product: isWebsite ? row.parsed_product : undefined,
+      source: isWebsite ? 'Website' : 'Manual Data Entry',
     });
 
     const newStatus = alloc.callerId ? 'published' : 'unassigned_exception';
@@ -1996,6 +2009,8 @@ export async function listManualRecords(
     SELECT r.id, r.vertical, r.parsed_name, r.parsed_phone, r.parsed_email,
            r.parsed_whatsapp_phone, r.location_text, r.is_priority, r.status,
            r.created_at, r.entered_by_employee_id, r.published_lead_id,
+           r.parsed_source, r.parsed_product, r.need_summary, r.duplicate_match_lead_id,
+           r.raw_payload->>'kind' AS enquiry_kind,
            l.owner_employee_id, e.display_name as owner_name, l.team_id,
            (SELECT note FROM lead_events WHERE lead_id = l.id AND kind = 'unassigned_exception' ORDER BY occurred_at DESC LIMIT 1) as exception_reason
       FROM intake_rows r
@@ -2027,6 +2042,7 @@ export async function listManualRecords(
     assignedCallerName: r.owner_name,
     assignedTeamId: r.team_id,
     routingExceptionReason: r.exception_reason || null,
+    ...manualRowContext(r),
   }));
 }
 
@@ -2040,6 +2056,8 @@ export async function getManualRecord(
     `SELECT r.id, r.vertical, r.parsed_name, r.parsed_phone, r.parsed_email,
             r.parsed_whatsapp_phone, r.location_text, r.is_priority, r.status,
             r.created_at, r.entered_by_employee_id, r.published_lead_id,
+           r.parsed_source, r.parsed_product, r.need_summary, r.duplicate_match_lead_id,
+           r.raw_payload->>'kind' AS enquiry_kind,
             l.owner_employee_id, e.display_name as owner_name, l.team_id,
             (SELECT note FROM lead_events WHERE lead_id = l.id AND kind = 'unassigned_exception' ORDER BY occurred_at DESC LIMIT 1) as exception_reason
        FROM intake_rows r
@@ -2069,7 +2087,161 @@ export async function getManualRecord(
     assignedCallerName: r.owner_name,
     assignedTeamId: r.team_id,
     routingExceptionReason: r.exception_reason || null,
+    ...manualRowContext(r),
   };
+}
+
+// ====================================================================
+// Public website enquiry intake (no session) — RELEASE_ISSUES P0-10
+// ====================================================================
+
+export const WEBSITE_SOURCE_NAME = 'Website Direct Inbound';
+const WEBSITE_ACTOR_ID = 'EMP-SYSTEM-WEBSITE';
+type WebsiteDepartment = WebsiteEnquiryReceipt['department'];
+
+// Website page groups → CRM vertical. The website's "Advisory & Banking" area spans two
+// CRM verticals: loans go to Banking; PMS, advisory and insurance go to Wealth.
+// Insurance → Wealth is a default pending client confirmation [Deck P320].
+const DEPARTMENT_BY_PATH: Array<[RegExp, WebsiteDepartment]> = [
+  [/^\/(markets|stocks|screener|fno|mf|etf|ipo|watchlist|alerts|open-demat)(\/|$)/, 'markets'],
+  [/^\/(property|project|commercial|plots|mandates|saved-searches|site-visit|booking|services\/legal|tools\/rental-yield)(\/|$)/, 'real-estate'],
+  [/^\/loans(\/|$)/, 'banking'],
+  [/^\/(advisory|insurance)(\/|$)/, 'wealth'],
+];
+// Shared pages (home, contact, grievance, calculators) route by the topic the visitor picked.
+const DEPARTMENT_BY_TOPIC: Array<[RegExp, WebsiteDepartment]> = [
+  [/\bloan|banking|balance transfer/i, 'banking'],
+  [/market|demat|stock|mutual fund|\betf|\bipo|f&o|option/i, 'markets'],
+  [/property|site visit|legal|registration|real estate|plot|commercial/i, 'real-estate'],
+  [/pms|advisory|insurance|wealth|portfolio/i, 'wealth'],
+];
+
+export function websiteDepartmentFor(path: string, topic: string, subject?: string): WebsiteDepartment {
+  const byPath = DEPARTMENT_BY_PATH.find(([re]) => re.test(path))?.[1];
+  if (byPath) return byPath;
+  const text = `${topic} ${subject ?? ''}`;
+  return DEPARTMENT_BY_TOPIC.find(([re]) => re.test(text))?.[1] ?? 'wealth';
+}
+
+const KIND_LABEL: Record<WebsiteEnquiryKind, string> = {
+  enquiry: 'Website enquiry',
+  visit_request: 'Visit / meeting request',
+  callback: 'Callback request',
+  grievance: 'Complaint or support request (not a sales lead)',
+};
+
+function manualRowContext(r: any): Pick<
+  ManualProspectRecord,
+  'source' | 'product' | 'needSummary' | 'enquiryKind' | 'duplicateOfLeadId'
+> {
+  return {
+    source: r.parsed_source ?? null,
+    product: r.parsed_product ?? null,
+    needSummary: r.need_summary ?? null,
+    enquiryKind: (r.enquiry_kind as WebsiteEnquiryKind | null) ?? 'manual',
+    duplicateOfLeadId: r.duplicate_match_lead_id ?? null,
+  };
+}
+
+export async function createWebsiteEnquiry(
+  input: WebsiteEnquiryInput,
+  meta: { ipHash: string; userAgent?: string }
+): Promise<WebsiteEnquiryReceipt & { duplicateOfLeadId: string | null; replay: boolean }> {
+  const department = websiteDepartmentFor(input.path, input.topic, input.subject);
+  const canonicalVertical = department === 'real-estate' ? 'real_estate' : department;
+
+  // Idempotent replay: the same browser submission returns the original reference.
+  const prior = await pool.query(
+    `SELECT id, vertical, duplicate_match_lead_id FROM intake_rows
+      WHERE parsed_source = $1 AND raw_payload->>'idempotencyKey' = $2
+      LIMIT 1`,
+    [WEBSITE_SOURCE_NAME, input.idempotencyKey]
+  );
+  if (prior.rows[0]) {
+    const p = prior.rows[0];
+    return {
+      reference: p.id,
+      department: (p.vertical === 'real_estate' ? 'real-estate' : p.vertical) as WebsiteDepartment,
+      duplicateOfLeadId: p.duplicate_match_lead_id ?? null,
+      replay: true,
+    };
+  }
+
+  const phone = normalizePhone(input.mobile);
+  if (!phone.valid) {
+    throw new HttpError(422, 'VALIDATION_FAILED', 'Enter a valid 10-digit Indian mobile number.', {
+      fieldErrors: { mobile: ['Enter a valid 10-digit Indian mobile number.'] },
+    });
+  }
+  const { rows: dupes } = await pool.query(
+    `SELECT id FROM leads WHERE phone = $1 OR phone = $2 ORDER BY created_at DESC LIMIT 1`,
+    [phone.normalized, input.mobile]
+  );
+  const duplicateOfLeadId: string | null = dupes[0]?.id ?? null;
+
+  const receivedAt = new Date();
+  const yes = (b: boolean) => (b ? 'yes' : 'no');
+  const detailLines = Object.entries(input.details ?? {}).map(([k, v]) => `${k}: ${v}`);
+  const needSummary = [
+    `${KIND_LABEL[input.kind]} — ${input.topic}`,
+    input.subject ? `About: ${input.subject}` : null,
+    input.message ? `Message: ${input.message}` : null,
+    ...detailLines,
+    input.city ? `City: ${input.city}` : null,
+    `Page: ${input.path}`,
+    `Contact consent — call: ${yes(input.consentCall)}, WhatsApp: ${yes(input.consentWhatsapp)}`,
+    `Mobile verified by OTP: ${yes(input.mobileVerified)}`,
+  ].filter(Boolean).join('\n');
+  const permissionEvidence =
+    `Website form ${input.path} · call=${yes(input.consentCall)} whatsapp=${yes(input.consentWhatsapp)} · ` +
+    `${receivedAt.toISOString()} · ip#${meta.ipHash.slice(0, 12)}`;
+
+  const rowId = makeId('WEB');
+  const rawPayload = {
+    ...input,
+    website: undefined,
+    mobile: phone.normalized,
+    department,
+    receivedAt: receivedAt.toISOString(),
+    ipHash: meta.ipHash,
+    userAgent: meta.userAgent?.slice(0, 200) ?? null,
+  };
+
+  await pool.query(
+    `INSERT INTO intake_rows (
+       id, batch_id, row_index, raw_payload, vertical, entered_by_employee_id,
+       parsed_name, parsed_phone, parsed_email, parsed_whatsapp_phone, location_text,
+       parsed_product, parsed_source, permission_evidence, permission_date, need_summary,
+       is_duplicate, duplicate_match_lead_id, is_priority, status, created_at, updated_at
+     ) VALUES ($1, NULL, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_DATE, $13,
+               $14, $15, false, 'staged', now(), now())`,
+    [
+      rowId,
+      JSON.stringify(rawPayload),
+      canonicalVertical,
+      WEBSITE_ACTOR_ID,
+      input.name,
+      phone.normalized,
+      input.email || null,
+      input.consentWhatsapp ? phone.normalized : null,
+      input.city || null,
+      input.kind === 'grievance' && !/^complaint/i.test(input.topic) ? `Complaint: ${input.topic}` : input.topic,
+      WEBSITE_SOURCE_NAME,
+      permissionEvidence,
+      needSummary,
+      Boolean(duplicateOfLeadId),
+      duplicateOfLeadId,
+    ]
+  );
+
+  await logSystemAudit(WEBSITE_ACTOR_ID, 'website.enquiry.received', 'intake_row', rowId, {
+    department,
+    kind: input.kind,
+    path: input.path,
+    duplicateOfLeadId,
+  });
+
+  return { reference: rowId, department, duplicateOfLeadId, replay: false };
 }
 
 // ====================================================================

@@ -164,6 +164,8 @@ const ROLE_ACTIONS: Record<Role, string[]> = {
     'audit.investigate:manage',
     'job.recover:manage',
     'access.delegation:review',
+    // Website enquiries land in Data Entry intake; SA reviews them while no DE operator exists.
+    'intake.record:create',
   ],
 };
 

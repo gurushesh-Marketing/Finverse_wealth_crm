@@ -20,6 +20,7 @@ import { createLeaveRouter } from './routes/leave';
 import { createAttendanceRouter } from './routes/attendance';
 import { createPayrollRouter } from './routes/payroll';
 import { relRouter } from './routes/rel';
+import { publicRouter } from './routes/public';
 
 // Routing model:
 // - Development: Vite dev server proxies /api to http://localhost:4000 (one origin per browser).
@@ -36,6 +37,8 @@ export function createApp(): Express {
     res.setHeader('X-Frame-Options', 'DENY');
     next();
   });
+  // Public website endpoints carry their own 16 KB JSON parser, so mount them first.
+  app.use('/api/public', publicRouter());
   // 4mb JSON ceiling for base64 evidence uploads; per-file limit enforced in files.ts (2 MB).
   app.use(express.json({ limit: '4mb' }));
   app.use(jsonGuard);

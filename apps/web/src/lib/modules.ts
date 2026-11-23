@@ -1063,7 +1063,8 @@ export function getAccessibleModuleGroups(session: WorkspaceSession): ModuleGrou
       if (session.role === 'DE' && g.key !== 'data-entry') {
         return { ...g, modules: [] };
       }
-      if (session.role !== 'DE' && g.key === 'data-entry') {
+      // SA also sees Data Entry: website enquiries arrive in its intake queue.
+      if (session.role !== 'DE' && session.role !== 'SA' && g.key === 'data-entry') {
         return { ...g, modules: [] };
       }
       if (session.role === 'HR' && g.key !== 'hr') {
@@ -1072,7 +1073,7 @@ export function getAccessibleModuleGroups(session: WorkspaceSession): ModuleGrou
       if (session.role !== 'HR' && g.key === 'hr') {
         return { ...g, modules: [] };
       }
-      if (session.role === 'SA' && g.key !== 'superadmin') {
+      if (session.role === 'SA' && g.key !== 'superadmin' && g.key !== 'data-entry') {
         return { ...g, modules: [] };
       }
       if (session.role !== 'SA' && g.key === 'superadmin') {

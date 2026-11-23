@@ -121,8 +121,10 @@ function ProtectedLayout() {
     // HR stays strictly within the human resources workspace (/hr/*)
     routeAllowed = location.pathname.startsWith('/hr');
   } else if (session.role === 'SA') {
-    // SA stays strictly within the administrative workspace (/superadmin/*)
-    routeAllowed = location.pathname.startsWith('/superadmin');
+    // SA stays within the administrative workspace (/superadmin/*) plus the Data Entry
+    // intake queue, where website enquiries arrive.
+    routeAllowed =
+      location.pathname.startsWith('/superadmin') || location.pathname.startsWith('/data-entry');
   } else if (session.role === 'CFO') {
     // CFO stays strictly within the finance workspace (/cfo/*)
     routeAllowed = location.pathname.startsWith('/cfo');
